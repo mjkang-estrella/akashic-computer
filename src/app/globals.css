@@ -1,26 +1,85 @@
 @import "tailwindcss";
 
+/* Akashic palette: warm paper, black ink, green = verified/fits,
+   blue = metadata, amber = caution, rust = does-not-fit.
+   The atlas deliberately commits to the light paper identity. */
 :root {
-  --background: #f8f7f2;
-  --foreground: #181713;
+  --background: #f7f5ee;
+  --foreground: #1c1a14;
+  --panel: #fffdf8;
+  --panel-2: #f2efe5;
+  --muted: #6b6557;
+  --faint: #948d7c;
+  --line: #ddd6c4;
+  --line-soft: #eae4d4;
+  --verify: #0f8560;
+  --verify-soft: #e7f2ec;
+  --caution: #966c15;
+  --caution-soft: #f5edd5;
+  --meta: #35639f;
+  --meta-soft: #e9eef6;
+  --alert: #a04a35;
+  --alert-soft: #f5e4de;
+  --track: #e7e1d0;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-paper: var(--background);
+  --color-ink: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-linesoft: var(--line-soft);
+  --color-verify: var(--verify);
+  --color-verifysoft: var(--verify-soft);
+  --color-caution: var(--caution);
+  --color-cautionsoft: var(--caution-soft);
+  --color-meta: var(--meta);
+  --color-metasoft: var(--meta-soft);
+  --color-alert: var(--alert);
+  --color-alertsoft: var(--alert-soft);
+  --color-track: var(--track);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-display: var(--font-stix);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-plex-sans), Arial, Helvetica, sans-serif;
+}
+
+/* the lineage constellation draws in once on load */
+@keyframes constellation-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+/* no fill mode: if the animation never runs, the line rests at scaleX(1) */
+.constellation-line {
+  transform-origin: left center;
+  animation: constellation-draw 0.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .constellation-line {
+    animation: none;
+  }
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--meta);
+  outline-offset: 1px;
+  border-radius: 4px;
 }
