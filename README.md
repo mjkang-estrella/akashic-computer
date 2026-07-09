@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Akashic Computer
 
-## Getting Started
+Akashic Computer is an open-weight model atlas for navigating model families,
+parameter sizes, variants, quantized artifacts, benchmarks, runtime support, and
+hardware fit.
 
-First, run the development server:
+The product is designed around the path a user actually takes:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```text
+Family -> Release -> Size -> Variant -> Artifact -> Runtime/Benchmark/Fit
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Example:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+Qwen -> Qwen 3.6 -> 27B -> Instruct -> NVFP4 -> vLLM/TensorRT-LLM/DGX
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Stack
 
-## Learn More
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Convex backend/database
+- Lucide icons
 
-To learn more about Next.js, take a look at the following resources:
+## Local Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open `http://localhost:3000`.
 
-## Deploy on Vercel
+## Convex
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Convex is installed and the initial schema lives in `convex/schema.ts`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To create and sync a Convex dev deployment:
+
+```bash
+npx convex dev
+```
+
+The first run will open the Convex login/project setup flow.
+
+## Planning Docs
+
+- `docs/product-brief.md`
+- `docs/design-agent-prompt.md`
