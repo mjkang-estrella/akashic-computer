@@ -1,4 +1,5 @@
 import { BENCHES } from "@/lib/atlas/data";
+import { X } from "lucide-react";
 import { fitOf } from "@/lib/atlas/fit";
 import type { Artifact, RigProfile } from "@/lib/atlas/types";
 import { uploaderDisplay } from "@/lib/atlas/naming";
@@ -26,17 +27,18 @@ export function CompareDrawer({
       <div className="mx-auto max-w-[1240px] px-5 pb-4 pt-3">
         <div className="mb-2 flex items-center justify-between gap-2.5">
           <h3 className="text-[13px] font-semibold uppercase tracking-[0.1em]">
-            Compare {artifacts.length} artifacts — {title}
+            Compare artifacts: {title}
           </h3>
           <button
             onClick={onClear}
-            className="rounded px-2 py-1 text-[12.5px] font-semibold text-muted hover:text-ink"
+            aria-label="Clear artifact comparison"
+            className="inline-flex min-h-8 items-center gap-1 rounded px-2 py-1 text-[12.5px] font-semibold text-muted hover:text-ink"
           >
-            Clear ✕
+            Clear <X size={13} aria-hidden="true" />
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[560px] border-collapse">
+          <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr>
                 <th className="px-2.5 py-1.5" />
@@ -108,7 +110,8 @@ export function CompareDrawer({
           </table>
         </div>
         <p className="mt-2 text-[11.5px] text-faint">
-          Δ vs the BF16 reference. * = estimated, not measured. — = no data.
+          Difference from the BF16 reference. An asterisk marks an estimate;
+          n/a means no data.
         </p>
       </div>
     </div>

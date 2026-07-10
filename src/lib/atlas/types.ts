@@ -34,7 +34,7 @@ export interface Artifact {
   deltas: Record<BenchKey, number | null>;
   /** True when deltas come from a measured source, false when estimated. */
   measured: boolean;
-  /** Lower = closer to reference quality; used to pick the best runnable artifact. */
+  /** Lower = closer to reference quality; retained for factual artifact ordering. */
   qualityRank: number;
 }
 

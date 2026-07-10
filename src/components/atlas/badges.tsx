@@ -87,7 +87,7 @@ export function DeltaChip({
         className="rounded bg-panel2 px-1.5 py-px font-mono text-[11.5px] text-faint"
         title="No measured data"
       >
-        —
+        n/a
       </span>
     );
   }

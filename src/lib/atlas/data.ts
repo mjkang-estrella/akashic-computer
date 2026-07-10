@@ -32,15 +32,15 @@ export const BENCH_CATEGORIES: { id: BenchCategory; label: string }[] = [
 export const HEADLINE_BENCHES: BenchKey[] = ["mmlu", "gpqa", "aime", "lcb"];
 
 export const RIG_PRESETS: RigPreset[] = [
-  { id: "mac64", label: "Mac 64GB", gb: 64, kind: "mac" },
-  { id: "cpu32", label: "CPU 32GB", gb: 32, kind: "cpu" },
-  { id: "gpu24", label: "24GB GPU", gb: 24, kind: "cuda" },
-  { id: "gpu48", label: "48GB GPU", gb: 48, kind: "cuda" },
-  { id: "gpu80", label: "80GB GPU", gb: 80, kind: "cuda" },
-  { id: "dgx", label: "DGX", gb: 640, kind: "dgx" },
+  { id: "vram16", label: "16 GB", gb: 16, kind: "cuda" },
+  { id: "vram24", label: "24 GB", gb: 24, kind: "cuda" },
+  { id: "vram48", label: "48 GB", gb: 48, kind: "cuda" },
+  { id: "vram80", label: "80 GB", gb: 80, kind: "cuda" },
+  { id: "vram128", label: "128 GB", gb: 128, kind: "cuda" },
+  { id: "vram256", label: "256 GB", gb: 256, kind: "cuda" },
 ];
 
-export const DEFAULT_PRESET_ID = "gpu48";
+export const DEFAULT_PRESET_ID = "vram48";
 
 /** Hand-curated flagship path: Qwen 3.6 27B Instruct, measured deltas with provenance. */
 const QWEN36_27B_INSTRUCT: Artifact[] = [

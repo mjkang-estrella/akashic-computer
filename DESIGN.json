@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-10T00:08:40Z",
+  "title": "Design System: Akashic Computer",
+  "extensions": {
+    "colorMeta": {
+      "paper": {"role": "neutral", "displayName": "Archive Paper", "canonical": "#f7f5ee", "tonalRamp": ["#211f1a", "#403d35", "#615d51", "#837e70", "#a7a294", "#cac6ba", "#e6e2d8", "#f7f5ee"]},
+      "ink": {"role": "primary", "displayName": "Catalog Ink", "canonical": "#1c1a14", "tonalRamp": ["#1c1a14", "#38362f", "#56534b", "#747168", "#949087", "#b4b0a7", "#d5d1c8", "#f4f1e9"]},
+      "panel": {"role": "neutral", "displayName": "Reading Panel", "canonical": "#fffdf8", "tonalRamp": ["#211f1a", "#413e36", "#635f55", "#858177", "#aaa69c", "#cecabf", "#ebe7dd", "#fffdf8"]},
+      "panel-subtle": {"role": "neutral", "displayName": "Index Wash", "canonical": "#f2efe5", "tonalRamp": ["#211f1a", "#403d34", "#605d51", "#827e70", "#a5a193", "#c8c4b7", "#e3dfd3", "#f2efe5"]},
+      "muted": {"role": "neutral", "displayName": "Muted Annotation", "canonical": "#6b6557", "tonalRamp": ["#1f1c17", "#39342b", "#554e41", "#6b6557", "#918a7b", "#b7b0a2", "#dcd6ca", "#f5f1e9"]},
+      "faint": {"role": "neutral", "displayName": "Faint Annotation", "canonical": "#948d7c", "tonalRamp": ["#211e19", "#403a30", "#60584a", "#7a7262", "#948d7c", "#b8b1a3", "#ddd7cb", "#f6f2ea"]},
+      "line": {"role": "neutral", "displayName": "Catalog Rule", "canonical": "#ddd6c4", "tonalRamp": ["#242018", "#443d31", "#655c4c", "#877c69", "#aa9f8c", "#cbc2b2", "#ddd6c4", "#f7f2e8"]},
+      "line-soft": {"role": "neutral", "displayName": "Soft Rule", "canonical": "#eae4d4", "tonalRamp": ["#242019", "#443d31", "#665d4d", "#887d69", "#aba18e", "#cdc5b5", "#eae4d4", "#f8f3e9"]},
+      "verified": {"role": "secondary", "displayName": "Verified Green", "canonical": "#0f8560", "tonalRamp": ["#06251b", "#09432f", "#0b6246", "#0f8560", "#35a27f", "#6dc0a2", "#ade0ca", "#e7f2ec"]},
+      "verified-soft": {"role": "secondary", "displayName": "Verified Wash", "canonical": "#e7f2ec", "tonalRamp": ["#06251b", "#0a4632", "#11684c", "#27896a", "#5ca98b", "#91cbb3", "#c2e4d5", "#e7f2ec"]},
+      "caution": {"role": "tertiary", "displayName": "Evidence Amber", "canonical": "#966c15", "tonalRamp": ["#2c1d03", "#4d3507", "#704e0c", "#966c15", "#b98c3a", "#d5ad6a", "#ead09f", "#f5edd5"]},
+      "caution-soft": {"role": "tertiary", "displayName": "Evidence Wash", "canonical": "#f5edd5", "tonalRamp": ["#2c1d03", "#503708", "#73510d", "#986f1d", "#bc914b", "#d8b779", "#ead5aa", "#f5edd5"]},
+      "metadata": {"role": "secondary", "displayName": "Provenance Blue", "canonical": "#35639f", "tonalRamp": ["#0b1c35", "#15345a", "#234c7c", "#35639f", "#6385b5", "#91a8cb", "#bdcce0", "#e9eef6"]},
+      "metadata-soft": {"role": "secondary", "displayName": "Provenance Wash", "canonical": "#e9eef6", "tonalRamp": ["#0b1c35", "#15345a", "#234c7c", "#35639f", "#6385b5", "#91a8cb", "#bdcce0", "#e9eef6"]},
+      "alert": {"role": "tertiary", "displayName": "Constraint Rust", "canonical": "#a04a35", "tonalRamp": ["#32100a", "#542016", "#773123", "#a04a35", "#bd705d", "#d49a89", "#e8c5b9", "#f5e4de"]},
+      "alert-soft": {"role": "tertiary", "displayName": "Constraint Wash", "canonical": "#f5e4de", "tonalRamp": ["#32100a", "#542016", "#773123", "#a04a35", "#bd705d", "#d49a89", "#e8c5b9", "#f5e4de"]}
+    },
+    "typographyMeta": {
+      "display": {"displayName": "Display", "purpose": "Product identity only."},
+      "title": {"displayName": "Model Title", "purpose": "Model, family, and release names."},
+      "body": {"displayName": "Interface Body", "purpose": "Controls and explanatory copy."},
+      "label": {"displayName": "Catalog Label", "purpose": "Section labels and table headers."},
+      "data": {"displayName": "Technical Data", "purpose": "Scores, repositories, runtimes, and memory."}
+    },
+    "shadows": [
+      {"name": "comparison-drawer", "value": "0 -8px 28px rgba(0,0,0,0.14)", "purpose": "Separates the fixed artifact comparison surface from the catalog."}
+    ],
+    "motion": [
+      {"name": "constellation-draw", "value": "600ms ease-out", "purpose": "Draws model lineage connectors once; disabled for reduced motion."}
+    ],
+    "breakpoints": [
+      {"name": "sm", "value": "640px"},
+      {"name": "md", "value": "768px"},
+      {"name": "xl", "value": "1280px"}
+    ]
+  },
+  "components": [
+    {
+      "name": "Selected Control",
+      "kind": "button",
+      "refersTo": "button-selected",
+      "description": "Current tab or segmented selection.",
+      "html": "<button class=\"ds-selected\">Explore</button>",
+      "css": ".ds-selected { background: var(--foreground); color: var(--background); border: 1px solid var(--foreground); border-radius: 7px; padding: 6px 12px; font: 600 13px var(--font-plex-sans), Arial, sans-serif; } .ds-selected:hover { opacity: 0.92; } .ds-selected:focus-visible { outline: 2px solid var(--meta); outline-offset: 1px; }"
+    },
+    {
+      "name": "Outline Control",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Unselected segment, release, size, or variant.",
+      "html": "<button class=\"ds-outline\">27B</button>",
+      "css": ".ds-outline { background: var(--panel); color: var(--foreground); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; font: 600 13px var(--font-plex-sans), Arial, sans-serif; } .ds-outline:hover { border-color: var(--foreground); } .ds-outline:focus-visible { outline: 2px solid var(--meta); outline-offset: 1px; }"
+    },
+    {
+      "name": "VRAM Filter Pill",
+      "kind": "chip",
+      "refersTo": "filter-pill-selected",
+      "description": "Generic capacity selection, never a recommendation.",
+      "html": "<button class=\"ds-filter\" aria-pressed=\"true\">48 GB</button>",
+      "css": ".ds-filter { background: var(--foreground); color: var(--background); border: 1px solid var(--foreground); border-radius: 9999px; padding: 4px 12px; font: 600 12.5px var(--font-plex-sans), Arial, sans-serif; } .ds-filter:hover { opacity: 0.92; } .ds-filter:focus-visible { outline: 2px solid var(--meta); outline-offset: 1px; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Filters the active catalog or model comparison view.",
+      "html": "<input class=\"ds-search\" type=\"search\" placeholder=\"Search models, families, vendors…\">",
+      "css": ".ds-search { width: 320px; background: var(--panel); color: var(--foreground); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; font: 400 13.5px var(--font-plex-sans), Arial, sans-serif; } .ds-search:hover { border-color: var(--muted); } .ds-search:focus-visible { outline: 2px solid var(--meta); outline-offset: 1px; }"
+    },
+    {
+      "name": "Property Chip",
+      "kind": "chip",
+      "description": "Immutable model property or provenance label.",
+      "html": "<span class=\"ds-chip\">13B active</span>",
+      "css": ".ds-chip { display: inline-flex; background: var(--panel-2); color: var(--muted); border-radius: 5px; padding: 1px 6px; font: 500 11.5px var(--font-plex-mono), monospace; }"
+    },
+    {
+      "name": "Reading Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Functional model selection, artifacts, or benchmark region.",
+      "html": "<section class=\"ds-panel\"><strong>REFERENCE BENCHMARKS</strong></section>",
+      "css": ".ds-panel { background: var(--panel); color: var(--foreground); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font: 400 13px var(--font-plex-sans), Arial, sans-serif; } .ds-panel strong { font-size: 11px; letter-spacing: 0.12em; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Technical Catalog",
+    "overview": "Akashic Computer should feel like a carefully maintained reference work that happens to be interactive. The interface is scholarly, calm, and exact. Dense technical information is welcome when its hierarchy remains obvious and every color or badge carries meaning. The system uses a restrained paper-and-ink composition with editorial serif moments, utilitarian sans-serif controls, and monospaced data.",
+    "keyCharacteristics": [
+      "Warm paper surfaces with dark ink and thin structural rules.",
+      "Editorial model names paired with compact technical metadata.",
+      "Dense tables that remain factual, sortable, and expandable.",
+      "Semantic color reserved for verification, caution, metadata, and constraints.",
+      "Flat surfaces at rest with no decorative elevation."
+    ],
+    "rules": [
+      {"name": "The Evidence Color Rule", "body": "Semantic colors only communicate provenance, confidence, metadata, or constraints. They never decorate empty space.", "section": "colors"},
+      {"name": "The Paper Dominance Rule", "body": "Ink and paper must carry the composition before any accent color appears.", "section": "colors"},
+      {"name": "The Editorial Identity Rule", "body": "Serif type names the product and models. It never appears inside buttons, filters, badges, or utility labels.", "section": "typography"},
+      {"name": "The Data Alignment Rule", "body": "Comparable numbers use IBM Plex Mono and tabular numerals.", "section": "typography"},
+      {"name": "The Flat Catalog Rule", "body": "Static panels never use shadows. If a panel needs emphasis, strengthen its hierarchy or border instead.", "section": "elevation"}
+    ],
+    "dos": [
+      "Do preserve the family, release, size, variant, and artifact hierarchy.",
+      "Do show the complete catalog before applying optional VRAM filtering.",
+      "Do use provenance and confidence labels wherever data origins differ.",
+      "Do keep model comparison benchmark-led and artifact comparison explicitly separate.",
+      "Do use semantic color only when the same state is also expressed in text or symbols.",
+      "Do keep the current warm paper, serif identity, sans utility, and mono data pairing."
+    ],
+    "donts": [
+      "Don't make Akashic Computer feel like a marketing site or affiliate buying guide.",
+      "Don't introduce a generic SaaS dashboard or ornamental card grid.",
+      "Don't use decorative gradients, glassmorphism, colored side stripes, or gradient text.",
+      "Don't label one model or artifact as universally best or recommended.",
+      "Don't turn a benchmark leaderboard into promotional ranking language.",
+      "Don't let hardware-first framing hide the broader model ecosystem.",
+      "Don't use display typography in buttons, filters, badges, or data cells."
+    ]
+  }
+}

@@ -1,11 +1,9 @@
 import { RIG_PRESETS } from "@/lib/atlas/data";
-import type { RigProfile } from "@/lib/atlas/types";
 
 export function FitBar({
   presetId,
   manualGb,
   onlyRunnable,
-  rig,
   onPreset,
   onManualGb,
   onOnlyRunnable,
@@ -13,15 +11,14 @@ export function FitBar({
   presetId: string;
   manualGb: number | null;
   onlyRunnable: boolean;
-  rig: RigProfile;
   onPreset: (id: string) => void;
   onManualGb: (gb: number | null) => void;
   onOnlyRunnable: (v: boolean) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 border-b border-linesoft py-2.5">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-linesoft py-2.5">
       <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
-        My rig
+        VRAM filter
       </span>
       {RIG_PRESETS.map((preset) => {
         const active = !manualGb && preset.id === presetId;
@@ -30,7 +27,7 @@ export function FitBar({
             key={preset.id}
             aria-pressed={active}
             onClick={() => onPreset(preset.id)}
-            className={`rounded-full border px-3 py-1 text-[12.5px] font-semibold ${
+            className={`min-h-8 rounded-full border px-3 py-1 text-[12.5px] font-semibold ${
               active
                 ? "border-ink bg-ink text-paper"
                 : "border-line bg-panel text-muted hover:border-ink"
@@ -40,8 +37,8 @@ export function FitBar({
           </button>
         );
       })}
-      <label className="flex items-center gap-1.5 text-[12.5px] text-muted">
-        or
+      <label className="flex min-h-8 items-center gap-1.5 text-[12.5px] text-muted">
+        Custom
         <input
           type="number"
           min={4}
@@ -55,20 +52,18 @@ export function FitBar({
           }}
           className="w-16 rounded-md border border-line bg-panel px-2 py-1 font-mono text-[12.5px]"
         />
-        GB VRAM
+        GB
       </label>
-      <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] font-semibold">
+      <label className="flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px] font-semibold">
         <input
           type="checkbox"
           checked={onlyRunnable}
           onChange={(e) => onOnlyRunnable(e.target.checked)}
         />
-        Only runnable
+        Only show runnable
       </label>
       <span className="basis-full text-xs text-faint lg:ml-auto lg:basis-auto">
-        {rig.manual
-          ? `Exploring as ${rig.gb} GB GPU — clear the field to return to your saved rig.`
-          : `Saved rig: ${rig.label}. Fit badges everywhere use it.`}
+        Capacity estimate only. Runtime support remains listed per artifact.
       </span>
     </div>
   );

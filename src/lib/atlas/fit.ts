@@ -14,39 +14,20 @@ export function resolveProfile(
   manualGb: number | null,
 ): RigProfile {
   if (manualGb && manualGb > 0) {
-    return { gb: manualGb, kind: "cuda", label: `${manualGb} GB GPU`, manual: true };
+    return { gb: manualGb, kind: "cuda", label: `${manualGb} GB VRAM`, manual: true };
   }
   const preset = presets.find((p) => p.id === presetId) ?? presets[0];
   return { gb: preset.gb, kind: preset.kind, label: preset.label, manual: false };
 }
 
 export function fitOf(artifact: Artifact, rig: RigProfile): FitVerdict {
-  const compatible =
-    artifact.kinds.includes(rig.kind) ||
-    (rig.kind === "dgx" && artifact.kinds.includes("cuda"));
-  if (!compatible) {
-    const text =
-      rig.kind === "mac"
-        ? "Not for Mac"
-        : rig.kind === "cpu"
-          ? "Not for CPU"
-          : "Runtime mismatch";
-    return { level: "no", text };
+  if (rig.gb >= artifact.recVramGb) {
+    return { level: "runs", text: `Fits within ${rig.gb} GB` };
   }
-  if (rig.gb >= artifact.recVramGb) return { level: "runs", text: `Runs on ${rig.gb} GB` };
-  if (rig.gb >= artifact.minVramGb) return { level: "tight", text: `Tight on ${rig.gb} GB` };
+  if (rig.gb >= artifact.minVramGb) {
+    return { level: "tight", text: `May fit within ${rig.gb} GB` };
+  }
   return { level: "no", text: `Needs ${artifact.minVramGb}+ GB` };
-}
-
-export function bestRunnable(
-  artifacts: Artifact[],
-  rig: RigProfile,
-): { artifact: Artifact; fit: FitVerdict } | null {
-  const runnable = artifacts
-    .map((artifact) => ({ artifact, fit: fitOf(artifact, rig) }))
-    .filter((x) => x.fit.level !== "no")
-    .sort((a, b) => a.artifact.qualityRank - b.artifact.qualityRank);
-  return runnable[0] ?? null;
 }
 
 export function zeroDeltas(): Artifact["deltas"] {

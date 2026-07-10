@@ -1,11 +1,12 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   BENCHES,
   BENCH_CATEGORIES,
   COMPARE_MODELS,
   HEADLINE_BENCHES,
 } from "@/lib/atlas/data";
-import { bestRunnable, fitOf } from "@/lib/atlas/fit";
+import { fitOf } from "@/lib/atlas/fit";
 import { activeParamsLabel, uploaderDisplay } from "@/lib/atlas/naming";
 import type { BenchCategory, BenchKey, RigProfile } from "@/lib/atlas/types";
 import {
@@ -20,6 +21,7 @@ export type CompareSortKey = BenchKey | "model";
 export type CompareCategory = BenchCategory | "all";
 
 export function CompareView({
+  query,
   rig,
   onlyRunnable,
   category,
@@ -27,11 +29,13 @@ export function CompareView({
   sortKey,
   sortDir,
   expanded,
+  capacityControls,
   onCategory,
   onToggleBench,
   onSort,
   onToggleExpand,
 }: {
+  query: string;
   rig: RigProfile;
   onlyRunnable: boolean;
   category: CompareCategory;
@@ -39,6 +43,7 @@ export function CompareView({
   sortKey: CompareSortKey;
   sortDir: 1 | -1;
   expanded: Set<string>;
+  capacityControls: ReactNode;
   onCategory: (c: CompareCategory) => void;
   onToggleBench: (key: BenchKey) => void;
   onSort: (key: CompareSortKey) => void;
@@ -52,12 +57,21 @@ export function CompareView({
   );
   const benches = offered.filter((b) => activeBenches.has(b.key));
 
-  let rows = COMPARE_MODELS.map((model) => ({
+  const normalizedQuery = query.trim().toLowerCase();
+  const matchingModels = COMPARE_MODELS.filter(
+    (model) =>
+      !normalizedQuery ||
+      model.name.toLowerCase().includes(normalizedQuery) ||
+      model.family.vendor.toLowerCase().includes(normalizedQuery) ||
+      model.family.tags.toLowerCase().includes(normalizedQuery),
+  );
+  let rows = matchingModels.map((model) => ({
     model,
-    best: bestRunnable(model.artifacts, rig),
+    fitCount: model.artifacts.filter((artifact) => fitOf(artifact, rig).level !== "no")
+      .length,
   }));
   const total = rows.length;
-  if (onlyRunnable) rows = rows.filter((r) => r.best);
+  if (onlyRunnable) rows = rows.filter((row) => row.fitCount > 0);
   rows.sort((a, b) => {
     if (sortKey === "model") return a.model.name.localeCompare(b.model.name) * sortDir;
     return (a.model.scores[sortKey] - b.model.scores[sortKey]) * sortDir;
@@ -118,14 +132,19 @@ export function CompareView({
         })}
       </div>
 
+      <div className="mb-3">{capacityControls}</div>
+
       <div className="rounded-[10px] border border-line bg-panel">
         {rows.length === 0 ? (
           <div className="px-4 py-10 text-center text-muted">
             <b className="mb-1.5 block text-[15px] text-ink">
-              Nothing fits {rig.label}
+              {matchingModels.length === 0
+                ? `No scored model matches “${query.trim()}”`
+                : `Nothing fits within ${rig.gb} GB`}
             </b>
-            Raise the GB override in the rig bar, pick a bigger preset, or
-            untick “Only runnable”.
+            {matchingModels.length === 0
+              ? "Search by model family, vendor, or capability."
+              : "Raise the VRAM filter or untick “Only show runnable”."}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -133,55 +152,84 @@ export function CompareView({
               <thead>
                 <tr>
                   <th
-                    className={`${headerCell} cursor-pointer ${sortKey === "model" ? "text-ink" : "text-muted"}`}
-                    onClick={() => onSort("model")}
+                    aria-sort={
+                      sortKey === "model"
+                        ? sortDir === -1
+                          ? "descending"
+                          : "ascending"
+                        : "none"
+                    }
+                    className={`${headerCell} ${sortKey === "model" ? "text-ink" : "text-muted"}`}
                   >
-                    Model {sortKey === "model" ? (sortDir === -1 ? "▾" : "▴") : ""}
+                    <button
+                      onClick={() => onSort("model")}
+                      className="inline-flex items-center gap-1 font-inherit"
+                    >
+                      Model {sortKey === "model" ? (sortDir === -1 ? "▾" : "▴") : ""}
+                    </button>
                   </th>
                   {benches.map((b) => (
                     <th
                       key={b.key}
-                      aria-sort={sortKey === b.key ? "descending" : undefined}
-                      className={`${headerCell} cursor-pointer ${sortKey === b.key ? "text-ink" : "text-muted"}`}
-                      onClick={() => onSort(b.key)}
+                      aria-sort={
+                        sortKey === b.key
+                          ? sortDir === -1
+                            ? "descending"
+                            : "ascending"
+                          : "none"
+                      }
+                      className={`${headerCell} ${sortKey === b.key ? "text-ink" : "text-muted"}`}
                     >
-                      {b.label}{" "}
-                      {sortKey === b.key ? (sortDir === -1 ? "▾" : "▴") : ""}
+                      <button
+                        onClick={() => onSort(b.key)}
+                        className="inline-flex items-center gap-1 font-inherit"
+                      >
+                        {b.label}{" "}
+                        {sortKey === b.key ? (sortDir === -1 ? "▾" : "▴") : ""}
+                      </button>
                     </th>
                   ))}
                   <th className={`${headerCell} font-semibold text-faint`}>
-                    On my rig
+                    VRAM fit
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ model, best }) => {
+                {rows.map(({ model, fitCount }) => {
                   const isExpanded = expanded.has(model.id);
                   return (
                     <Fragment key={model.id}>
                       <tr
-                        className="cursor-pointer border-b border-linesoft hover:bg-panel2/45"
-                        onClick={() => onToggleExpand(model.id)}
+                        className="border-b border-linesoft hover:bg-panel2/45"
                       >
                         <td className="px-2.5 py-2.5 align-top">
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-mono text-[11px] text-faint">
-                              {isExpanded ? "▾" : "▸"}
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            onClick={() => onToggleExpand(model.id)}
+                            className="block w-full text-left"
+                          >
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              {isExpanded ? (
+                                <ChevronDown size={13} aria-hidden="true" className="text-faint" />
+                              ) : (
+                                <ChevronRight size={13} aria-hidden="true" className="text-faint" />
+                              )}
+                              <span className="font-display text-[15px] font-semibold">
+                                {model.name}
+                              </span>
+                              <PropertyChip>{model.variant}</PropertyChip>
+                              {activeParamsLabel(model.size.label) && (
+                                <PropertyChip>
+                                  {activeParamsLabel(model.size.label)}
+                                </PropertyChip>
+                              )}
                             </span>
-                            <span className="font-display text-[15px] font-semibold">
-                              {model.name}
+                            <span className="mt-0.5 block pl-[19px] text-[11.5px] text-muted">
+                              {model.family.vendor} · {model.release.license} ·{" "}
+                              {model.release.ctx} ctx
                             </span>
-                            <PropertyChip>{model.variant}</PropertyChip>
-                            {activeParamsLabel(model.size.label) && (
-                              <PropertyChip>
-                                {activeParamsLabel(model.size.label)}
-                              </PropertyChip>
-                            )}
-                          </span>
-                          <div className="mt-0.5 pl-4 text-[11.5px] text-muted">
-                            {model.family.vendor} · {model.release.license} ·{" "}
-                            {model.release.ctx} ctx
-                          </div>
+                          </button>
                         </td>
                         {benches.map((b) => (
                           <td key={b.key} className="px-2.5 py-2.5 align-top">
@@ -192,24 +240,18 @@ export function CompareView({
                           </td>
                         ))}
                         <td className="px-2.5 py-2.5 align-top">
-                          {best ? (
+                          {fitCount > 0 ? (
                             <span
                               className="inline-flex items-center gap-1.5 font-mono text-[11.5px] text-muted"
-                              title={best.fit.text}
+                              title={`${fitCount} of ${model.artifacts.length} artifacts fit within ${rig.gb} GB`}
                             >
-                              <span
-                                className={`h-[7px] w-[7px] flex-none rounded-full ${
-                                  best.fit.level === "runs"
-                                    ? "bg-verify"
-                                    : "bg-caution"
-                                }`}
-                              />
-                              {best.artifact.format} · {best.artifact.recVramGb} GB
+                              <span className="h-[7px] w-[7px] flex-none rounded-full bg-verify" />
+                              {fitCount} of {model.artifacts.length} fit
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 font-mono text-[11.5px] text-faint">
                               <span className="h-[7px] w-[7px] flex-none rounded-full bg-alert" />
-                              nothing fits
+                              No artifacts fit
                             </span>
                           )}
                         </td>
@@ -278,8 +320,8 @@ export function CompareView({
       </div>
       <p className="mt-2.5 text-xs text-faint">
         Scores are the model&apos;s reference (BF16) numbers with per-source
-        provenance. Expand a row for quantized artifacts and their deltas — Δ
-        marked * is estimated, not measured. Click a column to sort.
+        provenance. Higher is better. Expand a row for artifact deltas from the
+        reference. An asterisk marks an estimate. Use column headers to sort.
         {onlyRunnable
           ? ` Showing ${rows.length} of ${total} models that fit ${rig.label}.`
           : ""}

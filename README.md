@@ -13,7 +13,7 @@ Family -> Release -> Size -> Variant -> Artifact -> Runtime/Benchmark/Fit
 Example:
 
 ```text
-Qwen -> Qwen 3.6 -> 27B -> Instruct -> NVFP4 -> vLLM/TensorRT-LLM/DGX
+Qwen -> Qwen 3.6 -> 27B -> Instruct -> NVFP4 -> 18-24 GB VRAM
 ```
 
 ## Stack
@@ -47,5 +47,7 @@ The first run will open the Convex login/project setup flow.
 
 ## Planning Docs
 
+- `PRODUCT.md`
+- `DESIGN.md`
 - `docs/product-brief.md`
 - `docs/design-agent-prompt.md`
