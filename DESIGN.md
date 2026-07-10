@@ -207,13 +207,15 @@ Components are refined and restrained. Familiar controls should disappear into t
 ### Navigation
 
 - The product identity stays top-left. Explore and Compare models use a standard segmented tab treatment with explicit selected state.
-- Search filters the active view. Model lineage communicates family, release, size, and variant in that order.
+- Search filters the active view. The selected family becomes the page title with company and license metadata.
+- Release, size, and variant reveal progressively as filters. Hovering or focusing a release previews its metadata without applying it.
 - On narrow screens, controls may wrap without changing typography scale or hiding required context.
 
 ### Model Tables
 
 - Model comparison is benchmark-led and sortable. Expandable model names use real disclosure buttons with `aria-expanded`.
-- Artifact tables keep format, provenance, runtimes, VRAM, capacity fit, and selected benchmark delta visible together.
+- Artifact tables begin with the complete selected family, then narrow as release, size, and variant filters are applied.
+- Artifact rows keep model identity, format, provenance, runtimes, VRAM, capacity fit, and selected benchmark delta visible together.
 - Capacity fit reports counts or constraints. It never chooses an artifact for the user.
 
 ## Do's and Don'ts

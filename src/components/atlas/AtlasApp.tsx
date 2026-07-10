@@ -11,7 +11,7 @@ import {
 } from "@/lib/atlas/data";
 import { artifactsFor, resolveProfile } from "@/lib/atlas/fit";
 import { sizeDisplay } from "@/lib/atlas/naming";
-import type { BenchKey, Release, SizeNode } from "@/lib/atlas/types";
+import type { BenchKey } from "@/lib/atlas/types";
 import { CompareDrawer } from "./CompareDrawer";
 import {
   CompareView,
@@ -23,15 +23,7 @@ import { FitBar } from "./FitBar";
 
 type Tab = "explore" | "compare";
 
-function heaviestSize(release: Release): SizeNode {
-  return release.sizes.reduce((heaviest, size) =>
-    size.paramsB > heaviest.paramsB ? size : heaviest,
-  );
-}
-
 const initialFamily = FAMILIES[0];
-const initialRelease = initialFamily.releases[0];
-const initialSize = heaviestSize(initialRelease);
 
 export function AtlasApp() {
   const [tab, setTab] = useState<Tab>("explore");
@@ -39,9 +31,9 @@ export function AtlasApp() {
 
   // explore selection
   const [familyId, setFamilyId] = useState(initialFamily.id);
-  const [releaseId, setReleaseId] = useState(initialRelease.id);
-  const [sizeLabel, setSizeLabel] = useState(initialSize.label);
-  const [variant, setVariant] = useState(initialSize.variants[0]);
+  const [releaseId, setReleaseId] = useState<string | null>(null);
+  const [sizeLabel, setSizeLabel] = useState<string | null>(null);
+  const [variant, setVariant] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [artifactBench, setArtifactBench] = useState<BenchKey>("mmlu");
 
@@ -77,51 +69,44 @@ export function AtlasApp() {
 
   const selection = useMemo(() => {
     const family = FAMILIES.find((f) => f.id === familyId) ?? FAMILIES[0];
-    const release =
-      family.releases.find((r) => r.id === releaseId) ?? family.releases[0];
-    const size =
-      release.sizes.find((s) => s.label === sizeLabel) ?? release.sizes[0];
-    const activeVariant = size.variants.includes(variant)
-      ? variant
-      : size.variants[0];
+    const release = family.releases.find((item) => item.id === releaseId) ?? null;
+    const size = release?.sizes.find((item) => item.label === sizeLabel) ?? null;
+    const activeVariant =
+      size && variant && size.variants.includes(variant) ? variant : null;
     return { family, release, size, variant: activeVariant };
   }, [familyId, releaseId, sizeLabel, variant]);
 
   const checkedArtifacts = useMemo(() => {
-    const artifacts = artifactsFor(
-      selection.family,
-      selection.release,
-      selection.size,
-      selection.variant,
+    const artifacts = selection.family.releases.flatMap((release) =>
+      release.sizes.flatMap((size) =>
+        size.variants.flatMap((itemVariant) =>
+          artifactsFor(selection.family, release, size, itemVariant),
+        ),
+      ),
     );
     return artifacts.filter((a) => checked.has(a.repo));
   }, [selection, checked]);
 
   const selectFamily = (id: string) => {
-    const family = FAMILIES.find((f) => f.id === id) ?? FAMILIES[0];
-    const release = family.releases[0];
-    const size = heaviestSize(release);
     setFamilyId(id);
-    setReleaseId(release.id);
-    setSizeLabel(size.label);
-    setVariant(size.variants[0]);
+    setReleaseId(null);
+    setSizeLabel(null);
+    setVariant(null);
     setChecked(new Set());
   };
   const selectRelease = (id: string) => {
-    const family = FAMILIES.find((f) => f.id === familyId) ?? FAMILIES[0];
-    const release = family.releases.find((r) => r.id === id) ?? family.releases[0];
-    const size = heaviestSize(release);
-    setReleaseId(id);
-    setSizeLabel(size.label);
-    setVariant(size.variants[0]);
+    setReleaseId((current) => (current === id ? null : id));
+    setSizeLabel(null);
+    setVariant(null);
     setChecked(new Set());
   };
   const selectSize = (label: string) => {
-    setSizeLabel(label);
+    setSizeLabel((current) => (current === label ? null : label));
+    setVariant(null);
     setChecked(new Set());
   };
   const selectVariant = (v: string) => {
-    setVariant(v);
+    setVariant((current) => (current === v ? null : v));
     setChecked(new Set());
   };
   const toggleChecked = (repo: string, on: boolean) => {
@@ -297,7 +282,11 @@ export function AtlasApp() {
 
       {drawerOpen && (
         <CompareDrawer
-          title={`${selection.release.name} ${sizeDisplay(selection.size.label)} ${selection.variant}`}
+          title={
+            selection.release && selection.size && selection.variant
+              ? `${selection.release.name} ${sizeDisplay(selection.size.label)} ${selection.variant}`
+              : selection.family.name
+          }
           artifacts={checkedArtifacts}
           rig={rig}
           onClear={() => setChecked(new Set())}
