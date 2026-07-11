@@ -1,3 +1,5 @@
+import { Check, TriangleAlert, X } from "lucide-react";
+
 import type { Confidence, FitVerdict, Trust } from "@/lib/atlas/types";
 
 /** Small mono chip for model properties: quant, uploader, variant, active params. */
@@ -64,12 +66,17 @@ export function FitBadge({ fit }: { fit: FitVerdict }) {
       : fit.level === "tight"
         ? "bg-cautionsoft text-caution"
         : "bg-alertsoft text-alert";
-  const mark = fit.level === "runs" ? "✓" : fit.level === "tight" ? "△" : "✕";
+  const Icon =
+    fit.level === "runs" ? Check : fit.level === "tight" ? TriangleAlert : X;
+
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-[5px] px-1.5 py-px text-[11.5px] font-semibold ${styles}`}
+      aria-label={fit.text}
+      role="img"
+      title={fit.text}
+      className={`inline-flex h-5 w-5 items-center justify-center rounded-[5px] ${styles}`}
     >
-      {mark} {fit.text}
+      <Icon aria-hidden="true" size={12} strokeWidth={2.5} />
     </span>
   );
 }
