@@ -50,6 +50,8 @@ const CONFIDENCE_COPY: Record<Confidence, { dot: string; label: string }> = {
 };
 
 export function ConfidenceNote({ confidence }: { confidence: Confidence }) {
+  if (confidence === "inferred") return null;
+
   const { dot, label } = CONFIDENCE_COPY[confidence];
   return (
     <span className="inline-flex items-center gap-1 text-[11.5px] text-muted">

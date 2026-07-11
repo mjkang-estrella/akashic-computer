@@ -206,9 +206,6 @@ export function AtlasApp() {
           <h1 className="font-display text-[19px] font-semibold leading-none">
             Akashic Computer
           </h1>
-          <span className="hidden text-[12.5px] text-muted sm:inline">
-            open-weight model atlas
-          </span>
         </div>
         <nav
           role="tablist"

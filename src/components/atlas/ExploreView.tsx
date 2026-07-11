@@ -82,7 +82,7 @@ function FamilyRail({
               {family.name}
             </span>
             <span className="mt-px block text-xs text-muted">
-              {family.vendor} · {family.tags}
+              {family.vendor}
             </span>
           </button>
         ))
