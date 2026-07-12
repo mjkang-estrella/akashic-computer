@@ -85,10 +85,10 @@ function FamilyRail({
             key={family.id}
             aria-current={family.id === familyId}
             onClick={() => onFamily(family.id)}
-            className={`mb-1 flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left ${
+            className={`mb-1 flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-opacity ${
               family.id === familyId
-                ? "border-ink bg-panel"
-                : "border-transparent hover:border-line hover:bg-panel"
+                ? "border-ink bg-panel opacity-100"
+                : "border-transparent opacity-50 hover:border-line hover:bg-panel hover:opacity-100 focus-visible:opacity-100"
             }`}
           >
             <Image
