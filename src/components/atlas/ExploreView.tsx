@@ -151,8 +151,13 @@ export function ExploreView({
   const family = FAMILIES.find((item) => item.id === familyId) ?? FAMILIES[0];
   const release = family.releases.find((item) => item.id === releaseId) ?? null;
   const size = release?.sizes.find((item) => item.label === sizeLabel) ?? null;
-  const activeVariant =
-    size && variant && size.variants.includes(variant) ? variant : null;
+  const activeVariant = size
+    ? size.variants.length === 1
+      ? size.variants[0]
+      : variant && size.variants.includes(variant)
+        ? variant
+        : null
+    : null;
   const metadataRelease =
     family.releases.find((item) => item.id === previewReleaseId) ?? release;
   const licenses = [...new Set(family.releases.map((item) => item.license))];

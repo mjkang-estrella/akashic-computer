@@ -71,8 +71,13 @@ export function AtlasApp() {
     const family = FAMILIES.find((f) => f.id === familyId) ?? FAMILIES[0];
     const release = family.releases.find((item) => item.id === releaseId) ?? null;
     const size = release?.sizes.find((item) => item.label === sizeLabel) ?? null;
-    const activeVariant =
-      size && variant && size.variants.includes(variant) ? variant : null;
+    const activeVariant = size
+      ? size.variants.length === 1
+        ? size.variants[0]
+        : variant && size.variants.includes(variant)
+          ? variant
+          : null
+      : null;
     return { family, release, size, variant: activeVariant };
   }, [familyId, releaseId, sizeLabel, variant]);
 
