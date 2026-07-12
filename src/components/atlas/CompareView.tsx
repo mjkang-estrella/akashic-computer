@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   BENCHES,
@@ -29,7 +29,6 @@ export function CompareView({
   sortKey,
   sortDir,
   expanded,
-  capacityControls,
   onCategory,
   onToggleBench,
   onSort,
@@ -43,7 +42,6 @@ export function CompareView({
   sortKey: CompareSortKey;
   sortDir: 1 | -1;
   expanded: Set<string>;
-  capacityControls: ReactNode;
   onCategory: (c: CompareCategory) => void;
   onToggleBench: (key: BenchKey) => void;
   onSort: (key: CompareSortKey) => void;
@@ -131,8 +129,6 @@ export function CompareView({
           );
         })}
       </div>
-
-      <div className="mb-3">{capacityControls}</div>
 
       <div className="rounded-[10px] border border-line bg-panel">
         {rows.length === 0 ? (

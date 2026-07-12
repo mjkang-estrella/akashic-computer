@@ -34,8 +34,9 @@ export function AtlasApp() {
   const [releaseId, setReleaseId] = useState<string | null>(null);
   const [sizeLabel, setSizeLabel] = useState<string | null>(null);
   const [variant, setVariant] = useState<string | null>(null);
+  const [quantizations, setQuantizations] = useState<Set<string>>(new Set());
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [artifactBench, setArtifactBench] = useState<BenchKey>("mmlu");
+  const [artifactBenches, setArtifactBenches] = useState<Set<BenchKey>>(new Set());
 
   // rig profile
   const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
@@ -97,22 +98,43 @@ export function AtlasApp() {
     setReleaseId(null);
     setSizeLabel(null);
     setVariant(null);
+    setQuantizations(new Set());
     setChecked(new Set());
   };
   const selectRelease = (id: string) => {
     setReleaseId((current) => (current === id ? null : id));
     setSizeLabel(null);
     setVariant(null);
+    setQuantizations(new Set());
     setChecked(new Set());
   };
   const selectSize = (label: string) => {
     setSizeLabel((current) => (current === label ? null : label));
     setVariant(null);
+    setQuantizations(new Set());
     setChecked(new Set());
   };
   const selectVariant = (v: string) => {
     setVariant((current) => (current === v ? null : v));
+    setQuantizations(new Set());
     setChecked(new Set());
+  };
+  const toggleQuantization = (format: string) => {
+    setQuantizations((current) => {
+      const next = new Set(current);
+      if (next.has(format)) next.delete(format);
+      else next.add(format);
+      return next;
+    });
+    setChecked(new Set());
+  };
+  const toggleArtifactBench = (key: BenchKey) => {
+    setArtifactBenches((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
   const toggleChecked = (repo: string, on: boolean) => {
     setChecked((prev) => {
@@ -242,6 +264,7 @@ export function AtlasApp() {
             className="w-full bg-transparent text-[13.5px] outline-none placeholder:text-faint"
           />
         </label>
+        <div className="ml-auto">{capacityControls}</div>
       </header>
 
       {tab === "explore" ? (
@@ -254,14 +277,15 @@ export function AtlasApp() {
           rig={rig}
           onlyRunnable={onlyRunnable}
           checked={checked}
-          artifactBench={artifactBench}
-          capacityControls={capacityControls}
+          quantizations={quantizations}
+          artifactBenches={artifactBenches}
           onFamily={selectFamily}
           onRelease={selectRelease}
           onSize={selectSize}
           onVariant={selectVariant}
+          onToggleQuantization={toggleQuantization}
           onCheck={toggleChecked}
-          onArtifactBench={setArtifactBench}
+          onToggleArtifactBench={toggleArtifactBench}
           onClearQuery={() => setQuery("")}
         />
       ) : (
@@ -274,7 +298,6 @@ export function AtlasApp() {
           sortKey={sortKey}
           sortDir={sortDir}
           expanded={expanded}
-          capacityControls={capacityControls}
           onCategory={selectCategory}
           onToggleBench={toggleBench}
           onSort={sortBy}
