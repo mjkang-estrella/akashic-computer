@@ -102,8 +102,14 @@ export function AtlasApp() {
     setChecked(new Set());
   };
   const selectRelease = (id: string) => {
-    setReleaseId((current) => (current === id ? null : id));
-    setSizeLabel(null);
+    const nextReleaseId = releaseId === id ? null : id;
+    const family = FAMILIES.find((item) => item.id === familyId);
+    const nextRelease = family?.releases.find((item) => item.id === nextReleaseId);
+
+    setReleaseId(nextReleaseId);
+    setSizeLabel(
+      nextRelease?.sizes.length === 1 ? nextRelease.sizes[0].label : null,
+    );
     setVariant(null);
     setQuantizations(new Set());
     setChecked(new Set());
