@@ -227,13 +227,23 @@ export function ExploreView({
       <section className="min-w-0">
         <div className="border-b border-line pb-4">
           <header>
-            <div>
-              <h2 className="font-display text-[25px] font-semibold leading-tight">
-                {family.name}
-              </h2>
-              <p className="mt-0.5 text-[13px] text-muted">
-                {family.vendor} / {release?.license ?? licenses.join(", ")}
-              </p>
+            <div className="flex items-center gap-3">
+              <Image
+                src={FAMILY_LOGOS[family.id]}
+                alt=""
+                aria-hidden="true"
+                width={32}
+                height={32}
+                className="h-8 w-8 flex-none object-contain"
+              />
+              <div className="min-w-0">
+                <h2 className="font-display text-[25px] font-semibold leading-tight">
+                  {family.name}
+                </h2>
+                <p className="mt-0.5 text-[13px] text-muted">
+                  {family.vendor} / {release?.license ?? licenses.join(", ")}
+                </p>
+              </div>
             </div>
           </header>
 
