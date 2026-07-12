@@ -103,6 +103,16 @@ function qwen35Size(
   hasBase = true,
 ): SizeNode {
   const model = `Qwen3.5-${label}`;
+  const nvidiaNvfp4 =
+    label === "122B-A10B" || label === "397B-A17B"
+      ? [
+          {
+            repo: `nvidia/${model}-NVFP4`,
+            format: "NVFP4",
+            trust: "vendor" as const,
+          },
+        ]
+      : [];
   return officialSize(label, paramsB, {
     Instruct: [
       { repo: `Qwen/${model}` },
@@ -112,6 +122,7 @@ function qwen35Size(
             { repo: `Qwen/${model}-GPTQ-Int4`, format: "GPTQ INT4" },
           ]
         : []),
+      ...nvidiaNvfp4,
     ],
     ...(hasBase ? { Base: [{ repo: `Qwen/${model}-Base` }] } : {}),
   });
@@ -189,6 +200,11 @@ export const FAMILIES: Family[] = [
             Instruct: [
               { repo: "Qwen/Qwen3-Coder-480B-A35B-Instruct" },
               { repo: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8", format: "FP8" },
+              {
+                repo: "nvidia/Qwen3-Coder-480B-A35B-Instruct-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
             ],
           }),
           officialSize("Next", 80, {
@@ -196,6 +212,11 @@ export const FAMILIES: Family[] = [
               { repo: "Qwen/Qwen3-Coder-Next" },
               { repo: "Qwen/Qwen3-Coder-Next-FP8", format: "FP8" },
               { repo: "Qwen/Qwen3-Coder-Next-GGUF", format: "GGUF" },
+              {
+                repo: "nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
             ],
             Base: [{ repo: "Qwen/Qwen3-Coder-Next-Base" }],
           }),
@@ -265,11 +286,25 @@ export const FAMILIES: Family[] = [
         license: "MIT",
         sizes: [
           officialSize("Flash 158B", 158, {
-            Instruct: [{ repo: "deepseek-ai/DeepSeek-V4-Flash" }],
+            Instruct: [
+              { repo: "deepseek-ai/DeepSeek-V4-Flash" },
+              {
+                repo: "nvidia/DeepSeek-V4-Flash-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
             Base: [{ repo: "deepseek-ai/DeepSeek-V4-Flash-Base" }],
           }),
           officialSize("Pro 862B", 862, {
-            Instruct: [{ repo: "deepseek-ai/DeepSeek-V4-Pro" }],
+            Instruct: [
+              { repo: "deepseek-ai/DeepSeek-V4-Pro" },
+              {
+                repo: "nvidia/DeepSeek-V4-Pro-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
             Base: [{ repo: "deepseek-ai/DeepSeek-V4-Pro-Base" }],
           }),
         ],
@@ -282,8 +317,53 @@ export const FAMILIES: Family[] = [
         license: "MIT",
         sizes: [
           officialSize("671B-A37B", 671, {
-            Instruct: [{ repo: "deepseek-ai/DeepSeek-V3.2" }],
+            Instruct: [
+              { repo: "deepseek-ai/DeepSeek-V3.2" },
+              {
+                repo: "nvidia/DeepSeek-V3.2-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
             Speciale: [{ repo: "deepseek-ai/DeepSeek-V3.2-Speciale" }],
+          }),
+        ],
+      },
+      {
+        id: "v31",
+        name: "DeepSeek V3.1",
+        date: "Aug 2025",
+        ctx: "128K",
+        license: "MIT",
+        sizes: [
+          officialSize("671B-A37B", 671, {
+            Instruct: [
+              { repo: "deepseek-ai/DeepSeek-V3.1" },
+              {
+                repo: "nvidia/DeepSeek-V3.1-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "v3-0324",
+        name: "DeepSeek V3 0324",
+        date: "Mar 2025",
+        ctx: "128K",
+        license: "MIT",
+        sizes: [
+          officialSize("671B-A37B", 671, {
+            Instruct: [
+              { repo: "deepseek-ai/DeepSeek-V3-0324" },
+              {
+                repo: "nvidia/DeepSeek-V3-0324-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
           }),
         ],
       },
@@ -298,6 +378,16 @@ export const FAMILIES: Family[] = [
             Reasoner: [
               { repo: "deepseek-ai/DeepSeek-R1", format: "FP8 (native)" },
               { repo: "deepseek-ai/DeepSeek-R1-0528", format: "FP8 (native)" },
+              {
+                repo: "nvidia/DeepSeek-R1-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+              {
+                repo: "nvidia/DeepSeek-R1-0528-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
             ],
             Zero: [{ repo: "deepseek-ai/DeepSeek-R1-Zero", format: "FP8 (native)" }],
           }),
@@ -354,13 +444,30 @@ export const FAMILIES: Family[] = [
         license: "Llama Community",
         sizes: [
           officialSize("Scout 109B-A17B", 109, {
-            Instruct: [{ repo: "meta-llama/Llama-4-Scout-17B-16E-Instruct" }],
+            Instruct: [
+              { repo: "meta-llama/Llama-4-Scout-17B-16E-Instruct" },
+              {
+                repo: "nvidia/Llama-4-Scout-17B-16E-Instruct-FP8",
+                format: "FP8",
+                trust: "vendor",
+              },
+              {
+                repo: "nvidia/Llama-4-Scout-17B-16E-Instruct-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
             Base: [{ repo: "meta-llama/Llama-4-Scout-17B-16E" }],
           }),
           officialSize("Maverick 402B-A17B", 402, {
             Instruct: [
               { repo: "meta-llama/Llama-4-Maverick-17B-128E-Instruct" },
               { repo: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", format: "FP8" },
+              {
+                repo: "nvidia/Llama-4-Maverick-17B-128E-Instruct-FP8",
+                format: "FP8",
+                trust: "vendor",
+              },
             ],
             Base: [{ repo: "meta-llama/Llama-4-Maverick-17B-128E" }],
           }),
@@ -372,7 +479,23 @@ export const FAMILIES: Family[] = [
         date: "Dec 2024",
         ctx: "128K",
         license: "Llama Community",
-        sizes: [officialSize("70B", 70, { Instruct: [{ repo: "meta-llama/Llama-3.3-70B-Instruct" }] })],
+        sizes: [
+          officialSize("70B", 70, {
+            Instruct: [
+              { repo: "meta-llama/Llama-3.3-70B-Instruct" },
+              {
+                repo: "nvidia/Llama-3.3-70B-Instruct-FP8",
+                format: "FP8",
+                trust: "vendor",
+              },
+              {
+                repo: "nvidia/Llama-3.3-70B-Instruct-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
       },
       {
         id: "l32",
@@ -400,8 +523,19 @@ export const FAMILIES: Family[] = [
           officialSize(`${paramsB}B`, paramsB, {
             Instruct: [
               { repo: `meta-llama/Llama-3.1-${paramsB}B-Instruct` },
-              ...(paramsB === 405
-                ? [{ repo: "meta-llama/Llama-3.1-405B-Instruct-FP8", format: "FP8" }]
+              {
+                repo: `nvidia/Llama-3.1-${paramsB}B-Instruct-FP8`,
+                format: "FP8",
+                trust: "vendor",
+              },
+              ...(paramsB === 8 || paramsB === 405
+                ? [
+                    {
+                      repo: `nvidia/Llama-3.1-${paramsB}B-Instruct-NVFP4`,
+                      format: "NVFP4",
+                      trust: "vendor" as const,
+                    },
+                  ]
                 : []),
             ],
             Base: [{ repo: `meta-llama/Llama-3.1-${paramsB}B` }],
@@ -430,7 +564,26 @@ export const FAMILIES: Family[] = [
           ["31B", 31],
         ].map(([label, paramsB]) =>
           officialSize(String(label), Number(paramsB), {
-            IT: [{ repo: `google/gemma-4-${label}-it` }],
+            IT: [
+              { repo: `google/gemma-4-${label}-it` },
+              ...(label === "26B-A4B"
+                ? [
+                    {
+                      repo: "nvidia/Gemma-4-26B-A4B-NVFP4",
+                      format: "NVFP4",
+                      trust: "vendor" as const,
+                    },
+                  ]
+                : label === "31B"
+                  ? [
+                      {
+                        repo: "nvidia/Gemma-4-31B-IT-NVFP4",
+                        format: "NVFP4",
+                        trust: "vendor" as const,
+                      },
+                    ]
+                  : []),
+            ],
             PT: [{ repo: `google/gemma-4-${label}` }],
           }),
         ),
@@ -486,7 +639,7 @@ export const FAMILIES: Family[] = [
     tags: "general, reasoning, coding",
     releases: [
       { id: "small4", name: "Mistral Small 4", date: "Mar 2026", ctx: "256K", license: "Apache-2.0", sizes: [officialSize("119B", 119, { Instruct: [{ repo: "mistralai/Mistral-Small-4-119B-2603" }, { repo: "mistralai/Mistral-Small-4-119B-2603-NVFP4", format: "NVFP4" }] })] },
-      { id: "medium35", name: "Mistral Medium 3.5", date: "2026", ctx: "128K", license: "Apache-2.0", sizes: [officialSize("128B", 128, { Instruct: [{ repo: "mistralai/Mistral-Medium-3.5-128B" }] })] },
+      { id: "medium35", name: "Mistral Medium 3.5", date: "2026", ctx: "128K", license: "Apache-2.0", sizes: [officialSize("128B", 128, { Instruct: [{ repo: "mistralai/Mistral-Medium-3.5-128B" }, { repo: "nvidia/Mistral-Medium-3.5-128B-NVFP4", format: "NVFP4", trust: "vendor" }] })] },
       { id: "large3", name: "Mistral Large 3", date: "Dec 2025", ctx: "256K", license: "Apache-2.0", sizes: [officialSize("675B", 675, { Instruct: [{ repo: "mistralai/Mistral-Large-3-675B-Instruct-2512" }, { repo: "mistralai/Mistral-Large-3-675B-Instruct-2512-NVFP4", format: "NVFP4" }] })] },
       {
         id: "ministral3",
@@ -578,10 +731,34 @@ export const FAMILIES: Family[] = [
           }),
           officialSize("Reasoning 15B", 15, {
             Reasoning: [{ repo: "microsoft/Phi-4-reasoning" }],
-            Plus: [{ repo: "microsoft/Phi-4-reasoning-plus" }],
+            Plus: [
+              { repo: "microsoft/Phi-4-reasoning-plus" },
+              {
+                repo: "nvidia/Phi-4-reasoning-plus-FP8",
+                format: "FP8",
+                trust: "vendor",
+              },
+              {
+                repo: "nvidia/Phi-4-reasoning-plus-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
           }),
           officialSize("Multimodal 6B", 6, {
-            Instruct: [{ repo: "microsoft/Phi-4-multimodal-instruct" }],
+            Instruct: [
+              { repo: "microsoft/Phi-4-multimodal-instruct" },
+              {
+                repo: "nvidia/Phi-4-multimodal-instruct-FP8",
+                format: "FP8",
+                trust: "vendor",
+              },
+              {
+                repo: "nvidia/Phi-4-multimodal-instruct-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
           }),
         ],
       },

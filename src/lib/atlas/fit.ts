@@ -81,7 +81,8 @@ function officialReferenceArtifact(
   paramsB: number,
   format = "BF16",
 ): Artifact {
-  const bytesPerParam = format.startsWith("FP8") ? 1.1 : 2.2;
+  const bytesPerParam =
+    format === "NVFP4" ? 0.62 : format.startsWith("FP8") ? 1.1 : 2.2;
   return {
     repo,
     format,
@@ -105,6 +106,21 @@ function qwen3Artifacts(size: SizeNode, variant: string): Artifact[] {
 
   if (variant === "Base") return [reference];
 
+  const nvidiaNvfp4Repos: Record<string, string> = {
+    "8B": "nvidia/Qwen3-8B-NVFP4",
+    "14B": "nvidia/Qwen3-14B-NVFP4",
+    "30B-A3B": "nvidia/Qwen3-30B-A3B-NVFP4",
+    "32B": "nvidia/Qwen3-32B-NVFP4",
+    "235B-A22B": "nvidia/Qwen3-235B-A22B-NVFP4",
+  };
+  const nvidiaFp8Repos: Record<string, string> = {
+    "8B": "nvidia/Qwen3-8B-FP8",
+    "14B": "nvidia/Qwen3-14B-FP8",
+    "235B-A22B": "nvidia/Qwen3-235B-A22B-FP8",
+  };
+  const nvidiaNvfp4Repo = nvidiaNvfp4Repos[size.label];
+  const nvidiaFp8Repo = nvidiaFp8Repos[size.label];
+
   const intFormat =
     size.paramsB <= 2
       ? { suffix: "GPTQ-Int8", label: "GPTQ INT8", factor: 1.1 }
@@ -120,6 +136,29 @@ function qwen3Artifacts(size: SizeNode, variant: string): Artifact[] {
       deltas: unknownDeltas(),
       qualityRank: 1,
     },
+    ...(nvidiaFp8Repo
+      ? [
+          {
+            ...officialReferenceArtifact(nvidiaFp8Repo, size.paramsB, "FP8"),
+            trust: "vendor" as const,
+            measured: false,
+            deltas: unknownDeltas(),
+            qualityRank: 2,
+          },
+        ]
+      : []),
+    ...(nvidiaNvfp4Repo
+      ? [
+          {
+            ...officialReferenceArtifact(nvidiaNvfp4Repo, size.paramsB, "NVFP4"),
+            trust: "vendor" as const,
+            runtimes: ["TensorRT-LLM", "vLLM"],
+            measured: false,
+            deltas: unknownDeltas(),
+            qualityRank: 2,
+          },
+        ]
+      : []),
     {
       repo: `Qwen/${model}-${intFormat.suffix}`,
       format: intFormat.label,
