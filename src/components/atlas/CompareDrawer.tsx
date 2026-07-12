@@ -37,7 +37,11 @@ export function CompareDrawer({
             Clear <X size={13} aria-hidden="true" />
           </button>
         </div>
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          aria-label="Selected artifact comparison; scroll horizontally for more columns"
+        >
           <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr>
@@ -65,7 +69,14 @@ export function CompareDrawer({
                     key={a.repo}
                     className="break-all px-2.5 py-1.5 align-top font-mono text-[11px] text-faint"
                   >
-                    {a.repo}
+                    <a
+                      href={`https://huggingface.co/${a.repo}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline-offset-2 hover:text-ink hover:underline"
+                    >
+                      {a.repo}
+                    </a>
                   </td>
                 ))}
               </tr>

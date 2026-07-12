@@ -62,7 +62,7 @@ function FamilyRail({
   );
 
   return (
-    <aside>
+    <aside className="min-w-0" aria-label="Model families">
       <h2 className={`mb-2.5 ${SECTION_LABEL}`}>Families</h2>
       {families.length === 0 ? (
         <div className="px-1 py-3 text-[13px] text-muted">
@@ -80,15 +80,16 @@ function FamilyRail({
           </div>
         </div>
       ) : (
-        families.map((family) => (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 md:block md:overflow-visible md:pb-0">
+          {families.map((family) => (
           <button
             key={family.id}
             aria-current={family.id === familyId}
             onClick={() => onFamily(family.id)}
-            className={`mb-1 flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-opacity ${
+            className={`group mb-1 flex min-w-[148px] items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left md:w-full md:min-w-0 ${
               family.id === familyId
-                ? "border-ink bg-panel opacity-100"
-                : "border-transparent opacity-50 hover:border-line hover:bg-panel hover:opacity-100 focus-visible:opacity-100"
+                ? "border-ink bg-panel"
+                : "border-transparent hover:border-line hover:bg-panel"
             }`}
           >
             <Image
@@ -97,18 +98,35 @@ function FamilyRail({
               aria-hidden="true"
               width={24}
               height={24}
-              className="h-6 w-6 flex-none object-contain"
+              className={`h-6 w-6 flex-none object-contain transition-opacity ${
+                family.id === familyId
+                  ? "opacity-100"
+                  : "opacity-55 group-hover:opacity-100 group-focus-visible:opacity-100"
+              }`}
             />
             <span className="min-w-0">
-              <span className="block font-display text-[15px] font-semibold">
+              <span
+                className={`block font-display text-[15px] font-semibold ${
+                  family.id === familyId
+                    ? "text-ink"
+                    : "text-muted group-hover:text-ink group-focus-visible:text-ink"
+                }`}
+              >
                 {family.name}
               </span>
-              <span className="mt-px block text-xs text-muted">
+              <span
+                className={`mt-px block text-xs ${
+                  family.id === familyId
+                    ? "text-muted"
+                    : "text-faint group-hover:text-muted group-focus-visible:text-muted"
+                }`}
+              >
                 {family.vendor}
               </span>
             </span>
           </button>
-        ))
+          ))}
+        </div>
       )}
     </aside>
   );
@@ -396,9 +414,13 @@ export function ExploreView({
               </details>
             </div>
 
-            <div className="overflow-x-auto">
+            <div
+              className="overflow-x-auto"
+              tabIndex={0}
+              aria-label="Model artifacts table; scroll horizontally for more columns"
+            >
               <table className="w-full min-w-[820px] border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-panel">
                   <tr>
                     {[
                       "",
@@ -410,9 +432,12 @@ export function ExploreView({
                     ].map((heading, index) => (
                         <th
                           key={`${heading}-${index}`}
+                          scope="col"
                           className="whitespace-nowrap border-b border-line px-2.5 py-2 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-muted"
                         >
-                          {heading}
+                          <span className={index === 0 ? "sr-only" : undefined}>
+                            {heading || "Compare"}
+                          </span>
                         </th>
                       ))}
                   </tr>
@@ -438,18 +463,20 @@ export function ExploreView({
                           className="border-b border-linesoft last:border-b-0"
                         >
                           <td className="px-2.5 py-2.5 align-top">
-                            <input
-                              type="checkbox"
-                              checked={checked.has(artifact.repo)}
-                              onChange={(event) =>
-                                onCheck(artifact.repo, event.target.checked)
-                              }
-                              aria-label={`Compare ${artifact.repo}`}
-                            />
+                            <label className="inline-flex h-6 w-6 cursor-pointer items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={checked.has(artifact.repo)}
+                                onChange={(event) =>
+                                  onCheck(artifact.repo, event.target.checked)
+                                }
+                                aria-label={`Compare ${artifact.repo}`}
+                              />
+                            </label>
                           </td>
                           <td className="px-2.5 py-2.5 align-top">
                             <span className="flex flex-wrap items-center gap-1.5">
-                              <span className="font-display text-[14px] font-semibold">
+                              <span className="font-display text-[15px] font-semibold">
                                 {result.release.name} {sizeDisplay(result.size.label)}
                               </span>
                               <PropertyChip>{result.variant}</PropertyChip>
@@ -469,9 +496,14 @@ export function ExploreView({
                               <TrustBadge trust={artifact.trust} />
                               <ConfidenceNote confidence={artifact.confidence} />
                             </span>
-                            <span className="mt-1 block break-all font-mono text-[11px] text-faint">
+                            <a
+                              href={`https://huggingface.co/${artifact.repo}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                            >
                               {artifact.repo}
-                            </span>
+                            </a>
                           </td>
                           <td className="px-2.5 py-2.5 align-top">
                             <span className="flex flex-wrap gap-1">
@@ -528,14 +560,9 @@ export function ExploreView({
                       <span className="font-mono text-[13px] font-semibold tabular-nums">
                         {scores[bench.key].toFixed(1)}
                       </span>
-                      <a
-                        href="#"
-                        onClick={(event) => event.preventDefault()}
-                        title="Provenance link (mock)"
-                        className="text-[11.5px] text-meta underline-offset-2 hover:underline"
-                      >
+                      <span className="text-[11.5px] text-meta">
                         {bench.source}
-                      </a>
+                      </span>
                     </div>
                   ))}
                 </div>

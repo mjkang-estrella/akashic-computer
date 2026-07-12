@@ -241,15 +241,13 @@ export function AtlasApp() {
           </h1>
         </div>
         <nav
-          role="tablist"
           aria-label="Mode"
           className="flex overflow-hidden rounded-[7px] border border-line bg-panel"
         >
           {(["explore", "compare"] as const).map((t) => (
             <button
               key={t}
-              role="tab"
-              aria-selected={tab === t}
+              aria-pressed={tab === t}
               onClick={() => switchTab(t)}
               className={`px-4.5 py-1.5 text-[13.5px] font-semibold ${
                 tab === t ? "bg-ink text-paper" : "text-muted"

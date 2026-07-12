@@ -54,6 +54,7 @@ export function CompareView({
       : b.category === category,
   );
   const benches = offered.filter((b) => activeBenches.has(b.key));
+  const hasBenchmarkData = COMPARE_MODELS.length > 0;
 
   const normalizedQuery = query.trim().toLowerCase();
   const matchingModels = COMPARE_MODELS.filter(
@@ -85,50 +86,55 @@ export function CompareView({
 
   return (
     <div className="pt-4">
-      <div className="mb-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
-          Category
-        </span>
-        {[{ id: "all" as const, label: "Headline" }, ...BENCH_CATEGORIES].map(
-          (c) => (
-            <button
-              key={c.id}
-              aria-pressed={category === c.id}
-              onClick={() => onCategory(c.id)}
-              className={`rounded-[7px] border px-3.5 py-1.5 text-[13px] font-semibold ${
-                category === c.id
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line bg-panel hover:border-ink"
-              }`}
-            >
-              {c.label}
-            </button>
-          ),
-        )}
-      </div>
+      {hasBenchmarkData ? (
+        <>
+          <div className="mb-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+              Category
+            </span>
+            {[
+              { id: "all" as const, label: "Headline" },
+              ...BENCH_CATEGORIES,
+            ].map((c) => (
+              <button
+                key={c.id}
+                aria-pressed={category === c.id}
+                onClick={() => onCategory(c.id)}
+                className={`rounded-[7px] border px-3.5 py-1.5 text-[13px] font-semibold ${
+                  category === c.id
+                    ? "border-ink bg-ink text-paper"
+                    : "border-line bg-panel hover:border-ink"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2">
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
-          Benchmarks
-        </span>
-        {offered.map((b) => {
-          const active = activeBenches.has(b.key);
-          return (
-            <button
-              key={b.key}
-              aria-pressed={active}
-              onClick={() => onToggleBench(b.key)}
-              className={`rounded-full border px-3 py-1 text-[12.5px] font-semibold ${
-                active
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line bg-panel text-muted hover:border-ink"
-              }`}
-            >
-              {b.label}
-            </button>
-          );
-        })}
-      </div>
+          <div className="mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+              Benchmarks
+            </span>
+            {offered.map((b) => {
+              const active = activeBenches.has(b.key);
+              return (
+                <button
+                  key={b.key}
+                  aria-pressed={active}
+                  onClick={() => onToggleBench(b.key)}
+                  className={`rounded-full border px-3 py-1 text-[12.5px] font-semibold ${
+                    active
+                      ? "border-ink bg-ink text-paper"
+                      : "border-line bg-panel text-muted hover:border-ink"
+                  }`}
+                >
+                  {b.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
       <div className="rounded-[10px] border border-line bg-panel">
         {rows.length === 0 ? (
@@ -147,11 +153,16 @@ export function CompareView({
               : "Raise the VRAM filter or untick “Only show runnable”."}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-x-auto"
+            tabIndex={0}
+            aria-label="Model benchmark comparison; scroll horizontally for more columns"
+          >
             <table className="w-full min-w-[760px] border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-panel">
                 <tr>
                   <th
+                    scope="col"
                     aria-sort={
                       sortKey === "model"
                         ? sortDir === -1
@@ -171,6 +182,7 @@ export function CompareView({
                   {benches.map((b) => (
                     <th
                       key={b.key}
+                      scope="col"
                       aria-sort={
                         sortKey === b.key
                           ? sortDir === -1
@@ -189,7 +201,10 @@ export function CompareView({
                       </button>
                     </th>
                   ))}
-                  <th className={`${headerCell} font-semibold text-faint`}>
+                  <th
+                    scope="col"
+                    className={`${headerCell} font-semibold text-faint`}
+                  >
                     VRAM fit
                   </th>
                 </tr>
@@ -276,9 +291,14 @@ export function CompareView({
                                   <TrustBadge trust={a.trust} />
                                   <ConfidenceNote confidence={a.confidence} />
                                 </span>
-                                <span className="mt-0.5 block break-all font-mono text-[11px] text-faint">
+                                <a
+                                  href={`https://huggingface.co/${a.repo}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-0.5 block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                                >
                                   {a.repo}
-                                </span>
+                                </a>
                               </td>
                               {benches.map((b) => (
                                 <td key={b.key} className="px-2.5 py-1.5 align-top">
@@ -318,14 +338,17 @@ export function CompareView({
           </div>
         )}
       </div>
-      <p className="mt-2.5 text-xs text-faint">
-        Scores are the model&apos;s reference (BF16) numbers with per-source
-        provenance. Higher is better. Expand a row for artifact deltas from the
-        reference. An asterisk marks an estimate. Use column headers to sort.
-        {onlyRunnable
-          ? ` Showing ${rows.length} of ${total} models that fit ${rig.label}.`
-          : ""}
-      </p>
+      {hasBenchmarkData ? (
+        <p className="mt-2.5 text-xs text-faint">
+          Scores are the model&apos;s reference (BF16) numbers with per-source
+          provenance. Higher is better. Expand a row for artifact deltas from
+          the reference. An asterisk marks an estimate. Use column headers to
+          sort.
+          {onlyRunnable
+            ? ` Showing ${rows.length} of ${total} models that fit ${rig.label}.`
+            : ""}
+        </p>
+      ) : null}
     </div>
   );
 }

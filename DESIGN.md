@@ -31,6 +31,12 @@ typography:
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "normal"
+  familyTitle:
+    fontFamily: "STIX Two Text, Georgia, serif"
+    fontSize: "25px"
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: "normal"
   body:
     fontFamily: "IBM Plex Sans, Arial, sans-serif"
     fontSize: "13px"
@@ -152,6 +158,7 @@ The palette resembles archival paper and technical ink, with restrained semantic
 
 - **Display** (600, 19px, 1): Product identity only.
 - **Title** (600, 15px, 1.25): Model names, family names, and important row identities.
+- **Family Title** (600, 25px, 1.25): The selected family page heading only.
 - **Body** (400, 13px, 1.5): Explanatory content and supporting interface copy. Prose should not exceed 72 characters per line.
 - **Label** (700, 11px, 0.12em, uppercase): Section labels and table headings.
 - **Data** (500, 13px, 1.4): Scores, parameter counts, repositories, runtimes, and memory ranges.
