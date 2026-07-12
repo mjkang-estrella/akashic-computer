@@ -138,11 +138,15 @@ export function CompareView({
         {rows.length === 0 ? (
           <div className="px-4 py-10 text-center text-muted">
             <b className="mb-1.5 block text-[15px] text-ink">
-              {matchingModels.length === 0
+              {COMPARE_MODELS.length === 0
+                ? "Benchmark data is being sourced"
+                : matchingModels.length === 0
                 ? `No scored model matches “${query.trim()}”`
                 : `Nothing fits within ${rig.gb} GB`}
             </b>
-            {matchingModels.length === 0
+            {COMPARE_MODELS.length === 0
+              ? "Major models remain available in Explore while verified score sets are added."
+              : matchingModels.length === 0
               ? "Search by model family, vendor, or capability."
               : "Raise the VRAM filter or untick “Only show runnable”."}
           </div>

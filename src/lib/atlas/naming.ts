@@ -19,7 +19,9 @@ export function modelDisplayName(
 ): string {
   const base = release.name.startsWith(family.name)
     ? release.name
-    : `${family.name} ${release.name}`;
+    : family.id === "mistral"
+      ? release.name
+      : `${family.name} ${release.name}`;
   return `${base} ${sizeDisplay(size.label)}`;
 }
 
@@ -32,6 +34,8 @@ const UPLOADER_NAMES: Record<string, string> = {
   "meta-llama": "Meta",
   mistralai: "Mistral",
   "deepseek-ai": "DeepSeek",
+  openai: "OpenAI",
+  microsoft: "Microsoft",
 };
 
 /** Uploader org parsed from the repo prefix, shown as a property chip. */
