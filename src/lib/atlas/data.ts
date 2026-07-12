@@ -124,6 +124,122 @@ const QWEN36_27B_INSTRUCT: Artifact[] = [
   },
 ];
 
+function nvidiaArtifact(
+  repo: string,
+  format: string,
+  minVramGb: number,
+  recVramGb: number,
+  runtimes: string[],
+  kinds: Artifact["kinds"] = ["cuda", "dgx"],
+): Artifact {
+  const isReference = format === "BF16";
+  const qualityRank = format === "BF16" ? 0 : format === "FP8" ? 1 : 2;
+
+  return {
+    repo,
+    format,
+    trust: "official",
+    confidence: "verified",
+    kinds,
+    runtimes,
+    minVramGb,
+    recVramGb,
+    deltas: isReference ? zeroDeltas() : unknownDeltas(),
+    measured: isReference,
+    qualityRank,
+  };
+}
+
+const NEMOTRON3_4B: Artifact[] = [
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
+    "BF16",
+    9,
+    12,
+    ["vLLM", "TensorRT-LLM", "Transformers"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Nano-4B-FP8",
+    "FP8",
+    5,
+    8,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF",
+    "GGUF",
+    3,
+    5,
+    ["llama.cpp", "Ollama", "LM Studio"],
+    ["mac", "cpu", "cuda"],
+  ),
+];
+
+const NEMOTRON3_NANO_30B: Artifact[] = [
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+    "BF16",
+    66,
+    72,
+    ["vLLM", "TensorRT-LLM", "Transformers"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+    "FP8",
+    34,
+    40,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
+    "NVFP4",
+    20,
+    24,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+];
+
+const NEMOTRON3_SUPER_120B: Artifact[] = [
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
+    "BF16",
+    260,
+    300,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
+    "FP8",
+    132,
+    160,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
+    "NVFP4",
+    72,
+    80,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+];
+
+const NEMOTRON3_ULTRA_550B: Artifact[] = [
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16",
+    "BF16",
+    1200,
+    1400,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+  nvidiaArtifact(
+    "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4",
+    "NVFP4",
+    350,
+    400,
+    ["vLLM", "TensorRT-LLM"],
+  ),
+];
+
 export const FAMILIES: Family[] = [
   {
     id: "qwen",
@@ -173,6 +289,23 @@ export const FAMILIES: Family[] = [
           { label: "72B", paramsB: 72, variants: ["Instruct"] },
         ],
       },
+      {
+        id: "q3",
+        name: "Qwen 3",
+        date: "Apr 2025",
+        ctx: "32K",
+        license: "Apache-2.0",
+        sizes: [
+          { label: "0.6B", paramsB: 0.6, variants: ["Instruct", "Base"] },
+          { label: "1.7B", paramsB: 1.7, variants: ["Instruct", "Base"] },
+          { label: "4B", paramsB: 4, variants: ["Instruct", "Base"] },
+          { label: "8B", paramsB: 8, variants: ["Instruct", "Base"] },
+          { label: "14B", paramsB: 14, variants: ["Instruct", "Base"] },
+          { label: "30B-A3B", paramsB: 30, variants: ["Instruct", "Base"] },
+          { label: "32B", paramsB: 32, variants: ["Instruct"] },
+          { label: "235B-A22B", paramsB: 235, variants: ["Instruct"] },
+        ],
+      },
     ],
   },
   {
@@ -211,6 +344,31 @@ export const FAMILIES: Family[] = [
           },
         ],
       },
+      {
+        id: "r1",
+        name: "R1",
+        date: "Jan 2025",
+        ctx: "128K",
+        license: "MIT",
+        sizes: [
+          { label: "671B-A37B", paramsB: 671, variants: ["Reasoner"] },
+        ],
+      },
+      {
+        id: "r1-distill",
+        name: "R1 Distill",
+        date: "Jan 2025",
+        ctx: "128K",
+        license: "MIT",
+        sizes: [
+          { label: "1.5B", paramsB: 1.5, variants: ["Qwen"] },
+          { label: "7B", paramsB: 7, variants: ["Qwen"] },
+          { label: "8B", paramsB: 8, variants: ["Llama"] },
+          { label: "14B", paramsB: 14, variants: ["Qwen"] },
+          { label: "32B", paramsB: 32, variants: ["Qwen"] },
+          { label: "70B", paramsB: 70, variants: ["Llama"] },
+        ],
+      },
     ],
   },
   {
@@ -233,6 +391,25 @@ export const FAMILIES: Family[] = [
             scores: { Instruct: { mmlu: 71.3, ifeval: 84.9, gpqa: 53.7, hle: 9.2, aime: 44.2, math500: 84.6, lcb: 38.9, swe: 28.1 } },
           },
           { label: "Maverick 400B-A17B", paramsB: 400, variants: ["Instruct"] },
+        ],
+      },
+      {
+        id: "l33",
+        name: "Llama 3.3",
+        date: "Dec 2024",
+        ctx: "128K",
+        license: "Llama Community",
+        sizes: [{ label: "70B", paramsB: 70, variants: ["Instruct"] }],
+      },
+      {
+        id: "l32",
+        name: "Llama 3.2",
+        date: "Sep 2024",
+        ctx: "128K",
+        license: "Llama Community",
+        sizes: [
+          { label: "1B", paramsB: 1, variants: ["Instruct", "Base"] },
+          { label: "3B", paramsB: 3, variants: ["Instruct", "Base"] },
         ],
       },
     ],
@@ -260,6 +437,19 @@ export const FAMILIES: Family[] = [
           },
         ],
       },
+      {
+        id: "g3",
+        name: "Gemma 3",
+        date: "Mar 2025",
+        ctx: "128K",
+        license: "Gemma Terms",
+        sizes: [
+          { label: "1B", paramsB: 1, variants: ["IT", "PT"] },
+          { label: "4B", paramsB: 4, variants: ["IT", "PT"] },
+          { label: "12B", paramsB: 12, variants: ["IT", "PT"] },
+          { label: "27B", paramsB: 27, variants: ["IT", "PT"] },
+        ],
+      },
     ],
   },
   {
@@ -280,6 +470,57 @@ export const FAMILIES: Family[] = [
             paramsB: 24,
             variants: ["Instruct", "Base"],
             scores: { Instruct: { mmlu: 70.9, ifeval: 83.2, gpqa: 50.1, hle: 8.8, aime: 41.7, math500: 85.7, lcb: 36.6, swe: 26.9 } },
+          },
+        ],
+      },
+      {
+        id: "ms31",
+        name: "Mistral Small 3.1",
+        date: "Mar 2025",
+        ctx: "128K",
+        license: "Apache-2.0",
+        sizes: [
+          { label: "24B", paramsB: 24, variants: ["Instruct", "Base"] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "nemotron",
+    name: "Nemotron",
+    vendor: "NVIDIA",
+    tags: "reasoning, agentic, inference optimized",
+    releases: [
+      {
+        id: "n3",
+        name: "Nemotron 3",
+        date: "2025–2026",
+        ctx: "Varies",
+        license: "NVIDIA Open Model",
+        sizes: [
+          {
+            label: "Nano 4B",
+            paramsB: 4,
+            variants: ["Instruct"],
+            curatedArtifacts: { Instruct: NEMOTRON3_4B },
+          },
+          {
+            label: "Nano 30B-A3B",
+            paramsB: 30,
+            variants: ["Instruct"],
+            curatedArtifacts: { Instruct: NEMOTRON3_NANO_30B },
+          },
+          {
+            label: "Super 120B-A12B",
+            paramsB: 120,
+            variants: ["Instruct"],
+            curatedArtifacts: { Instruct: NEMOTRON3_SUPER_120B },
+          },
+          {
+            label: "Ultra 550B-A55B",
+            paramsB: 550,
+            variants: ["Instruct"],
+            curatedArtifacts: { Instruct: NEMOTRON3_ULTRA_550B },
           },
         ],
       },
