@@ -21,7 +21,7 @@ export function FitBar({
 
   return (
     <details className="relative">
-      <summary className="flex min-h-8 list-none cursor-pointer items-center gap-1.5 rounded-[7px] border border-line bg-panel px-2.5 py-1 text-[12.5px] font-semibold text-muted hover:border-ink [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 list-none cursor-pointer items-center gap-1.5 rounded-[7px] border border-line bg-panel px-2.5 py-1 text-[12.5px] font-semibold text-muted hover:border-ink sm:min-h-8 [&::-webkit-details-marker]:hidden">
         <SlidersHorizontal size={14} aria-hidden="true" />
         VRAM: {selectedGb} GB
         {onlyRunnable ? <span className="text-verify">· runnable only</span> : null}
@@ -43,7 +43,7 @@ export function FitBar({
                   const details = event.currentTarget.closest("details");
                   if (details) details.open = false;
                 }}
-                className={`min-h-8 rounded-full border px-3 py-1 text-[12.5px] font-semibold ${
+                className={`min-h-11 rounded-full border px-3 py-1 text-[12.5px] font-semibold sm:min-h-8 ${
                   active
                     ? "border-ink bg-ink text-paper"
                     : "border-line bg-paper text-muted hover:border-ink"
@@ -53,7 +53,7 @@ export function FitBar({
               </button>
             );
           })}
-          <label className="flex min-h-8 items-center gap-1.5 text-[12.5px] text-muted">
+          <label className="flex min-h-11 items-center gap-1.5 text-[12.5px] text-muted sm:min-h-8">
             Custom
             <input
               type="number"
@@ -64,14 +64,18 @@ export function FitBar({
               value={manualGb ?? ""}
               onChange={(event) => {
                 const value = parseInt(event.target.value, 10);
-                onManualGb(Number.isFinite(value) && value > 0 ? value : null);
+                onManualGb(
+                  Number.isFinite(value)
+                    ? Math.min(2048, Math.max(4, value))
+                    : null,
+                );
               }}
               className="w-16 rounded-md border border-line bg-paper px-2 py-1 font-mono text-[12.5px]"
             />
             GB
           </label>
         </div>
-        <label className="mt-2 flex min-h-8 cursor-pointer items-center gap-1.5 text-[12.5px] font-semibold">
+        <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-1.5 text-[12.5px] font-semibold sm:min-h-8">
           <input
             type="checkbox"
             checked={onlyRunnable}

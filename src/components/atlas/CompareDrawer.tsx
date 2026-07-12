@@ -1,44 +1,105 @@
-import { BENCHES } from "@/lib/atlas/data";
 import { X } from "lucide-react";
+import { BENCHES } from "@/lib/atlas/data";
 import { fitOf } from "@/lib/atlas/fit";
 import type { Artifact, RigProfile } from "@/lib/atlas/types";
 import { uploaderDisplay } from "@/lib/atlas/naming";
 import { DeltaChip, FitBadge, PropertyChip, TrustBadge } from "./badges";
 
 export function CompareDrawer({
-  title,
   artifacts,
   rig,
+  onRemove,
   onClear,
 }: {
-  title: string;
   artifacts: Artifact[];
   rig: RigProfile;
+  onRemove: (repo: string) => void;
   onClear: () => void;
 }) {
-  const labelCell =
-    "whitespace-nowrap px-2.5 py-1.5 text-xs text-muted align-top";
+  const labelCell = "whitespace-nowrap px-2.5 py-1.5 text-xs text-muted align-top";
+
   return (
     <div
       role="region"
       aria-label="Artifact comparison"
-      className="fixed inset-x-0 bottom-0 z-40 max-h-[46vh] overflow-y-auto border-t-2 border-ink bg-panel shadow-[0_-8px_28px_rgba(0,0,0,0.14)]"
+      className="fixed inset-x-0 bottom-0 z-40 max-h-[62vh] overflow-y-auto border-t-2 border-ink bg-panel shadow-[0_-8px_28px_rgba(0,0,0,0.14)] md:max-h-[46vh]"
     >
-      <div className="mx-auto max-w-[1240px] px-5 pb-4 pt-3">
-        <div className="mb-2 flex items-center justify-between gap-2.5">
-          <h3 className="text-[13px] font-semibold uppercase tracking-[0.1em]">
-            Compare artifacts: {title}
-          </h3>
+      <div className="mx-auto max-w-[1240px] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[13px] font-semibold uppercase tracking-[0.1em]">
+              Compare artifacts · {artifacts.length} selected
+            </h3>
+            <p className="mt-0.5 text-[11.5px] text-muted" aria-live="polite">
+              {artifacts.length === 1
+                ? "Choose one more artifact to compare. Up to four selections are preserved while you browse."
+                : "Selections stay available across families and filters. Choose up to four artifacts."}
+            </p>
+          </div>
           <button
             onClick={onClear}
             aria-label="Clear artifact comparison"
-            className="inline-flex min-h-8 items-center gap-1 rounded px-2 py-1 text-[12.5px] font-semibold text-muted hover:text-ink"
+            className="inline-flex h-11 flex-none items-center gap-1 rounded px-2 text-[12.5px] font-semibold text-muted hover:text-ink md:h-8"
           >
             Clear <X size={13} aria-hidden="true" />
           </button>
         </div>
+
+        <div className="mt-3 divide-y divide-linesoft md:hidden">
+          {artifacts.map((artifact, index) => {
+            const fit = fitOf(artifact, rig);
+            return (
+              <section key={artifact.repo} className="py-3 first:pt-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="font-mono text-[12.5px] font-bold">{artifact.format}</span>
+                    <span className="ml-1.5"><PropertyChip tone="meta">{uploaderDisplay(artifact.repo)}</PropertyChip></span>
+                    <span className="ml-1.5"><TrustBadge trust={artifact.trust} /></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(artifact.repo)}
+                    aria-label={`Remove ${artifact.repo} from comparison`}
+                    className="flex h-11 w-11 flex-none items-center justify-center rounded-[7px] text-faint hover:bg-panel2 hover:text-ink"
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </div>
+                <a
+                  href={`https://huggingface.co/${artifact.repo}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                >
+                  {index + 1}. {artifact.repo}
+                </a>
+                <dl className="mt-2.5 grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">VRAM</dt>
+                    <dd className="mt-0.5 font-mono text-[13px]">{artifact.minVramGb}–{artifact.recVramGb} GB</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Fit</dt>
+                    <dd className="mt-0.5"><FitBadge fit={fit} /></dd>
+                  </div>
+                </dl>
+                {artifacts.length > 1 ? (
+                  <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-linesoft pt-2.5">
+                    {BENCHES.map((bench) => (
+                      <div key={bench.key} className="flex items-center justify-between gap-2">
+                        <dt className="text-[11px] text-muted">{bench.label}</dt>
+                        <dd><DeltaChip delta={artifact.deltas[bench.key]} measured={artifact.measured} /></dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+
         <div
-          className="overflow-x-auto"
+          className="mt-2 hidden overflow-x-auto md:block"
           tabIndex={0}
           aria-label="Selected artifact comparison; scroll horizontally for more columns"
         >
@@ -46,16 +107,21 @@ export function CompareDrawer({
             <thead>
               <tr>
                 <th className="px-2.5 py-1.5" />
-                {artifacts.map((a) => (
-                  <th
-                    key={a.repo}
-                    className="border-b border-line px-2.5 py-1.5 text-left"
-                  >
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-[12.5px]">{a.format}</span>
-                      <PropertyChip tone="meta">
-                        {uploaderDisplay(a.repo)}
-                      </PropertyChip>
+                {artifacts.map((artifact) => (
+                  <th key={artifact.repo} className="border-b border-line px-2.5 py-1.5 text-left">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[12.5px]">{artifact.format}</span>
+                        <PropertyChip tone="meta">{uploaderDisplay(artifact.repo)}</PropertyChip>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(artifact.repo)}
+                        aria-label={`Remove ${artifact.repo} from comparison`}
+                        className="flex h-8 w-8 items-center justify-center rounded text-faint hover:bg-panel2 hover:text-ink"
+                      >
+                        <X size={13} aria-hidden="true" />
+                      </button>
                     </span>
                   </th>
                 ))}
@@ -64,66 +130,37 @@ export function CompareDrawer({
             <tbody>
               <tr>
                 <td className={labelCell}>Repo</td>
-                {artifacts.map((a) => (
-                  <td
-                    key={a.repo}
-                    className="break-all px-2.5 py-1.5 align-top font-mono text-[11px] text-faint"
-                  >
-                    <a
-                      href={`https://huggingface.co/${a.repo}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline-offset-2 hover:text-ink hover:underline"
-                    >
-                      {a.repo}
+                {artifacts.map((artifact) => (
+                  <td key={artifact.repo} className="break-all px-2.5 py-1.5 align-top font-mono text-[11px] text-faint">
+                    <a href={`https://huggingface.co/${artifact.repo}`} target="_blank" rel="noreferrer" className="underline-offset-2 hover:text-ink hover:underline">
+                      {artifact.repo}
                     </a>
                   </td>
                 ))}
               </tr>
               <tr>
                 <td className={labelCell}>Trust</td>
-                {artifacts.map((a) => (
-                  <td key={a.repo} className="px-2.5 py-1.5 align-top">
-                    <TrustBadge trust={a.trust} />
-                  </td>
-                ))}
+                {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><TrustBadge trust={artifact.trust} /></td>)}
               </tr>
               <tr>
                 <td className={labelCell}>VRAM</td>
-                {artifacts.map((a) => (
-                  <td
-                    key={a.repo}
-                    className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums"
-                  >
-                    {a.minVramGb}–{a.recVramGb} GB
-                  </td>
-                ))}
+                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{artifact.minVramGb}–{artifact.recVramGb} GB</td>)}
               </tr>
               <tr>
                 <td className={labelCell}>Fit</td>
-                {artifacts.map((a) => (
-                  <td key={a.repo} className="px-2.5 py-1.5 align-top">
-                    <FitBadge fit={fitOf(a, rig)} />
-                  </td>
-                ))}
+                {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><FitBadge fit={fitOf(artifact, rig)} /></td>)}
               </tr>
-              {BENCHES.map((b) => (
-                <tr key={b.key}>
-                  <td className={labelCell}>{b.label} Δ</td>
-                  {artifacts.map((a) => (
-                    <td key={a.repo} className="px-2.5 py-1.5 align-top">
-                      <DeltaChip delta={a.deltas[b.key]} measured={a.measured} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {artifacts.length > 1
+                ? BENCHES.map((bench) => (
+                    <tr key={bench.key}>
+                      <td className={labelCell}>{bench.label} Δ</td>
+                      {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><DeltaChip delta={artifact.deltas[bench.key]} measured={artifact.measured} /></td>)}
+                    </tr>
+                  ))
+                : null}
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[11.5px] text-faint">
-          Difference from the BF16 reference. An asterisk marks an estimate;
-          n/a means no data.
-        </p>
       </div>
     </div>
   );

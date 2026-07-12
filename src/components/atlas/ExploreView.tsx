@@ -1,8 +1,9 @@
 import Image from "next/image";
-import { ChevronDown, ListFilter } from "lucide-react";
-import { useState } from "react";
+import { BookOpen, ChevronDown, ListFilter } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { BENCHES, FAMILIES } from "@/lib/atlas/data";
 import { artifactsFor, fitOf } from "@/lib/atlas/fit";
+import { learnTermForFormat } from "@/lib/atlas/learn";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
 import type {
   Artifact,
@@ -34,6 +35,33 @@ const FAMILY_LOGOS: Record<string, string> = {
   nemotron: "/brands/nemotron.svg",
 };
 
+function LearnHint({
+  term,
+  onLearn,
+  children,
+}: {
+  term: string;
+  onLearn: (term?: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onLearn(term)}
+      className="inline-flex items-center gap-1 text-faint underline decoration-dotted underline-offset-4 hover:text-ink"
+    >
+      {children}
+      <BookOpen size={12} aria-hidden="true" />
+    </button>
+  );
+}
+
+function fitLabel(level: ReturnType<typeof fitOf>["level"]) {
+  if (level === "runs") return "Fits";
+  if (level === "tight") return "Tight";
+  return "Does not fit";
+}
+
 interface ArtifactResult {
   release: Release;
   size: SizeNode;
@@ -42,46 +70,17 @@ interface ArtifactResult {
 }
 
 function FamilyRail({
-  query,
   familyId,
   onFamily,
-  onClearQuery,
 }: {
-  query: string;
   familyId: string;
   onFamily: (id: string) => void;
-  onClearQuery: () => void;
 }) {
-  const normalizedQuery = query.trim().toLowerCase();
-  const families = FAMILIES.filter(
-    (family) =>
-      !normalizedQuery ||
-      family.name.toLowerCase().includes(normalizedQuery) ||
-      family.vendor.toLowerCase().includes(normalizedQuery) ||
-      family.tags.includes(normalizedQuery),
-  );
-
   return (
     <aside className="min-w-0" aria-label="Model families">
       <h2 className={`mb-2.5 ${SECTION_LABEL}`}>Families</h2>
-      {families.length === 0 ? (
-        <div className="px-1 py-3 text-[13px] text-muted">
-          <b className="mb-1 block text-ink">
-            No family matches “{query.trim()}”
-          </b>
-          Try a vendor (Alibaba, Meta) or a tag (coding, MoE).
-          <div className="mt-2">
-            <button
-              onClick={onClearQuery}
-              className="rounded-full border border-line bg-panel px-3 py-1 text-[12.5px] font-semibold text-muted hover:border-ink"
-            >
-              Clear search
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 md:block md:overflow-visible md:pb-0">
-          {families.map((family) => (
+      <div className="flex gap-1.5 overflow-x-auto pb-1 md:block md:overflow-visible md:pb-0">
+        {FAMILIES.map((family) => (
           <button
             key={family.id}
             aria-current={family.id === familyId}
@@ -125,9 +124,8 @@ function FamilyRail({
               </span>
             </span>
           </button>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
     </aside>
   );
 }
@@ -152,7 +150,6 @@ const RESULTS_BY_FAMILY = new Map(
 );
 
 export function ExploreView({
-  query,
   familyId,
   releaseId,
   sizeLabel,
@@ -169,9 +166,8 @@ export function ExploreView({
   onToggleQuantization,
   onCheck,
   onToggleArtifactBench,
-  onClearQuery,
+  onLearn,
 }: {
-  query: string;
   familyId: string;
   releaseId: string | null;
   sizeLabel: string | null;
@@ -188,9 +184,10 @@ export function ExploreView({
   onToggleQuantization: (format: string) => void;
   onCheck: (repo: string, on: boolean) => void;
   onToggleArtifactBench: (bench: BenchKey) => void;
-  onClearQuery: () => void;
+  onLearn: (term?: string) => void;
 }) {
   const [previewReleaseId, setPreviewReleaseId] = useState<string | null>(null);
+  const [showAllArtifacts, setShowAllArtifacts] = useState(false);
   const family = FAMILIES.find((item) => item.id === familyId) ?? FAMILIES[0];
   const release = family.releases.find((item) => item.id === releaseId) ?? null;
   const size = release?.sizes.find((item) => item.label === sizeLabel) ?? null;
@@ -223,11 +220,13 @@ export function ExploreView({
   const visibleResults = filteredResults.filter(
     (result) => !onlyRunnable || fitOf(result.artifact, rig).level !== "no",
   );
+  const showResults = Boolean(release) || showAllArtifacts;
+  const compareLimitReached = checked.size >= 4;
 
   const scores =
     release && size && activeVariant ? size.scores?.[activeVariant] : undefined;
   const segmentClass = (active: boolean) =>
-    `inline-flex min-h-8 items-center gap-1.5 rounded-[7px] border px-3 py-1.5 text-[13px] font-semibold ${
+    `inline-flex min-h-11 items-center gap-1.5 rounded-[7px] border px-3 py-1.5 text-[13px] font-semibold sm:min-h-8 ${
       active
         ? "border-ink bg-ink text-paper"
         : "border-line bg-panel hover:border-ink"
@@ -236,10 +235,8 @@ export function ExploreView({
   return (
     <div className="grid gap-4 pt-4 md:grid-cols-[248px_minmax(0,1fr)]">
       <FamilyRail
-        query={query}
         familyId={family.id}
         onFamily={onFamily}
-        onClearQuery={onClearQuery}
       />
 
       <section className="min-w-0">
@@ -292,7 +289,10 @@ export function ExploreView({
                   {metadataRelease ? (
                     <>
                       <b className="font-semibold text-ink">{metadataRelease.name}</b>
-                      {" · context "}
+                      {" · "}
+                      <LearnHint term="context" onLearn={onLearn}>
+                        context
+                      </LearnHint>{" "}
                       <b className="font-mono font-semibold text-ink">
                         {metadataRelease.ctx}
                       </b>
@@ -346,7 +346,11 @@ export function ExploreView({
 
             {size ? (
               <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)]">
-                <span className={`${SECTION_LABEL} pt-2`}>Variant</span>
+                <span className={`${SECTION_LABEL} pt-2`}>
+                  <LearnHint term="variant" onLearn={onLearn}>
+                    Variant
+                  </LearnHint>
+                </span>
                 <div className="flex flex-wrap gap-1.5">
                   {size.variants.map((item) => (
                     <button
@@ -364,7 +368,11 @@ export function ExploreView({
 
             {size && activeVariant ? (
               <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)]">
-                <span className={`${SECTION_LABEL} pt-2`}>Quant</span>
+                <span className={`${SECTION_LABEL} pt-2`}>
+                  <LearnHint term="quantization" onLearn={onLearn}>
+                    Quant
+                  </LearnHint>
+                </span>
                 <div className="flex flex-wrap gap-1.5">
                   {quantizationOptions.map((format) => (
                     <button
@@ -383,10 +391,37 @@ export function ExploreView({
         </div>
 
         <div className="mt-3.5">
+          {!showResults ? (
+            <div className="rounded-[10px] border border-line bg-panel px-5 py-10 text-center">
+              <h3 className="font-display text-[19px] font-semibold">Choose a release</h3>
+              <p className="mx-auto mt-1 max-w-[58ch] text-[13px] leading-relaxed text-muted">
+                Select a release to reveal its sizes, variants, and artifacts in sequence.
+                The complete family remains available when you need a broad scan.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowAllArtifacts(true)}
+                className="mt-4 min-h-11 rounded-[7px] border border-line bg-paper px-3 text-[12.5px] font-semibold hover:border-ink sm:min-h-9"
+              >
+                Show all artifacts
+              </button>
+            </div>
+          ) : (
           <div className="rounded-[10px] border border-line bg-panel px-4 py-3.5">
-            <div className="mb-2 flex justify-end">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              {!release && showAllArtifacts ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllArtifacts(false)}
+                  className="min-h-8 text-[12.5px] font-semibold text-muted hover:text-ink"
+                >
+                  Back to release selection
+                </button>
+              ) : (
+                <span />
+              )}
               <details className="relative">
-                <summary className="flex min-h-8 list-none cursor-pointer items-center gap-1.5 rounded-[7px] border border-line bg-paper px-2.5 py-1 text-[12.5px] font-semibold text-muted hover:border-ink [&::-webkit-details-marker]:hidden">
+                <summary className="flex min-h-11 list-none cursor-pointer items-center gap-1.5 rounded-[7px] border border-line bg-paper px-2.5 py-1 text-[12.5px] font-semibold text-muted hover:border-ink sm:min-h-8 [&::-webkit-details-marker]:hidden">
                   <ListFilter size={14} aria-hidden="true" />
                   Benchmarks
                   {selectedBenches.length > 0 ? (
@@ -400,7 +435,7 @@ export function ExploreView({
                   {BENCHES.map((bench) => (
                     <label
                       key={bench.key}
-                      className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-[12.5px] hover:bg-panel2"
+                      className="flex min-h-11 cursor-pointer items-center gap-2 rounded px-1.5 text-[12.5px] hover:bg-panel2 sm:min-h-8"
                     >
                       <input
                         type="checkbox"
@@ -414,8 +449,105 @@ export function ExploreView({
               </details>
             </div>
 
+            <div className="divide-y divide-linesoft md:hidden">
+              {visibleResults.length === 0 ? (
+                <p className="py-10 text-center text-[13px] text-muted">
+                  No artifacts in this scope fit within {rig.gb} GB. Open the VRAM
+                  filter or show all artifacts.
+                </p>
+              ) : (
+                visibleResults.map((result) => {
+                  const { artifact } = result;
+                  const fit = fitOf(artifact, rig);
+                  const selected = checked.has(artifact.repo);
+                  const disabled = !selected && compareLimitReached;
+                  return (
+                    <article key={artifact.repo} className="py-3.5">
+                      <div className="flex items-start gap-2.5">
+                        <label className="-ml-2 inline-flex h-11 w-11 flex-none cursor-pointer items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={disabled}
+                            onChange={(event) => onCheck(artifact.repo, event.target.checked)}
+                            aria-label={`Compare ${artifact.repo}`}
+                            className="disabled:cursor-not-allowed disabled:opacity-35"
+                          />
+                        </label>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-display text-[15px] font-semibold">
+                              {result.release.name} {sizeDisplay(result.size.label)}
+                            </span>
+                            <PropertyChip>{result.variant}</PropertyChip>
+                            {activeParamsLabel(result.size.label) ? (
+                              <PropertyChip>{activeParamsLabel(result.size.label)}</PropertyChip>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onLearn(learnTermForFormat(artifact.format))}
+                              className="font-mono text-[12.5px] font-bold underline decoration-dotted underline-offset-4"
+                            >
+                              {artifact.format}
+                            </button>
+                            <PropertyChip tone="meta">{uploaderDisplay(artifact.repo)}</PropertyChip>
+                            <TrustBadge trust={artifact.trust} />
+                            <ConfidenceNote confidence={artifact.confidence} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <a
+                        href={`https://huggingface.co/${artifact.repo}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 block break-all pl-11 font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                      >
+                        {artifact.repo}
+                      </a>
+
+                      <dl className="mt-3 grid grid-cols-2 gap-3 border-y border-linesoft py-2.5">
+                        <div>
+                          <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">VRAM</dt>
+                          <dd className="mt-0.5 font-mono text-[13px] tabular-nums">
+                            {artifact.minVramGb}–{artifact.recVramGb} GB
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Fit</dt>
+                          <dd className="mt-0.5 flex items-center gap-1.5 text-[12.5px] font-semibold">
+                            <FitBadge fit={fit} /> {fitLabel(fit.level)}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-2.5 flex flex-wrap gap-1">
+                        {artifact.runtimes.map((runtime) => (
+                          <span key={runtime} className="rounded bg-panel2 px-1.5 py-px font-mono text-[11.5px] text-muted">
+                            {runtime}
+                          </span>
+                        ))}
+                      </div>
+                      {selectedBenches.length > 0 ? (
+                        <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2">
+                          {selectedBenches.map((bench) => (
+                            <div key={bench.key} className="flex items-center justify-between gap-2">
+                              <dt className="text-[11.5px] text-muted">{bench.label}</dt>
+                              <dd><DeltaChip delta={artifact.deltas[bench.key]} measured={artifact.measured} /></dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : null}
+                    </article>
+                  );
+                })
+              )}
+            </div>
+
             <div
-              className="overflow-x-auto"
+              className="hidden overflow-x-auto md:block"
               tabIndex={0}
               aria-label="Model artifacts table; scroll horizontally for more columns"
             >
@@ -436,7 +568,13 @@ export function ExploreView({
                           className="whitespace-nowrap border-b border-line px-2.5 py-2 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-muted"
                         >
                           <span className={index === 0 ? "sr-only" : undefined}>
-                            {heading || "Compare"}
+                            {heading === "VRAM" ? (
+                              <LearnHint term="vram" onLearn={onLearn}>VRAM</LearnHint>
+                            ) : heading === "Fit" ? (
+                              <LearnHint term="fit" onLearn={onLearn}>Fit</LearnHint>
+                            ) : (
+                              heading || "Compare"
+                            )}
                           </span>
                         </th>
                       ))}
@@ -457,6 +595,8 @@ export function ExploreView({
                     visibleResults.map((result) => {
                       const { artifact } = result;
                       const fit = fitOf(artifact, rig);
+                      const selected = checked.has(artifact.repo);
+                      const disabled = !selected && compareLimitReached;
                       return (
                         <tr
                           key={artifact.repo}
@@ -466,11 +606,13 @@ export function ExploreView({
                             <label className="inline-flex h-6 w-6 cursor-pointer items-center justify-center">
                               <input
                                 type="checkbox"
-                                checked={checked.has(artifact.repo)}
+                                checked={selected}
+                                disabled={disabled}
                                 onChange={(event) =>
                                   onCheck(artifact.repo, event.target.checked)
                                 }
                                 aria-label={`Compare ${artifact.repo}`}
+                                className="disabled:cursor-not-allowed disabled:opacity-35"
                               />
                             </label>
                           </td>
@@ -487,9 +629,13 @@ export function ExploreView({
                               ) : null}
                             </span>
                             <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <span className="font-mono text-[12.5px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => onLearn(learnTermForFormat(artifact.format))}
+                                className="font-mono text-[12.5px] font-bold underline decoration-dotted underline-offset-4"
+                              >
                                 {artifact.format}
-                              </span>
+                              </button>
                               <PropertyChip tone="meta">
                                 {uploaderDisplay(artifact.repo)}
                               </PropertyChip>
@@ -542,11 +688,16 @@ export function ExploreView({
               </table>
             </div>
           </div>
+          )}
 
           {release && size && activeVariant ? (
             <aside className="mt-3.5 rounded-[10px] border border-line bg-panel px-4 py-3.5">
               <div className="mb-2.5 flex items-center justify-between gap-3">
-                <h2 className={SECTION_LABEL}>Reference benchmarks</h2>
+                <h2 className={SECTION_LABEL}>
+                  <LearnHint term="benchmark" onLearn={onLearn}>
+                    Reference benchmarks
+                  </LearnHint>
+                </h2>
                 <span className="text-[11.5px] text-faint">Higher is better</span>
               </div>
               {scores ? (
