@@ -1,8 +1,8 @@
 import { Check, TriangleAlert, X } from "lucide-react";
 
-import type { Confidence, FitVerdict, Trust } from "@/lib/atlas/types";
+import type { FitVerdict } from "@/lib/atlas/types";
 
-/** Small mono chip for model properties: quant, uploader, variant, active params. */
+/** Small mono chip for compact model properties such as variant and active parameters. */
 export function PropertyChip({
   children,
   tone = "neutral",
@@ -17,46 +17,6 @@ export function PropertyChip({
       className={`inline-flex items-center whitespace-nowrap rounded-[5px] px-1.5 py-px font-mono text-[11.5px] font-medium ${styles}`}
     >
       {children}
-    </span>
-  );
-}
-
-export function TrustBadge({ trust }: { trust: Trust }) {
-  if (trust === "official") {
-    return (
-      <span className="inline-flex items-center rounded-[5px] bg-verifysoft px-1.5 py-px text-[11.5px] font-semibold text-verify">
-        Official
-      </span>
-    );
-  }
-  if (trust === "vendor") {
-    return (
-      <span className="inline-flex items-center rounded-[5px] bg-metasoft px-1.5 py-px text-[11.5px] font-semibold text-meta">
-        Vendor
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-[5px] bg-panel2 px-1.5 py-px text-[11.5px] font-semibold text-muted">
-      Community
-    </span>
-  );
-}
-
-const CONFIDENCE_COPY: Record<Confidence, { dot: string; label: string }> = {
-  verified: { dot: "bg-verify", label: "Verified" },
-  inferred: { dot: "bg-caution", label: "Inferred from repo name" },
-  needs_review: { dot: "bg-alert", label: "Needs review" },
-};
-
-export function ConfidenceNote({ confidence }: { confidence: Confidence }) {
-  if (confidence === "inferred") return null;
-
-  const { dot, label } = CONFIDENCE_COPY[confidence];
-  return (
-    <span className="inline-flex items-center gap-1 text-[11.5px] text-muted">
-      <span className={`h-[7px] w-[7px] flex-none rounded-full ${dot}`} />
-      {label}
     </span>
   );
 }

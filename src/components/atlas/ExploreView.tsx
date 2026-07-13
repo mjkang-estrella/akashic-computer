@@ -1,6 +1,6 @@
 import Image from "next/image";
-import { BookOpen, ChevronDown, ListFilter } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ChevronDown, ListFilter } from "lucide-react";
+import { useState } from "react";
 import { BENCHES, FAMILIES } from "@/lib/atlas/data";
 import { artifactsFor, fitOf } from "@/lib/atlas/fit";
 import { learnTermForFormat } from "@/lib/atlas/learn";
@@ -14,12 +14,10 @@ import type {
   SizeNode,
 } from "@/lib/atlas/types";
 import {
-  ConfidenceNote,
   DeltaChip,
   FitBadge,
-  PropertyChip,
-  TrustBadge,
 } from "./badges";
+import { LexiconHint } from "./LexiconHint";
 
 const SECTION_LABEL =
   "text-[11px] font-bold uppercase tracking-[0.12em] text-muted";
@@ -34,27 +32,6 @@ const FAMILY_LOGOS: Record<string, string> = {
   phi: "/brands/phi.svg",
   nemotron: "/brands/nemotron.svg",
 };
-
-function LearnHint({
-  term,
-  onLearn,
-  children,
-}: {
-  term: string;
-  onLearn: (term?: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onLearn(term)}
-      className="inline-flex items-center gap-1 text-faint underline decoration-dotted underline-offset-4 hover:text-ink"
-    >
-      {children}
-      <BookOpen size={12} aria-hidden="true" />
-    </button>
-  );
-}
 
 function fitLabel(level: ReturnType<typeof fitOf>["level"]) {
   if (level === "runs") return "Fits";
@@ -290,9 +267,9 @@ export function ExploreView({
                     <>
                       <b className="font-semibold text-ink">{metadataRelease.name}</b>
                       {" · "}
-                      <LearnHint term="context" onLearn={onLearn}>
+                      <LexiconHint term="context" onLearn={onLearn}>
                         context
-                      </LearnHint>{" "}
+                      </LexiconHint>{" "}
                       <b className="font-mono font-semibold text-ink">
                         {metadataRelease.ctx}
                       </b>
@@ -347,9 +324,9 @@ export function ExploreView({
             {size ? (
               <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)]">
                 <span className={`${SECTION_LABEL} pt-2`}>
-                  <LearnHint term="variant" onLearn={onLearn}>
+                  <LexiconHint term="variant" onLearn={onLearn}>
                     Variant
-                  </LearnHint>
+                  </LexiconHint>
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {size.variants.map((item) => (
@@ -369,9 +346,9 @@ export function ExploreView({
             {size && activeVariant ? (
               <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)]">
                 <span className={`${SECTION_LABEL} pt-2`}>
-                  <LearnHint term="quantization" onLearn={onLearn}>
+                  <LexiconHint term="quantization" onLearn={onLearn}>
                     Quant
-                  </LearnHint>
+                  </LexiconHint>
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {quantizationOptions.map((format) => (
@@ -475,38 +452,55 @@ export function ExploreView({
                           />
                         </label>
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                             <span className="font-display text-[15px] font-semibold">
                               {result.release.name} {sizeDisplay(result.size.label)}
                             </span>
-                            <PropertyChip>{result.variant}</PropertyChip>
-                            {activeParamsLabel(result.size.label) ? (
-                              <PropertyChip>{activeParamsLabel(result.size.label)}</PropertyChip>
-                            ) : null}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => onLearn(learnTermForFormat(artifact.format))}
-                              className="font-mono text-[12.5px] font-bold underline decoration-dotted underline-offset-4"
-                            >
-                              {artifact.format}
-                            </button>
-                            <PropertyChip tone="meta">{uploaderDisplay(artifact.repo)}</PropertyChip>
-                            <TrustBadge trust={artifact.trust} />
-                            <ConfidenceNote confidence={artifact.confidence} />
+                            <span className="text-[12.5px] text-muted">
+                              {result.variant}
+                              {activeParamsLabel(result.size.label)
+                                ? ` · ${activeParamsLabel(result.size.label)}`
+                                : ""}
+                            </span>
                           </div>
                         </div>
                       </div>
 
-                      <a
-                        href={`https://huggingface.co/${artifact.repo}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 block break-all pl-11 font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
-                      >
-                        {artifact.repo}
-                      </a>
+                      <dl className="mt-2 space-y-1 pl-11 text-[12.5px]">
+                        <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
+                          <dt className="text-muted">
+                            <LexiconHint term="quantization" onLearn={onLearn}>Quant</LexiconHint>
+                          </dt>
+                          <dd className="font-mono font-semibold">
+                            <LexiconHint
+                              term={learnTermForFormat(artifact.format)}
+                              onLearn={onLearn}
+                              className="text-ink"
+                            >
+                              {artifact.format}
+                            </LexiconHint>
+                          </dd>
+                        </div>
+                        <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
+                          <dt className="text-muted">
+                            <LexiconHint term="provider" onLearn={onLearn}>Provider</LexiconHint>
+                          </dt>
+                          <dd>{uploaderDisplay(artifact.repo)}</dd>
+                        </div>
+                        <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
+                          <dt className="text-muted">Repository</dt>
+                          <dd className="min-w-0">
+                            <a
+                              href={`https://huggingface.co/${artifact.repo}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                            >
+                              {artifact.repo}
+                            </a>
+                          </dd>
+                        </div>
+                      </dl>
 
                       <dl className="mt-3 grid grid-cols-2 gap-3 border-y border-linesoft py-2.5">
                         <div>
@@ -569,9 +563,11 @@ export function ExploreView({
                         >
                           <span className={index === 0 ? "sr-only" : undefined}>
                             {heading === "VRAM" ? (
-                              <LearnHint term="vram" onLearn={onLearn}>VRAM</LearnHint>
+                              <LexiconHint term="vram" onLearn={onLearn}>VRAM</LexiconHint>
                             ) : heading === "Fit" ? (
-                              <LearnHint term="fit" onLearn={onLearn}>Fit</LearnHint>
+                              <LexiconHint term="fit" onLearn={onLearn}>Fit</LexiconHint>
+                            ) : heading === "Runtimes" ? (
+                              <LexiconHint term="runtime" onLearn={onLearn}>Runtimes</LexiconHint>
                             ) : (
                               heading || "Compare"
                             )}
@@ -617,39 +613,52 @@ export function ExploreView({
                             </label>
                           </td>
                           <td className="px-2.5 py-2.5 align-top">
-                            <span className="flex flex-wrap items-center gap-1.5">
+                            <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                               <span className="font-display text-[15px] font-semibold">
                                 {result.release.name} {sizeDisplay(result.size.label)}
                               </span>
-                              <PropertyChip>{result.variant}</PropertyChip>
-                              {activeParamsLabel(result.size.label) ? (
-                                <PropertyChip>
-                                  {activeParamsLabel(result.size.label)}
-                                </PropertyChip>
-                              ) : null}
+                              <span className="text-[12.5px] text-muted">
+                                {result.variant}
+                                {activeParamsLabel(result.size.label)
+                                  ? ` · ${activeParamsLabel(result.size.label)}`
+                                  : ""}
+                              </span>
                             </span>
-                            <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => onLearn(learnTermForFormat(artifact.format))}
-                                className="font-mono text-[12.5px] font-bold underline decoration-dotted underline-offset-4"
-                              >
-                                {artifact.format}
-                              </button>
-                              <PropertyChip tone="meta">
-                                {uploaderDisplay(artifact.repo)}
-                              </PropertyChip>
-                              <TrustBadge trust={artifact.trust} />
-                              <ConfidenceNote confidence={artifact.confidence} />
-                            </span>
-                            <a
-                              href={`https://huggingface.co/${artifact.repo}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-1 block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
-                            >
-                              {artifact.repo}
-                            </a>
+                            <dl className="mt-1.5 space-y-0.5 text-[11.5px]">
+                              <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+                                <dt className="text-muted">
+                                  <LexiconHint term="quantization" onLearn={onLearn}>Quant</LexiconHint>
+                                </dt>
+                                <dd className="font-mono font-semibold">
+                                  <LexiconHint
+                                    term={learnTermForFormat(artifact.format)}
+                                    onLearn={onLearn}
+                                    className="text-ink"
+                                  >
+                                    {artifact.format}
+                                  </LexiconHint>
+                                </dd>
+                              </div>
+                              <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+                                <dt className="text-muted">
+                                  <LexiconHint term="provider" onLearn={onLearn}>Provider</LexiconHint>
+                                </dt>
+                                <dd>{uploaderDisplay(artifact.repo)}</dd>
+                              </div>
+                              <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+                                <dt className="text-muted">Repo</dt>
+                                <dd className="min-w-0">
+                                  <a
+                                    href={`https://huggingface.co/${artifact.repo}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                                  >
+                                    {artifact.repo}
+                                  </a>
+                                </dd>
+                              </div>
+                            </dl>
                           </td>
                           <td className="px-2.5 py-2.5 align-top">
                             <span className="flex flex-wrap gap-1">
@@ -694,9 +703,9 @@ export function ExploreView({
             <aside className="mt-3.5 rounded-[10px] border border-line bg-panel px-4 py-3.5">
               <div className="mb-2.5 flex items-center justify-between gap-3">
                 <h2 className={SECTION_LABEL}>
-                  <LearnHint term="benchmark" onLearn={onLearn}>
+                  <LexiconHint term="benchmark" onLearn={onLearn}>
                     Reference benchmarks
-                  </LearnHint>
+                  </LexiconHint>
                 </h2>
                 <span className="text-[11.5px] text-faint">Higher is better</span>
               </div>

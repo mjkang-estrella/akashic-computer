@@ -10,11 +10,9 @@ import { fitOf } from "@/lib/atlas/fit";
 import { activeParamsLabel, uploaderDisplay } from "@/lib/atlas/naming";
 import type { BenchCategory, BenchKey, RigProfile } from "@/lib/atlas/types";
 import {
-  ConfidenceNote,
   DeltaChip,
   PropertyChip,
   ScoreMeter,
-  TrustBadge,
 } from "./badges";
 
 export type CompareSortKey = BenchKey | "model";
@@ -281,24 +279,29 @@ export function CompareView({
                               className="border-b border-linesoft bg-panel2/55"
                             >
                               <td className="px-2.5 py-1.5 pl-7">
-                                <span className="flex flex-wrap items-center gap-1.5">
-                                  <span className="font-mono text-[12.5px] font-bold">
-                                    {a.format}
-                                  </span>
-                                  <PropertyChip tone="meta">
-                                    {uploaderDisplay(a.repo)}
-                                  </PropertyChip>
-                                  <TrustBadge trust={a.trust} />
-                                  <ConfidenceNote confidence={a.confidence} />
-                                </span>
-                                <a
-                                  href={`https://huggingface.co/${a.repo}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-0.5 block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
-                                >
-                                  {a.repo}
-                                </a>
+                                <dl className="space-y-0.5 text-[11.5px]">
+                                  <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+                                    <dt className="text-muted">Quant</dt>
+                                    <dd className="font-mono font-semibold">{a.format}</dd>
+                                  </div>
+                                  <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+                                    <dt className="text-muted">Provider</dt>
+                                    <dd>{uploaderDisplay(a.repo)}</dd>
+                                  </div>
+                                  <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+                                    <dt className="text-muted">Repo</dt>
+                                    <dd className="min-w-0">
+                                      <a
+                                        href={`https://huggingface.co/${a.repo}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block break-all font-mono text-[11px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                                      >
+                                        {a.repo}
+                                      </a>
+                                    </dd>
+                                  </div>
+                                </dl>
                               </td>
                               {benches.map((b) => (
                                 <td key={b.key} className="px-2.5 py-1.5 align-top">

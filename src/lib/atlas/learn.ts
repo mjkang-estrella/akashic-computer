@@ -70,6 +70,14 @@ export const LEARN_TERMS: LearnTerm[] = [
     category: "Artifacts and precision",
   },
   {
+    id: "provider",
+    term: "Provider",
+    short: "The account or organization that published an artifact.",
+    definition:
+      "The provider can be the model creator, a hardware vendor, or an independent publisher. It identifies where the downloadable weights came from, not who created the underlying model.",
+    category: "Artifacts and precision",
+  },
+  {
     id: "quantization",
     term: "Quantization",
     short: "Representing weights with fewer bits to reduce memory use.",
@@ -219,4 +227,8 @@ export function learnTermForFormat(format: string) {
   )
     return "int4";
   return "quantization";
+}
+
+export function learnTermById(id: string) {
+  return LEARN_TERMS.find((term) => term.id === id);
 }
