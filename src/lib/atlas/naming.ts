@@ -36,6 +36,14 @@ const UPLOADER_NAMES: Record<string, string> = {
   "deepseek-ai": "DeepSeek",
   openai: "OpenAI",
   microsoft: "Microsoft",
+  "zai-org": "Z.ai",
+  minimaxai: "MiniMax",
+  xiaomimimo: "Xiaomi",
+  moonshotai: "Moonshot AI",
+  upstage: "Upstage",
+  "nota-ai": "Nota AI",
+  llm360: "LLM360",
+  "xai-org": "xAI",
 };
 
 /** Uploader org parsed from the repo prefix, shown as a property chip. */

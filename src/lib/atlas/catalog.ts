@@ -22,6 +22,13 @@ function formatProfile(format: string) {
       runtimes: ["TensorRT-LLM", "vLLM"],
     };
   }
+  if (format.includes("FP4")) {
+    return {
+      factor: 0.62,
+      kinds: ["cuda", "dgx"] as Artifact["kinds"],
+      runtimes: ["vLLM", "SGLang"],
+    };
+  }
   if (format.includes("INT4") || format === "AWQ") {
     return {
       factor: 0.62,
@@ -29,7 +36,7 @@ function formatProfile(format: string) {
       runtimes: ["vLLM", "SGLang"],
     };
   }
-  if (format.startsWith("FP8")) {
+  if (format.includes("FP8")) {
     return {
       factor: 1.1,
       kinds: ["cuda", "dgx"] as Artifact["kinds"],
@@ -803,6 +810,441 @@ export const FAMILIES: Family[] = [
               { repo: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16" },
               { repo: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4", format: "NVFP4" },
             ],
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "glm",
+    name: "GLM",
+    vendor: "Z.ai",
+    tags: "agentic, coding, long context",
+    releases: [
+      {
+        id: "glm52",
+        name: "GLM 5.2",
+        date: "Jun 2026",
+        ctx: "1M",
+        license: "MIT",
+        sizes: [
+          officialSize("753B-A40B", 753, {
+            Instruct: [
+              { repo: "zai-org/GLM-5.2" },
+              { repo: "zai-org/GLM-5.2-FP8", format: "FP8" },
+              {
+                repo: "nvidia/GLM-5.2-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "glm51",
+        name: "GLM 5.1",
+        date: "Apr 2026",
+        ctx: "203K",
+        license: "MIT",
+        sizes: [
+          officialSize("754B-A40B", 754, {
+            Instruct: [
+              { repo: "zai-org/GLM-5.1" },
+              { repo: "zai-org/GLM-5.1-FP8", format: "FP8" },
+              {
+                repo: "nvidia/GLM-5.1-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "glm5",
+        name: "GLM 5",
+        date: "Feb 2026",
+        ctx: "203K",
+        license: "MIT",
+        sizes: [
+          officialSize("754B-A40B", 754, {
+            Instruct: [
+              { repo: "zai-org/GLM-5" },
+              { repo: "zai-org/GLM-5-FP8", format: "FP8" },
+              {
+                repo: "nvidia/GLM-5-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "glm47",
+        name: "GLM 4.7",
+        date: "Dec 2025",
+        ctx: "203K",
+        license: "MIT",
+        sizes: [
+          officialSize("358B-A32B", 358, {
+            Instruct: [
+              { repo: "zai-org/GLM-4.7" },
+              { repo: "zai-org/GLM-4.7-FP8", format: "FP8" },
+              {
+                repo: "nvidia/GLM-4.7-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+          officialSize("Flash 31B-A3B", 31, {
+            Instruct: [{ repo: "zai-org/GLM-4.7-Flash" }],
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "minimax",
+    name: "MiniMax",
+    vendor: "MiniMax",
+    tags: "agentic, multimodal, long context",
+    releases: [
+      {
+        id: "m3",
+        name: "MiniMax M3",
+        date: "Jun 2026",
+        ctx: "1M",
+        license: "MiniMax Community",
+        sizes: [
+          officialSize("427B-A23B", 427, {
+            Instruct: [
+              { repo: "MiniMaxAI/MiniMax-M3" },
+              { repo: "MiniMaxAI/MiniMax-M3-MXFP8", format: "MXFP8" },
+              {
+                repo: "nvidia/MiniMax-M3-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      ...[
+        [
+          "m27",
+          "MiniMax M2.7",
+          "Apr 2026",
+          "MiniMaxAI/MiniMax-M2.7",
+          "nvidia/MiniMax-M2.7-NVFP4",
+        ],
+        [
+          "m25",
+          "MiniMax M2.5",
+          "Feb 2026",
+          "MiniMaxAI/MiniMax-M2.5",
+          "nvidia/MiniMax-M2.5-NVFP4",
+        ],
+        ["m21", "MiniMax M2.1", "Dec 2025", "MiniMaxAI/MiniMax-M2.1"],
+        ["m2", "MiniMax M2", "Oct 2025", "MiniMaxAI/MiniMax-M2"],
+      ].map(([id, name, date, repo, nvidiaRepo]) => ({
+        id,
+        name,
+        date,
+        ctx: "205K",
+        license: "MiniMax Community",
+        sizes: [
+          officialSize("229B-A10B", 229, {
+            Instruct: [
+              { repo },
+              ...(nvidiaRepo
+                ? [
+                    {
+                      repo: nvidiaRepo,
+                      format: "NVFP4",
+                      trust: "vendor" as const,
+                    },
+                  ]
+                : []),
+            ],
+          }),
+        ],
+      })),
+    ],
+  },
+  {
+    id: "mimo",
+    name: "MiMo",
+    vendor: "Xiaomi",
+    tags: "reasoning, agentic, mixture of experts",
+    releases: [
+      {
+        id: "mimo25",
+        name: "MiMo V2.5",
+        date: "Apr 2026",
+        ctx: "1M",
+        license: "MIT",
+        sizes: [
+          officialSize("Pro 1.02T-A42B", 1023, {
+            Instruct: [
+              { repo: "XiaomiMiMo/MiMo-V2.5-Pro" },
+              {
+                repo: "XiaomiMiMo/MiMo-V2.5-Pro-FP4-DFlash",
+                format: "FP4 DFlash",
+              },
+            ],
+            Base: [{ repo: "XiaomiMiMo/MiMo-V2.5-Pro-Base" }],
+          }),
+          officialSize("311B-A15B", 311, {
+            Instruct: [{ repo: "XiaomiMiMo/MiMo-V2.5" }],
+            Base: [{ repo: "XiaomiMiMo/MiMo-V2.5-Base" }],
+          }),
+        ],
+      },
+      {
+        id: "mimo2flash",
+        name: "MiMo V2 Flash",
+        date: "Dec 2025",
+        ctx: "256K",
+        license: "MIT",
+        sizes: [
+          officialSize("310B-A15B", 310, {
+            Instruct: [{ repo: "XiaomiMiMo/MiMo-V2-Flash" }],
+            Base: [{ repo: "XiaomiMiMo/MiMo-V2-Flash-Base" }],
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "kimi",
+    name: "Kimi",
+    vendor: "Moonshot AI",
+    tags: "agentic, coding, multimodal",
+    releases: [
+      {
+        id: "k27code",
+        name: "Kimi K2.7 Code",
+        date: "Jun 2026",
+        ctx: "256K",
+        license: "Modified MIT",
+        sizes: [
+          officialSize("1.06T-A32B", 1059, {
+            Code: [
+              {
+                repo: "moonshotai/Kimi-K2.7-Code",
+                format: "Native INT4",
+              },
+              {
+                repo: "nvidia/Kimi-K2.7-Code-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "k26",
+        name: "Kimi K2.6",
+        date: "Apr 2026",
+        ctx: "256K",
+        license: "Modified MIT",
+        sizes: [
+          officialSize("1.06T-A32B", 1059, {
+            Instruct: [
+              { repo: "moonshotai/Kimi-K2.6", format: "Native INT4" },
+              {
+                repo: "nvidia/Kimi-K2.6-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "k25",
+        name: "Kimi K2.5",
+        date: "Jan 2026",
+        ctx: "256K",
+        license: "Modified MIT",
+        sizes: [
+          officialSize("1.06T-A32B", 1059, {
+            Instruct: [
+              { repo: "moonshotai/Kimi-K2.5", format: "Native INT4" },
+              {
+                repo: "nvidia/Kimi-K2.5-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "k2thinking",
+        name: "Kimi K2 Thinking",
+        date: "Nov 2025",
+        ctx: "256K",
+        license: "Modified MIT",
+        sizes: [
+          officialSize("1.06T-A32B", 1058, {
+            Reasoning: [
+              { repo: "moonshotai/Kimi-K2-Thinking" },
+              {
+                repo: "nvidia/Kimi-K2-Thinking-NVFP4",
+                format: "NVFP4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "k2",
+        name: "Kimi K2",
+        date: "Jul 2025",
+        ctx: "128K",
+        license: "Modified MIT",
+        sizes: [
+          officialSize("1.06T-A32B", 1058, {
+            Instruct: [{ repo: "moonshotai/Kimi-K2-Instruct" }],
+            Base: [{ repo: "moonshotai/Kimi-K2-Base" }],
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "solar",
+    name: "Solar",
+    vendor: "Upstage",
+    tags: "reasoning, efficient mixture of experts",
+    releases: [
+      {
+        id: "solaropen",
+        name: "Solar Open",
+        date: "Dec 2025",
+        ctx: "128K",
+        license: "Upstage Solar",
+        sizes: [
+          officialSize("103B-A12B", 103, {
+            Instruct: [
+              { repo: "upstage/Solar-Open-100B" },
+              {
+                repo: "nota-ai/Solar-Open-100B-NotaMoEQuant-Int4",
+                format: "INT4",
+                trust: "vendor",
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "solarpropreview",
+        name: "Solar Pro Preview",
+        date: "Sep 2024",
+        ctx: "4K",
+        license: "MIT",
+        sizes: [
+          officialSize("22B", 22, {
+            Instruct: [{ repo: "upstage/solar-pro-preview-instruct" }],
+            Base: [{ repo: "upstage/solar-pro-preview-pretrained" }],
+          }),
+        ],
+      },
+      {
+        id: "solar107",
+        name: "SOLAR 10.7B",
+        date: "Dec 2023",
+        ctx: "4K",
+        license: "CC-BY-NC-4.0",
+        sizes: [
+          officialSize("10.7B", 10.7, {
+            Instruct: [{ repo: "upstage/SOLAR-10.7B-Instruct-v1.0" }],
+            Base: [{ repo: "upstage/SOLAR-10.7B-v1.0" }],
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "k2",
+    name: "K2",
+    vendor: "LLM360 / MBZUAI",
+    tags: "reasoning, fully open, long context",
+    releases: [
+      {
+        id: "k2v2",
+        name: "K2 V2",
+        date: "Jan 2026",
+        ctx: "256K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize("73B", 73, {
+            Reasoning: [{ repo: "LLM360/K2-Think-V2" }],
+            Instruct: [{ repo: "LLM360/K2-V2-Instruct" }],
+            Base: [{ repo: "LLM360/K2-V2" }],
+          }),
+        ],
+      },
+      {
+        id: "k2think",
+        name: "K2 Think",
+        date: "Sep 2025",
+        ctx: "32K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize("33B", 33, {
+            Reasoning: [{ repo: "LLM360/K2-Think" }],
+          }),
+        ],
+      },
+      {
+        id: "k2original",
+        name: "K2",
+        date: "Apr 2024",
+        ctx: "4K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize("65B", 65, {
+            Instruct: [{ repo: "LLM360/K2-Chat" }],
+            Base: [{ repo: "LLM360/K2" }],
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "grok",
+    name: "Grok",
+    vendor: "xAI",
+    tags: "mixture of experts, long context",
+    releases: [
+      {
+        id: "grok2",
+        name: "Grok 2",
+        date: "Aug 2025",
+        ctx: "128K",
+        license: "Grok 2 Community",
+        sizes: [
+          officialSize("270B", 270, {
+            Instruct: [{ repo: "xai-org/grok-2", format: "FP8" }],
+          }),
+        ],
+      },
+      {
+        id: "grok1",
+        name: "Grok 1",
+        date: "Mar 2024",
+        ctx: "8K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize("314B", 314, {
+            Base: [{ repo: "xai-org/grok-1" }],
           }),
         ],
       },
