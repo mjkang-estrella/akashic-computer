@@ -1023,6 +1023,32 @@ export const FAMILIES: Family[] = [
     ],
   },
   {
+    id: "inkling",
+    name: "Inkling",
+    vendor: "Thinking Machines Lab",
+    tags: "multimodal reasoning, agentic tools, coding",
+    releases: [
+      {
+        id: "inkling",
+        name: "Inkling",
+        date: "Jul 15 2026",
+        ctx: "1M",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize("975B-A41B", 975, {
+            General: [
+              { repo: "thinkingmachines/Inkling" },
+              {
+                repo: "thinkingmachines/Inkling-NVFP4",
+                format: "NVFP4",
+              },
+            ],
+          }),
+        ],
+      },
+    ],
+  },
+  {
     id: "kimi",
     name: "Kimi",
     vendor: "Moonshot AI",

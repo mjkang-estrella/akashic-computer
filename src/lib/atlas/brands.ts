@@ -11,6 +11,7 @@ export const FAMILY_LOGOS: Record<string, string> = {
   minimax: "/brands/minimax.svg",
   mimo: "/brands/mimo.svg",
   kimi: "/brands/kimi.svg",
+  inkling: "/brands/thinking-machines.png",
   solar: "/brands/solar.svg",
   k2: "/brands/k2.webp",
   grok: "/brands/grok.svg",

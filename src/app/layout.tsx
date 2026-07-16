@@ -20,9 +20,23 @@ const stixTwo = STIX_Two_Text({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://akashic.computer"),
   title: "Akashic",
   description:
     "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
+  openGraph: {
+    title: "Akashic",
+    description:
+      "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
+    siteName: "Akashic",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Akashic",
+    description:
+      "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
+  },
 };
 
 export default function RootLayout({

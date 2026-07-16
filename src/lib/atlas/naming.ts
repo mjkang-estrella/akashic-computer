@@ -53,6 +53,7 @@ const UPLOADER_NAMES: Record<string, string> = {
   minimaxai: "MiniMax",
   xiaomimimo: "Xiaomi",
   moonshotai: "Moonshot AI",
+  thinkingmachines: "Thinking Machines Lab",
   upstage: "Upstage",
   "nota-ai": "Nota AI",
   llm360: "LLM360",

@@ -6,3 +6,5 @@ which is distributed under the MIT license. Brand names and marks remain the
 property of their respective owners.
 
 `k2.webp` is the LLM360 organization avatar from its Hugging Face profile.
+
+`thinking-machines.png` is the official Thinking Machines Lab site icon.

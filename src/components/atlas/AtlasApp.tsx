@@ -8,6 +8,7 @@ import {
   CubeIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
+import { AkashicMark } from "@/components/brand/AkashicMark";
 import {
   BENCHES,
   DEFAULT_PRESET_ID,
@@ -257,35 +258,7 @@ export function AtlasApp() {
       <header className="border-b border-line bg-paper">
         <div className="mx-auto grid w-full max-w-[1440px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-3 lg:grid-cols-[auto_minmax(280px,420px)_minmax(0,1fr)_auto] lg:gap-x-5">
           <div className="flex items-center gap-2.5">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 22 22"
-              aria-hidden="true"
-              className="flex-none text-ink"
-            >
-              <circle
-                cx="11"
-                cy="11"
-                r="8.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                opacity="0.3"
-              />
-              <ellipse
-                cx="11"
-                cy="11"
-                rx="8.5"
-                ry="3.2"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                transform="rotate(-24 11 11)"
-              />
-              <circle cx="11" cy="11" r="2" fill="currentColor" />
-              <circle cx="18.2" cy="7.2" r="1.4" fill="currentColor" />
-            </svg>
+            <AkashicMark className="flex-none text-ink" />
             <h1 className="font-display text-[19px] font-semibold leading-none">
               Akashic
             </h1>
