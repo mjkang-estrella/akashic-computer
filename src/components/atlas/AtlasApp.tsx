@@ -2,15 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Search01Icon } from "@hugeicons/core-free-icons";
+import {
+  BookOpenTextIcon,
+  ChartColumnIcon,
+  CubeIcon,
+  Search01Icon,
+} from "@hugeicons/core-free-icons";
 import {
   BENCHES,
   DEFAULT_PRESET_ID,
-  FAMILIES,
   HEADLINE_BENCHES,
   RIG_PRESETS,
 } from "@/lib/atlas/data";
-import { artifactsFor, resolveProfile } from "@/lib/atlas/fit";
+import { resolveProfile } from "@/lib/atlas/fit";
+import {
+  MODEL_ENTRIES,
+  modelEntryForSlug,
+  modelEntryForTarget,
+  type ModelEntry,
+} from "@/lib/atlas/models";
 import type { BenchKey } from "@/lib/atlas/types";
 import { CompareDrawer } from "./CompareDrawer";
 import {
@@ -18,9 +28,10 @@ import {
   type CompareCategory,
   type CompareSortKey,
 } from "./CompareView";
-import { ExploreView } from "./ExploreView";
 import { FitBar } from "./FitBar";
 import { LearnView } from "./LearnView";
+import { ModelCatalogView } from "./ModelCatalogView";
+import { ModelDetailView } from "./ModelDetailView";
 import { SearchView, type SearchTarget } from "./SearchView";
 
 type Tab = "model" | "benchmark" | "docs";
@@ -31,18 +42,12 @@ const LEGACY_TABS: Record<string, Tab> = {
   learn: "docs",
 };
 
-const initialFamily = FAMILIES[0];
 const ALL_ARTIFACTS = Array.from(
   new Map(
-    FAMILIES.flatMap((family) =>
-      family.releases.flatMap((release) =>
-        release.sizes.flatMap((size) =>
-          size.variants.flatMap((variant) =>
-            artifactsFor(family, release, size, variant),
-          ),
-        ),
-      ),
-    ).map((artifact) => [artifact.repo, artifact]),
+    MODEL_ENTRIES.flatMap((entry) => entry.artifacts).map((artifact) => [
+      artifact.repo,
+      artifact,
+    ]),
   ).values(),
 );
 
@@ -50,14 +55,11 @@ export function AtlasApp() {
   const [tab, setTab] = useState<Tab>("model");
   const [query, setQuery] = useState("");
 
-  // model selection
-  const [familyId, setFamilyId] = useState(initialFamily.id);
-  const [releaseId, setReleaseId] = useState<string | null>(null);
-  const [sizeLabel, setSizeLabel] = useState<string | null>(null);
-  const [variant, setVariant] = useState<string | null>(null);
-  const [quantizations, setQuantizations] = useState<Set<string>>(new Set());
+  // model catalog and dedicated detail route
+  const [modelSlug, setModelSlug] = useState<string | null>(null);
+  const [catalogFamilyId, setCatalogFamilyId] = useState<string | null>(null);
+  const [preferredVariant, setPreferredVariant] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [artifactBenches, setArtifactBenches] = useState<Set<BenchKey>>(new Set());
 
   // rig profile
   const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
@@ -72,31 +74,43 @@ export function AtlasApp() {
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // shareable mode: read ?tab= on mount, write it back on change
+  // Keep the app state aligned with shareable URLs and browser navigation.
   useEffect(() => {
-    const param = new URLSearchParams(window.location.search).get("tab");
-    const nextTab =
-      param === "model" || param === "benchmark" || param === "docs"
-        ? param
-        : param
-          ? LEGACY_TABS[param]
-          : undefined;
-    // one-time sync from URL after hydration; an initializer would mismatch SSR HTML
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (nextTab) setTab(nextTab);
-    if (param && nextTab && param !== nextTab) {
+    const syncFromLocation = () => {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", nextTab);
-      window.history.replaceState(null, "", url);
-    }
+      const param = url.searchParams.get("tab");
+      const nextTab =
+        param === "model" || param === "benchmark" || param === "docs"
+          ? param
+          : param
+            ? LEGACY_TABS[param]
+            : "model";
+      setTab(nextTab ?? "model");
+      setModelSlug(url.searchParams.get("model"));
+      setCatalogFamilyId(url.searchParams.get("family"));
+      setPreferredVariant(url.searchParams.get("variant"));
+      if (param && nextTab && param !== nextTab) {
+        url.searchParams.set("tab", nextTab);
+        window.history.replaceState(null, "", url);
+      }
+    };
+
+    syncFromLocation();
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
   }, []);
+
   const switchTab = (t: Tab) => {
     setTab(t);
     setQuery("");
+    setModelSlug(null);
+    setPreferredVariant(null);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", t);
+    url.searchParams.delete("model");
+    url.searchParams.delete("variant");
     url.hash = "";
-    window.history.replaceState(null, "", url);
+    window.history.pushState(null, "", url);
   };
 
   const rig = resolveProfile(RIG_PRESETS, presetId, manualGb);
@@ -105,50 +119,6 @@ export function AtlasApp() {
     return ALL_ARTIFACTS.filter((artifact) => checked.has(artifact.repo));
   }, [checked]);
 
-  const selectFamily = (id: string) => {
-    setFamilyId(id);
-    setReleaseId(null);
-    setSizeLabel(null);
-    setVariant(null);
-    setQuantizations(new Set());
-  };
-  const selectRelease = (id: string) => {
-    const nextReleaseId = releaseId === id ? null : id;
-    const family = FAMILIES.find((item) => item.id === familyId);
-    const nextRelease = family?.releases.find((item) => item.id === nextReleaseId);
-
-    setReleaseId(nextReleaseId);
-    setSizeLabel(
-      nextRelease?.sizes.length === 1 ? nextRelease.sizes[0].label : null,
-    );
-    setVariant(null);
-    setQuantizations(new Set());
-  };
-  const selectSize = (label: string) => {
-    setSizeLabel((current) => (current === label ? null : label));
-    setVariant(null);
-    setQuantizations(new Set());
-  };
-  const selectVariant = (v: string) => {
-    setVariant((current) => (current === v ? null : v));
-    setQuantizations(new Set());
-  };
-  const toggleQuantization = (format: string) => {
-    setQuantizations((current) => {
-      const next = new Set(current);
-      if (next.has(format)) next.delete(format);
-      else next.add(format);
-      return next;
-    });
-  };
-  const toggleArtifactBench = (key: BenchKey) => {
-    setArtifactBenches((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
   const toggleChecked = (repo: string, on: boolean) => {
     setChecked((prev) => {
       const next = new Set(prev);
@@ -160,20 +130,55 @@ export function AtlasApp() {
       return next;
     });
   };
-  const selectSearchResult = (target: SearchTarget) => {
-    setFamilyId(target.familyId);
-    setReleaseId(target.releaseId ?? null);
-    setSizeLabel(target.sizeLabel ?? null);
-    setVariant(target.variant ?? null);
-    setQuantizations(
-      target.quantization ? new Set([target.quantization]) : new Set(),
-    );
+
+  const openModel = (entry: ModelEntry, variant?: string | null) => {
     setTab("model");
     setQuery("");
+    setModelSlug(entry.slug);
+    setCatalogFamilyId(null);
+    setPreferredVariant(variant ?? null);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "model");
+    url.searchParams.set("model", entry.slug);
+    url.searchParams.delete("family");
+    if (variant) url.searchParams.set("variant", variant);
+    else url.searchParams.delete("variant");
     url.hash = "";
-    window.history.replaceState(null, "", url);
+    window.history.pushState(null, "", url);
+  };
+
+  const closeModel = () => {
+    setModelSlug(null);
+    setPreferredVariant(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("model");
+    url.searchParams.delete("variant");
+    window.history.pushState(null, "", url);
+  };
+
+  const selectSearchResult = (target: SearchTarget) => {
+    const entry = modelEntryForTarget(
+      target.familyId,
+      target.releaseId,
+      target.sizeLabel,
+    );
+    if (entry) {
+      openModel(entry, target.variant);
+      return;
+    }
+
+    setTab("model");
+    setQuery("");
+    setModelSlug(null);
+    setPreferredVariant(null);
+    setCatalogFamilyId(target.familyId);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "model");
+    url.searchParams.set("family", target.familyId);
+    url.searchParams.delete("model");
+    url.searchParams.delete("variant");
+    url.hash = "";
+    window.history.pushState(null, "", url);
   };
   const openLearn = (term?: string) => {
     setTab("docs");
@@ -228,11 +233,11 @@ export function AtlasApp() {
   };
 
   const drawerOpen = tab === "model" && checkedArtifacts.length >= 1;
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "model", label: "Model" },
-    { id: "benchmark", label: "Benchmark" },
-    { id: "docs", label: "Docs" },
-  ];
+  const tabs = [
+    { id: "model", label: "Model", icon: CubeIcon },
+    { id: "benchmark", label: "Benchmark", icon: ChartColumnIcon },
+    { id: "docs", label: "Docs", icon: BookOpenTextIcon },
+  ] as const;
 
   const capacityControls = (
     <FitBar
@@ -245,6 +250,7 @@ export function AtlasApp() {
       onManualGb={setManualGb}
     />
   );
+  const selectedModel = modelEntryForSlug(modelSlug);
 
   return (
     <div className="min-h-screen pb-28">
@@ -311,12 +317,19 @@ export function AtlasApp() {
                 key={item.id}
                 aria-current={tab === item.id ? "page" : undefined}
                 onClick={() => switchTab(item.id)}
-                className={`relative min-h-10 px-3 py-1.5 text-[13.5px] font-semibold transition-colors after:absolute after:inset-x-3 after:-bottom-3 after:h-0.5 after:bg-ink after:transition-opacity lg:after:-bottom-[17px] ${
+                className={`relative flex min-h-10 items-center gap-1.5 px-3 py-1.5 text-[13.5px] font-semibold transition-colors after:absolute after:inset-x-3 after:-bottom-3 after:h-0.5 after:bg-ink after:transition-opacity lg:after:-bottom-[17px] ${
                   tab === item.id
                     ? "text-ink after:opacity-100"
                     : "text-muted after:opacity-0 hover:text-ink"
                 }`}
               >
+                <HugeiconsIcon
+                  icon={item.icon}
+                  size={16}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                  className="flex-none"
+                />
                 {item.label}
               </button>
             ))}
@@ -335,26 +348,24 @@ export function AtlasApp() {
             onClear={() => setQuery("")}
           />
         ) : tab === "model" ? (
-          <ExploreView
-            key={familyId}
-            familyId={familyId}
-            releaseId={releaseId}
-            sizeLabel={sizeLabel}
-            variant={variant}
-            rig={rig}
-            onlyRunnable={false}
-            checked={checked}
-            quantizations={quantizations}
-            artifactBenches={artifactBenches}
-            onFamily={selectFamily}
-            onRelease={selectRelease}
-            onSize={selectSize}
-            onVariant={selectVariant}
-            onToggleQuantization={toggleQuantization}
-            onCheck={toggleChecked}
-            onToggleArtifactBench={toggleArtifactBench}
-            onLearn={openLearn}
-          />
+          selectedModel ? (
+            <ModelDetailView
+              key={`${selectedModel.slug}-${preferredVariant ?? "default"}`}
+              entry={selectedModel}
+              rig={rig}
+              preferredVariant={preferredVariant}
+              checked={checked}
+              onBack={closeModel}
+              onCheck={toggleChecked}
+              onLearn={openLearn}
+            />
+          ) : (
+            <ModelCatalogView
+              key={catalogFamilyId ?? "all"}
+              initialFamilyId={catalogFamilyId}
+              onOpen={openModel}
+            />
+          )
         ) : tab === "benchmark" ? (
           <CompareView
             query={query}

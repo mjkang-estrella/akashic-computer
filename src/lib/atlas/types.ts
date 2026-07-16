@@ -42,6 +42,10 @@ export interface SizeNode {
   label: string;
   paramsB: number;
   variants: string[];
+  /** Maximum supported context when sizes in one release differ. */
+  context?: string;
+  /** Most recent material update to this specific model size. */
+  updated?: string;
   /** Reference (BF16) scores keyed by variant, only when a real source exists. */
   scores?: Record<string, Record<BenchKey, number>>;
   /** Hand-curated artifact lists keyed by variant; others are generated. */

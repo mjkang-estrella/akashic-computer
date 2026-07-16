@@ -1,0 +1,17 @@
+export const FAMILY_LOGOS: Record<string, string> = {
+  qwen: "/brands/qwen.svg",
+  deepseek: "/brands/deepseek.svg",
+  llama: "/brands/llama.svg",
+  gemma: "/brands/gemma.svg",
+  mistral: "/brands/mistral.svg",
+  "gpt-oss": "/brands/gpt-oss.svg",
+  phi: "/brands/phi.svg",
+  nemotron: "/brands/nemotron.svg",
+  glm: "/brands/glm.svg",
+  minimax: "/brands/minimax.svg",
+  mimo: "/brands/mimo.svg",
+  kimi: "/brands/kimi.svg",
+  solar: "/brands/solar.svg",
+  k2: "/brands/k2.webp",
+  grok: "/brands/grok.svg",
+};

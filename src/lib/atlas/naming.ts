@@ -11,18 +11,31 @@ export function activeParamsLabel(label: string): string | null {
   return m ? `${m[1]}B active` : null;
 }
 
+export function parameterCountLabel(size: SizeNode): string {
+  const total =
+    size.paramsB >= 1000
+      ? `${Number((size.paramsB / 1000).toFixed(2))}T`
+      : `${size.paramsB}B`;
+  const active = activeParamsLabel(size.label)?.replace(" active", "");
+  return active ? `${total} (${active})` : total;
+}
+
+/** Human release identity without parameter size: "Qwen 3.6", "DeepSeek R2-Lite". */
+export function modelReleaseName(family: Family, release: Release): string {
+  return release.name.startsWith(family.name)
+    ? release.name
+    : family.id === "mistral"
+      ? release.name
+      : `${family.name} ${release.name}`;
+}
+
 /** Human model identity: "Qwen 3.6 27B", "DeepSeek R2-Lite 16B", "Llama 4.1 Scout 109B" */
 export function modelDisplayName(
   family: Family,
   release: Release,
   size: SizeNode,
 ): string {
-  const base = release.name.startsWith(family.name)
-    ? release.name
-    : family.id === "mistral"
-      ? release.name
-      : `${family.name} ${release.name}`;
-  return `${base} ${sizeDisplay(size.label)}`;
+  return `${modelReleaseName(family, release)} ${sizeDisplay(size.label)}`;
 }
 
 const UPLOADER_NAMES: Record<string, string> = {

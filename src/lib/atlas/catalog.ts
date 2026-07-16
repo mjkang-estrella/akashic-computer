@@ -289,7 +289,7 @@ export const FAMILIES: Family[] = [
         id: "v4",
         name: "DeepSeek V4",
         date: "2026",
-        ctx: "Varies",
+        ctx: "1M",
         license: "MIT",
         sizes: [
           officialSize("Flash 158B", 158, {
@@ -569,8 +569,8 @@ export const FAMILIES: Family[] = [
           ["12B", 12],
           ["26B-A4B", 26],
           ["31B", 31],
-        ].map(([label, paramsB]) =>
-          officialSize(String(label), Number(paramsB), {
+        ].map(([label, paramsB]) => {
+          const size = officialSize(String(label), Number(paramsB), {
             IT: [
               { repo: `google/gemma-4-${label}-it` },
               ...(label === "26B-A4B"
@@ -592,8 +592,12 @@ export const FAMILIES: Family[] = [
                   : []),
             ],
             PT: [{ repo: `google/gemma-4-${label}` }],
-          }),
-        ),
+          });
+          const context = label === "E2B" || label === "E4B" ? "128K" : "256K";
+          return label === "31B"
+            ? { ...size, context, updated: "Jul 15 2026" }
+            : { ...size, context };
+        }),
       },
       {
         id: "g3",
@@ -781,7 +785,7 @@ export const FAMILIES: Family[] = [
         id: "n3",
         name: "Nemotron 3",
         date: "2025–2026",
-        ctx: "Varies",
+        ctx: "1M",
         license: "NVIDIA Open Model",
         sizes: [
           officialSize("Nano 4B", 4, {

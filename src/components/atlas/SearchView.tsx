@@ -1,7 +1,7 @@
 import { ArrowUpRight, SearchX } from "lucide-react";
 import { FAMILIES } from "@/lib/atlas/data";
 import { artifactsFor } from "@/lib/atlas/fit";
-import { sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
+import { modelDisplayName, uploaderDisplay } from "@/lib/atlas/naming";
 
 export interface SearchTarget {
   familyId: string;
@@ -31,23 +31,22 @@ const SEARCH_ITEMS: SearchItem[] = FAMILIES.flatMap((family) => {
     target: { familyId: family.id },
   };
   const modelItems = family.releases.flatMap((release) =>
-    release.sizes.flatMap((size) =>
-      size.variants.flatMap((variant) => {
-        const title = `${release.name} ${sizeDisplay(size.label)} ${variant}`;
-        const model: SearchItem = {
-          id: `model-${family.id}-${release.id}-${size.label}-${variant}`,
-          kind: "Model",
-          title,
-          meta: `${family.name} · ${release.ctx} context · ${release.license}`,
-          searchable: `${family.name} ${family.vendor} ${title} ${release.license} ${release.ctx}`.toLowerCase(),
-          target: {
-            familyId: family.id,
-            releaseId: release.id,
-            sizeLabel: size.label,
-            variant,
-          },
-        };
-        const artifacts = artifactsFor(family, release, size, variant).map(
+    release.sizes.flatMap((size) => {
+      const title = modelDisplayName(family, release, size);
+      const model: SearchItem = {
+        id: `model-${family.id}-${release.id}-${size.label}`,
+        kind: "Model",
+        title,
+        meta: `${family.vendor} · ${size.variants.join(", ")} · ${size.context ?? release.ctx} context`,
+        searchable: `${family.name} ${family.vendor} ${title} ${size.variants.join(" ")} ${release.license} ${size.context ?? release.ctx}`.toLowerCase(),
+        target: {
+          familyId: family.id,
+          releaseId: release.id,
+          sizeLabel: size.label,
+        },
+      };
+      const artifacts = size.variants.flatMap((variant) =>
+        artifactsFor(family, release, size, variant).map(
           (artifact): SearchItem => ({
             id: `artifact-${family.id}-${release.id}-${size.label}-${variant}-${artifact.repo}`,
             kind: "Artifact",
@@ -63,10 +62,10 @@ const SEARCH_ITEMS: SearchItem[] = FAMILIES.flatMap((family) => {
             },
             repo: artifact.repo,
           }),
-        );
-        return [model, ...artifacts];
-      }),
-    ),
+        ),
+      );
+      return [model, ...artifacts];
+    }),
   );
   return [familyItem, ...modelItems];
 });

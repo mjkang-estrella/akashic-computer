@@ -214,8 +214,9 @@ Components are refined and restrained. Familiar controls should disappear into t
 ### Navigation
 
 - The product identity stays top-left with global search immediately beside it. Model, Benchmark, and Docs form the primary navigation, while the circular hardware profile control stays at the far right.
-- Search filters the active view. The selected family becomes the page title with company and license metadata.
-- Release, size, and variant reveal progressively as filters. Hovering or focusing a release previews its metadata without applying it.
+- Model is a reverse-chronological catalog with one row per release and parameter size. Compact company, size, variant, and quant filters replace the family rail; selecting a row opens a shareable detail view that groups variants and provider artifacts under the base model.
+- Search spans families, model-size entries, and artifacts. Selecting a model or artifact opens the corresponding model detail view.
+- The detail title identifies the model and size; variants switch the artifact set without creating duplicate catalog rows.
 - On narrow screens, controls may wrap without changing typography scale or hiding required context.
 
 ### Model Tables
