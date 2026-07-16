@@ -11,8 +11,8 @@ const CATEGORIES = [
 export function LearnView() {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-8 pt-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="min-w-0 self-start lg:sticky lg:top-4" aria-label="Learn contents">
-        <h2 className="font-display text-[19px] font-semibold">Learn</h2>
+      <aside className="min-w-0 self-start lg:sticky lg:top-4" aria-label="Docs contents">
+        <h2 className="font-display text-[19px] font-semibold">Docs</h2>
         <p className="mt-1 max-w-[34ch] text-[13px] leading-relaxed text-muted">
           Plain-language definitions for reading model families, artifacts, and evidence.
         </p>
@@ -20,14 +20,14 @@ export function LearnView() {
           {CATEGORIES.map((category) => (
             <a
               key={category}
-              href={`#learn-${category.toLowerCase().replaceAll(" ", "-")}`}
+              href={`#docs-${category.toLowerCase().replaceAll(" ", "-")}`}
               className="block min-w-max rounded-[7px] px-2.5 py-2 text-[12.5px] font-semibold text-muted hover:bg-panel hover:text-ink"
             >
               {category}
             </a>
           ))}
           <a
-            href="#learn-materials"
+            href="#docs-materials"
             className="block min-w-max rounded-[7px] px-2.5 py-2 text-[12.5px] font-semibold text-muted hover:bg-panel hover:text-ink"
           >
             Further reading
@@ -46,7 +46,7 @@ export function LearnView() {
         {CATEGORIES.map((category) => (
           <section
             key={category}
-            id={`learn-${category.toLowerCase().replaceAll(" ", "-")}`}
+            id={`docs-${category.toLowerCase().replaceAll(" ", "-")}`}
             className="scroll-mt-4 border-b border-line py-5"
           >
             <h3 className="mb-2 font-display text-[19px] font-semibold">{category}</h3>
@@ -70,7 +70,7 @@ export function LearnView() {
           </section>
         ))}
 
-        <section id="learn-materials" className="scroll-mt-4 py-5">
+        <section id="docs-materials" className="scroll-mt-4 py-5">
           <h3 className="font-display text-[19px] font-semibold">Further reading</h3>
           <p className="mt-1 max-w-[70ch] text-[12.5px] text-muted">
             Primary documentation for checking details beyond this atlas.

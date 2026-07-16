@@ -213,7 +213,7 @@ Components are refined and restrained. Familiar controls should disappear into t
 
 ### Navigation
 
-- The product identity stays top-left. Explore and Compare models use a standard segmented tab treatment with explicit selected state.
+- The product identity stays top-left with global search immediately beside it. Model, Benchmark, and Docs form the primary navigation, while the circular hardware profile control stays at the far right.
 - Search filters the active view. The selected family becomes the page title with company and license metadata.
 - Release, size, and variant reveal progressively as filters. Hovering or focusing a release previews its metadata without applying it.
 - On narrow screens, controls may wrap without changing typography scale or hiding required context.

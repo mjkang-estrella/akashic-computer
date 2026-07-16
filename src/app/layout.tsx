@@ -20,7 +20,7 @@ const stixTwo = STIX_Two_Text({
 });
 
 export const metadata: Metadata = {
-  title: "Akashic Computer",
+  title: "Akashic",
   description:
     "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
 };

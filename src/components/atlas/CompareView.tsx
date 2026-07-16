@@ -145,7 +145,7 @@ export function CompareView({
                 : `Nothing fits within ${rig.gb} GB`}
             </b>
             {COMPARE_MODELS.length === 0
-              ? "Major models remain available in Explore while verified score sets are added."
+              ? "Major models remain available in Model while verified score sets are added."
               : matchingModels.length === 0
               ? "Search by model family, vendor, or capability."
               : "Raise the VRAM filter or untick “Only show runnable”."}
