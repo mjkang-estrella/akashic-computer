@@ -36,6 +36,13 @@ function formatProfile(format: string) {
       runtimes: ["vLLM", "SGLang"],
     };
   }
+  if (format === "BNB 4-bit") {
+    return {
+      factor: 0.62,
+      kinds: ["cuda", "dgx"] as Artifact["kinds"],
+      runtimes: ["Transformers"],
+    };
+  }
   if (format.includes("FP8")) {
     return {
       factor: 1.1,
@@ -87,6 +94,33 @@ function officialSize(
       ]),
     ),
   };
+}
+
+function deepseekR1DistillSize(
+  label: string,
+  paramsB: number,
+  foundation: "Qwen" | "Qwen3" | "Llama",
+): SizeNode {
+  const model =
+    foundation === "Qwen3"
+      ? "DeepSeek-R1-0528-Qwen3-8B"
+      : `DeepSeek-R1-Distill-${foundation}-${label}`;
+
+  return officialSize(label, paramsB, {
+    [foundation]: [
+      { repo: `deepseek-ai/${model}` },
+      {
+        repo: `unsloth/${model}-bnb-4bit`,
+        format: "BNB 4-bit",
+        trust: "vendor",
+      },
+      {
+        repo: `unsloth/${model}-GGUF`,
+        format: "GGUF",
+        trust: "vendor",
+      },
+    ],
+  });
 }
 
 function qwen25Size(label: string, paramsB: number, coder = false): SizeNode {
@@ -407,15 +441,19 @@ export const FAMILIES: Family[] = [
         ctx: "128K",
         license: "MIT",
         sizes: [
-          officialSize("1.5B", 1.5, { Qwen: [{ repo: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B" }] }),
-          officialSize("7B", 7, { Qwen: [{ repo: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B" }] }),
-          officialSize("8B", 8, {
-            Llama: [{ repo: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B" }],
-            Qwen3: [{ repo: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B" }],
-          }),
-          officialSize("14B", 14, { Qwen: [{ repo: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B" }] }),
-          officialSize("32B", 32, { Qwen: [{ repo: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" }] }),
-          officialSize("70B", 70, { Llama: [{ repo: "deepseek-ai/DeepSeek-R1-Distill-Llama-70B" }] }),
+          deepseekR1DistillSize("1.5B", 1.5, "Qwen"),
+          deepseekR1DistillSize("7B", 7, "Qwen"),
+          {
+            ...deepseekR1DistillSize("8B", 8, "Llama"),
+            variants: ["Llama", "Qwen3"],
+            curatedArtifacts: {
+              ...deepseekR1DistillSize("8B", 8, "Llama").curatedArtifacts,
+              ...deepseekR1DistillSize("8B", 8, "Qwen3").curatedArtifacts,
+            },
+          },
+          deepseekR1DistillSize("14B", 14, "Qwen"),
+          deepseekR1DistillSize("32B", 32, "Qwen"),
+          deepseekR1DistillSize("70B", 70, "Llama"),
         ],
       },
       {
@@ -781,6 +819,31 @@ export const FAMILIES: Family[] = [
     vendor: "NVIDIA",
     tags: "reasoning, agentic, inference optimized",
     releases: [
+      {
+        id: "n3-puzzle",
+        name: "Nemotron Labs 3 Puzzle",
+        date: "Jul 6 2026",
+        ctx: "1M",
+        license: "NVIDIA Open Model",
+        sizes: [
+          {
+            ...officialSize("75B-A9B", 75, {
+              Reasoning: [
+                { repo: "nvidia/NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-BF16" },
+                {
+                  repo: "nvidia/NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-FP8",
+                  format: "FP8",
+                },
+                {
+                  repo: "nvidia/NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4",
+                  format: "NVFP4",
+                },
+              ],
+            }),
+            updated: "Jul 7 2026",
+          },
+        ],
+      },
       {
         id: "n3",
         name: "Nemotron 3",

@@ -164,13 +164,12 @@ export function ModelCatalogView({
         </div>
       ) : (
         <div className="border-b border-line">
-          <div className="hidden grid-cols-[240px_110px_repeat(3,minmax(0,1fr))_36px] gap-3 border-b border-line px-2 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted lg:grid">
+          <div className="hidden grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] border-b border-line px-2 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted lg:grid">
             <span>Model</span>
             <span>Parameters</span>
-            <span>Quantizations</span>
-            <span>Context</span>
-            <span>Date</span>
-            <span className="sr-only">Open</span>
+            <span className="col-start-4">Quantizations</span>
+            <span className="col-start-5">Last Updated</span>
+            <span className="sr-only col-start-7">Open</span>
           </div>
           <div className="divide-y divide-linesoft">
             {entries.map((entry) => (
@@ -179,7 +178,7 @@ export function ModelCatalogView({
                 type="button"
                 onClick={() => onOpen(entry)}
                 aria-label={`Open ${entry.name}`}
-                className="group grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_110px_repeat(3,minmax(0,1fr))_36px] lg:items-center lg:px-2"
+                className="group grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2"
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <Image
@@ -205,7 +204,7 @@ export function ModelCatalogView({
                     {parameterCountLabel(entry.size)}
                   </span>
                 </span>
-                <span className="flex flex-wrap items-center gap-1.5">
+                <span className="flex flex-wrap items-center gap-1.5 lg:col-start-4">
                   <span className="w-full text-[11px] text-muted lg:hidden">Quantizations</span>
                   {entry.quantizations.map((item) => (
                     <span key={item} className="rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[11.5px] text-muted">
@@ -213,15 +212,11 @@ export function ModelCatalogView({
                     </span>
                   ))}
                 </span>
-                <span>
-                  <span className="text-[11px] text-muted lg:hidden">Context · </span>
-                  <span className="font-mono text-[13px] text-muted">{entry.context}</span>
-                </span>
-                <span className={`text-[13px] ${entry.updated ? "font-semibold text-meta" : "text-muted"}`}>
-                  <span className="text-[11px] font-normal text-muted lg:hidden">Date · </span>
+                <span className="text-[13px] text-muted lg:col-start-5">
+                  <span className="text-[11px] font-normal text-muted lg:hidden">Last Updated · </span>
                   {entry.dateLabel}
                 </span>
-                <span className="hidden h-9 w-9 items-center justify-center text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink lg:flex">
+                <span className="hidden h-9 w-9 items-center justify-center text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink lg:col-start-7 lg:flex">
                   <HugeiconsIcon icon={ArrowRight01Icon} size={18} strokeWidth={1.8} aria-hidden="true" />
                 </span>
               </button>

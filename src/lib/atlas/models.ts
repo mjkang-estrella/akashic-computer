@@ -39,6 +39,15 @@ export interface ModelEntry {
 }
 
 function dateTimestamp(value: string): number {
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) {
+    return Date.UTC(
+      Number(isoDate[1]),
+      Number(isoDate[2]) - 1,
+      Number(isoDate[3]),
+    );
+  }
+
   const fullDate = value.match(/^(\w{3}) (\d{1,2}) (\d{4})$/);
   if (fullDate) {
     return Date.UTC(
@@ -55,6 +64,10 @@ function dateTimestamp(value: string): number {
 
   const years = [...value.matchAll(/\d{4}/g)].map((match) => Number(match[0]));
   return Date.UTC(years.at(-1) ?? 1970, 0, 1);
+}
+
+function dateIso(value: string): string {
+  return new Date(dateTimestamp(value)).toISOString().slice(0, 10);
 }
 
 function slugPart(value: string): string {
@@ -82,7 +95,7 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
         size,
         name: modelDisplayName(family, release, size),
         effectiveDate,
-        dateLabel: `${size.updated ? "Updated" : "Released"} ${effectiveDate}`,
+        dateLabel: dateIso(effectiveDate),
         updated: Boolean(size.updated),
         timestamp: dateTimestamp(effectiveDate),
         context: size.context ?? release.ctx,
