@@ -1,6 +1,7 @@
 import { FAMILIES } from "./catalog";
 import { artifactsFor } from "./fit";
-import { activeParamsLabel, modelDisplayName, sizeDisplay } from "./naming";
+import { activeParamsLabel, modelDisplayName, sizeDisplay, uploaderDisplay } from "./naming";
+import { taxonomyFor, type ModelCapabilityId, type ModelCategoryId } from "./taxonomy";
 import type { Artifact, Family, Release, SizeNode } from "./types";
 
 const MONTHS: Record<string, number> = {
@@ -36,6 +37,10 @@ export interface ModelEntry {
   context: string;
   artifacts: ModelArtifact[];
   quantizations: string[];
+  providers: string[];
+  category: ModelCategoryId;
+  capabilities: ModelCapabilityId[];
+  benchmarkRefs: NonNullable<SizeNode["benchmarkRefs"]>;
 }
 
 function dateTimestamp(value: string): number {
@@ -87,6 +92,7 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
           variant,
         })),
       );
+      const taxonomy = taxonomyFor(family, release, size);
       return {
         id: `${family.id}:${release.id}:${size.label}`,
         slug: `${family.id}-${release.id}-${slugPart(size.label)}`,
@@ -101,6 +107,12 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
         context: size.context ?? release.ctx,
         artifacts,
         quantizations: [...new Set(artifacts.map((artifact) => artifact.format))],
+        providers: [...new Set(artifacts.map((artifact) => uploaderDisplay(artifact.repo)))].sort(),
+        benchmarkRefs: [
+          ...(release.benchmarkRefs ?? []),
+          ...(size.benchmarkRefs ?? []),
+        ],
+        ...taxonomy,
       } satisfies ModelEntry;
     }),
   ),
@@ -136,5 +148,13 @@ export function modelDescription(entry: ModelEntry): string {
   const scale = active
     ? `${sizeDisplay(entry.size.label)} total parameters with ${active}`
     : `${sizeDisplay(entry.size.label)} parameters`;
-  return `${entry.release.name} is an open-weight release from ${entry.family.vendor} focused on ${entry.family.tags}. This configuration has ${scale}, supports a ${entry.context} context window, and is available in ${entry.size.variants.length === 1 ? "one variant" : `${entry.size.variants.length} variants`}.`;
+  const context =
+    entry.context === "N/A"
+      ? ""
+      : entry.category === "language" ||
+          entry.category === "vision-documents" ||
+          entry.category === "retrieval"
+        ? `, supports a ${entry.context} context window`
+        : `, supports ${entry.context}`;
+  return `${entry.release.name} is an open-weight release from ${entry.family.vendor} focused on ${entry.family.tags}. This configuration has ${scale}${context}, and is available in ${entry.size.variants.length === 1 ? "one variant" : `${entry.size.variants.length} variants`}.`;
 }

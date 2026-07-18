@@ -21,6 +21,50 @@ export type Trust = "official" | "vendor" | "community";
 export type Confidence = "verified" | "inferred" | "needs_review";
 export type HardwareKind = "mac" | "cpu" | "cuda" | "dgx";
 
+export type ModelCategoryId =
+  | "language"
+  | "vision-documents"
+  | "image-generation"
+  | "video-generation"
+  | "audio-speech"
+  | "retrieval"
+  | "3d-spatial"
+  | "world-models"
+  | "robotics";
+
+export type ModelCapabilityId =
+  | "general"
+  | "reasoning"
+  | "coding"
+  | "mathematics"
+  | "science"
+  | "agentic"
+  | "long-context"
+  | "multilingual"
+  | "ocr"
+  | "image-understanding"
+  | "video-understanding"
+  | "document-qa"
+  | "image-generation"
+  | "image-editing"
+  | "video-generation"
+  | "speech-recognition"
+  | "text-to-speech"
+  | "music"
+  | "embedding"
+  | "reranking"
+  | "3d-generation"
+  | "robot-control"
+  | "world-modeling";
+
+export interface BenchmarkReference {
+  name: string;
+  result: string;
+  sourceUrl: string;
+  sourceLabel: string;
+  measuredAt?: string;
+}
+
 export interface Artifact {
   repo: string;
   format: string;
@@ -50,6 +94,9 @@ export interface SizeNode {
   scores?: Record<string, Record<BenchKey, number>>;
   /** Hand-curated artifact lists keyed by variant; others are generated. */
   curatedArtifacts?: Record<string, Artifact[]>;
+  category?: ModelCategoryId;
+  capabilities?: ModelCapabilityId[];
+  benchmarkRefs?: BenchmarkReference[];
 }
 
 export interface Release {
@@ -59,6 +106,9 @@ export interface Release {
   ctx: string;
   license: string;
   sizes: SizeNode[];
+  category?: ModelCategoryId;
+  capabilities?: ModelCapabilityId[];
+  benchmarkRefs?: BenchmarkReference[];
 }
 
 export interface Family {
@@ -67,6 +117,8 @@ export interface Family {
   vendor: string;
   tags: string;
   releases: Release[];
+  category?: ModelCategoryId;
+  capabilities?: ModelCapabilityId[];
 }
 
 export interface RigPreset {

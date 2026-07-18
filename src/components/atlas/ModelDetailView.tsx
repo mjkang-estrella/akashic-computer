@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -9,11 +8,11 @@ import {
   CheckmarkCircle02Icon,
   CancelCircleIcon,
 } from "@hugeicons/core-free-icons";
-import { FAMILY_LOGOS } from "@/lib/atlas/brands";
 import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
 import type { RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
+import { FamilyLogo } from "./FamilyLogo";
 
 export function ModelDetailView({
   entry,
@@ -55,14 +54,7 @@ export function ModelDetailView({
       <header className="border-b border-line pb-5 pt-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3.5">
-            <Image
-              src={FAMILY_LOGOS[entry.family.id]}
-              alt=""
-              aria-hidden="true"
-              width={42}
-              height={42}
-              className="h-[42px] w-[42px] flex-none object-contain"
-            />
+            <FamilyLogo familyId={entry.family.id} familyName={entry.family.name} size={42} />
             <div className="min-w-0">
               <h2 id="model-detail-title" className="text-wrap-balance font-display text-[25px] font-semibold leading-tight">
                 {entry.name}
@@ -80,17 +72,19 @@ export function ModelDetailView({
           {modelDescription(entry)}
         </p>
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-linesoft pt-4 sm:grid-cols-4">
+        <dl className={`mt-5 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-linesoft pt-4 ${entry.context === "N/A" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
           <div>
             <dt className="text-[11.5px] text-muted">Size</dt>
             <dd className="mt-0.5 font-mono text-[13px] font-semibold">
               {sizeDisplay(entry.size.label)}{active ? ` · ${active}` : ""}
             </dd>
           </div>
-          <div>
-            <dt className="text-[11.5px] text-muted">Context</dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-semibold">{entry.context}</dd>
-          </div>
+          {entry.context !== "N/A" ? (
+            <div>
+              <dt className="text-[11.5px] text-muted">Context</dt>
+              <dd className="mt-0.5 font-mono text-[13px] font-semibold">{entry.context}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-[11.5px] text-muted">Variants</dt>
             <dd className="mt-0.5 font-mono text-[13px] font-semibold">{entry.size.variants.length}</dd>
@@ -101,6 +95,35 @@ export function ModelDetailView({
           </div>
         </dl>
       </header>
+
+      {entry.benchmarkRefs.length > 0 ? (
+        <section className="border-b border-line py-5" aria-labelledby="benchmark-evidence-title">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 id="benchmark-evidence-title" className="font-display text-[17px] font-semibold">
+              Benchmark evidence
+            </h3>
+            <span className="text-[11.5px] text-muted">Sourced results, not inferred</span>
+          </div>
+          <div className="mt-3 divide-y divide-linesoft border-y border-linesoft">
+            {entry.benchmarkRefs.map((benchmark) => (
+              <a
+                key={`${benchmark.name}-${benchmark.sourceUrl}`}
+                href={benchmark.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="group grid min-h-14 gap-1 py-3 hover:text-meta sm:grid-cols-[minmax(180px,0.7fr)_minmax(240px,1fr)_auto] sm:items-center sm:gap-4"
+              >
+                <span className="text-[12.5px] font-semibold">{benchmark.name}</span>
+                <span className="font-mono text-[12px] text-muted group-hover:text-meta">{benchmark.result}</span>
+                <span className="inline-flex items-center gap-1 text-[11.5px] text-muted group-hover:text-meta">
+                  {benchmark.sourceLabel}
+                  <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="py-5" aria-labelledby="artifact-title">
         <div className="flex flex-wrap items-end justify-between gap-3">

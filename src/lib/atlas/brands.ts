@@ -1,4 +1,4 @@
-export const FAMILY_LOGOS: Record<string, string> = {
+export const FAMILY_LOGOS: Partial<Record<string, string>> = {
   qwen: "/brands/qwen.svg",
   deepseek: "/brands/deepseek.svg",
   llama: "/brands/llama.svg",
@@ -15,4 +15,9 @@ export const FAMILY_LOGOS: Record<string, string> = {
   solar: "/brands/solar.svg",
   k2: "/brands/k2.webp",
   grok: "/brands/grok.svg",
+  cosmos3: "/brands/nemotron.svg",
+  lyra: "/brands/nemotron.svg",
+  "sana-wm": "/brands/nemotron.svg",
+  gr00t: "/brands/nemotron.svg",
+  parakeet: "/brands/nemotron.svg",
 };

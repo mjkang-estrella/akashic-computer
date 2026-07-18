@@ -58,6 +58,10 @@ const UPLOADER_NAMES: Record<string, string> = {
   "nota-ai": "Nota AI",
   llm360: "LLM360",
   "xai-org": "xAI",
+  tencent: "Tencent",
+  robbyant: "Ant Group",
+  skywork: "Skywork",
+  "efficient-large-model": "NVIDIA / MIT HAN Lab",
 };
 
 /** Uploader org parsed from the repo prefix, shown as a property chip. */

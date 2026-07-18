@@ -11,6 +11,8 @@ export default defineSchema({
     license: v.optional(v.string()),
     modalities: v.array(v.string()),
     tags: v.array(v.string()),
+    category: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
   })
     .index("by_slug", ["slug"])
     .searchIndex("search_name", {
@@ -27,6 +29,8 @@ export default defineSchema({
     contextTokens: v.optional(v.number()),
     license: v.optional(v.string()),
     notes: v.optional(v.string()),
+    category: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
   })
     .index("by_family", ["familyId"])
     .index("by_slug", ["slug"]),
@@ -39,6 +43,8 @@ export default defineSchema({
     parameterCountB: v.optional(v.number()),
     activeParameterCountB: v.optional(v.number()),
     architecture: v.optional(v.string()),
+    category: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
     variantKind: v.union(
       v.literal("base"),
       v.literal("instruct"),
@@ -88,5 +94,16 @@ export default defineSchema({
     notes: v.optional(v.string()),
   })
     .index("by_artifact", ["artifactId"])
+    .index("by_benchmark", ["benchmarkName"]),
+
+  modelBenchmarks: defineTable({
+    variantId: v.id("modelVariants"),
+    benchmarkName: v.string(),
+    result: v.string(),
+    sourceLabel: v.string(),
+    sourceUrl: v.string(),
+    measuredAt: v.optional(v.number()),
+  })
+    .index("by_variant", ["variantId"])
     .index("by_benchmark", ["benchmarkName"]),
 });

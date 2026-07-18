@@ -5,6 +5,10 @@ type RepoSpec = {
   repo: string;
   format?: string;
   trust?: Artifact["trust"];
+  kinds?: Artifact["kinds"];
+  runtimes?: string[];
+  minVramGb?: number;
+  recVramGb?: number;
 };
 
 function formatProfile(format: string) {
@@ -61,16 +65,16 @@ function artifactsForSpecs(paramsB: number, specs: RepoSpec[]): Artifact[] {
   return specs.map((spec, index) => {
     const format = spec.format ?? "BF16";
     const profile = formatProfile(format);
-    const minVramGb = Math.max(2, Math.round(paramsB * profile.factor));
+    const minVramGb = spec.minVramGb ?? Math.max(2, Math.round(paramsB * profile.factor));
     return {
       repo: spec.repo,
       format,
       trust: spec.trust ?? "official",
       confidence: "verified",
-      kinds: profile.kinds,
-      runtimes: profile.runtimes,
+      kinds: spec.kinds ?? profile.kinds,
+      runtimes: spec.runtimes ?? profile.runtimes,
       minVramGb,
-      recVramGb: Math.max(3, Math.round(minVramGb * 1.15)),
+      recVramGb: spec.recVramGb ?? Math.max(3, Math.round(minVramGb * 1.15)),
       deltas: index === 0 ? zeroDeltas() : unknownDeltas(),
       measured: index === 0,
       qualityRank: index,
@@ -82,6 +86,7 @@ function officialSize(
   label: string,
   paramsB: number,
   variants: Record<string, RepoSpec[]>,
+  metadata: Omit<Partial<SizeNode>, "label" | "paramsB" | "variants" | "curatedArtifacts"> = {},
 ): SizeNode {
   return {
     label,
@@ -93,6 +98,7 @@ function officialSize(
         artifactsForSpecs(paramsB, specs),
       ]),
     ),
+    ...metadata,
   };
 }
 
@@ -278,6 +284,80 @@ export const FAMILIES: Family[] = [
           { label: "30B-A3B", paramsB: 30, variants: ["Instruct", "Base"] },
           { label: "32B", paramsB: 32, variants: ["Instruct"] },
           { label: "235B-A22B", paramsB: 235, variants: ["Instruct"] },
+        ],
+      },
+      {
+        id: "q3-embedding",
+        name: "Qwen 3 Embedding",
+        date: "Jun 2025",
+        ctx: "32K",
+        license: "Apache-2.0",
+        category: "retrieval",
+        capabilities: ["embedding", "multilingual"],
+        sizes: [
+          officialSize(
+            "8B",
+            8,
+            {
+              Embedding: [
+                {
+                  repo: "Qwen/Qwen3-Embedding-8B",
+                  runtimes: ["Sentence Transformers", "TEI", "Transformers"],
+                  minVramGb: 18,
+                  recVramGb: 22,
+                },
+              ],
+            },
+            {
+              updated: "2025-07-07",
+              benchmarkRefs: [
+                {
+                  name: "MTEB Multilingual",
+                  result: "#1 at release · 70.58 mean task score",
+                  sourceLabel: "MTEB / Qwen model card",
+                  sourceUrl: "https://huggingface.co/Qwen/Qwen3-Embedding-8B#highlights",
+                  measuredAt: "2025-06-05",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "q3-reranker",
+        name: "Qwen 3 Reranker",
+        date: "Jun 2025",
+        ctx: "32K",
+        license: "Apache-2.0",
+        category: "retrieval",
+        capabilities: ["reranking", "multilingual"],
+        sizes: [
+          officialSize(
+            "8B",
+            8,
+            {
+              Reranker: [
+                {
+                  repo: "Qwen/Qwen3-Reranker-8B",
+                  runtimes: ["vLLM", "Transformers"],
+                  minVramGb: 18,
+                  recVramGb: 22,
+                },
+              ],
+            },
+            {
+              updated: "2026-04-16",
+              benchmarkRefs: [
+                {
+                  name: "MTEB-R",
+                  result: "69.02 reranking score",
+                  sourceLabel: "Qwen evaluation",
+                  sourceUrl: "https://huggingface.co/Qwen/Qwen3-Reranker-8B#evaluation",
+                  measuredAt: "2025-06-05",
+                },
+              ],
+            },
+          ),
         ],
       },
       {
@@ -633,7 +713,20 @@ export const FAMILIES: Family[] = [
           });
           const context = label === "E2B" || label === "E4B" ? "128K" : "256K";
           return label === "31B"
-            ? { ...size, context, updated: "Jul 15 2026" }
+            ? {
+                ...size,
+                context,
+                updated: "Jul 15 2026",
+                benchmarkRefs: [
+                  {
+                    name: "MMMU-Pro",
+                    result: "73% · leading open sub-32B vision model tier",
+                    sourceLabel: "Artificial Analysis",
+                    sourceUrl: "https://artificialanalysis.ai/articles/sub-32b-open-weights",
+                    measuredAt: "2026-07-18",
+                  },
+                ],
+              }
             : { ...size, context };
         }),
       },
@@ -895,17 +988,32 @@ export const FAMILIES: Family[] = [
         ctx: "1M",
         license: "MIT",
         sizes: [
-          officialSize("753B-A40B", 753, {
-            Instruct: [
-              { repo: "zai-org/GLM-5.2" },
-              { repo: "zai-org/GLM-5.2-FP8", format: "FP8" },
-              {
-                repo: "nvidia/GLM-5.2-NVFP4",
-                format: "NVFP4",
-                trust: "vendor",
-              },
-            ],
-          }),
+          officialSize(
+            "753B-A40B",
+            753,
+            {
+              Instruct: [
+                { repo: "zai-org/GLM-5.2" },
+                { repo: "zai-org/GLM-5.2-FP8", format: "FP8" },
+                {
+                  repo: "nvidia/GLM-5.2-NVFP4",
+                  format: "NVFP4",
+                  trust: "vendor",
+                },
+              ],
+            },
+            {
+              benchmarkRefs: [
+                {
+                  name: "Artificial Analysis Intelligence Index",
+                  result: "Leading open-weight model · score 51",
+                  sourceLabel: "Artificial Analysis",
+                  sourceUrl: "https://artificialanalysis.ai/models/open-source",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
         ],
       },
       {
@@ -1039,6 +1147,901 @@ export const FAMILIES: Family[] = [
           }),
         ],
       })),
+    ],
+  },
+  {
+    id: "cosmos3",
+    name: "Cosmos 3",
+    vendor: "NVIDIA",
+    tags: "omnimodal world generation, physical AI, action generation",
+    capabilities: ["world-modeling", "agentic"],
+    releases: [
+      {
+        id: "omnimodal",
+        name: "Omnimodal",
+        date: "May 2026",
+        ctx: "N/A",
+        license: "OpenMDW 1.1",
+        category: "world-models",
+        capabilities: [
+          "world-modeling",
+          "video-generation",
+          "image-generation",
+          "video-understanding",
+          "robot-control",
+        ],
+        sizes: [
+          officialSize(
+            "64B",
+            64,
+            {
+              Super: [
+                {
+                  repo: "nvidia/Cosmos3-Super",
+                  runtimes: ["Cosmos", "PyTorch", "vLLM-Omni"],
+                  minVramGb: 144,
+                  recVramGb: 192,
+                },
+              ],
+            },
+            {
+              updated: "2026-07-09",
+              benchmarkRefs: [
+                {
+                  name: "Cosmos HUE / Human World Benchmark",
+                  result: "Open leader · HUE T2V 89.3 · I2V 89.6 · HWB 71.9",
+                  sourceLabel: "NVIDIA Cosmos 3",
+                  sourceUrl: "https://huggingface.co/nvidia/Cosmos3-Super#benchmarks",
+                  measuredAt: "2026-05-31",
+                },
+              ],
+            },
+          ),
+          officialSize(
+            "16B",
+            16,
+            {
+              Nano: [
+                {
+                  repo: "nvidia/Cosmos3-Nano",
+                  runtimes: ["Cosmos", "PyTorch", "vLLM-Omni"],
+                  minVramGb: 36,
+                  recVramGb: 48,
+                },
+              ],
+            },
+            {
+              updated: "2026-07-09",
+              benchmarkRefs: [
+                {
+                  name: "Cosmos HUE / Human World Benchmark",
+                  result: "HUE T2V 87.6 · I2V 88.6 · HWB 66.9",
+                  sourceLabel: "NVIDIA Cosmos 3",
+                  sourceUrl: "https://huggingface.co/nvidia/Cosmos3-Nano#benchmarks",
+                  measuredAt: "2026-05-31",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "super-image2video",
+        name: "Super Image2Video",
+        date: "May 2026",
+        ctx: "N/A",
+        license: "OpenMDW 1.1",
+        category: "video-generation",
+        capabilities: ["video-generation", "world-modeling"],
+        sizes: [
+          officialSize(
+            "64B",
+            64,
+            {
+              Generator: [
+                {
+                  repo: "nvidia/Cosmos3-Super-Image2Video",
+                  runtimes: ["Cosmos", "PyTorch", "Diffusers"],
+                  minVramGb: 144,
+                  recVramGb: 192,
+                },
+              ],
+            },
+            { updated: "2026-07-09" },
+          ),
+        ],
+      },
+      {
+        id: "super-text2image",
+        name: "Super Text2Image",
+        date: "May 2026",
+        ctx: "N/A",
+        license: "OpenMDW 1.1",
+        category: "image-generation",
+        capabilities: ["image-generation", "world-modeling"],
+        sizes: [
+          officialSize(
+            "64B",
+            64,
+            {
+              Generator: [
+                {
+                  repo: "nvidia/Cosmos3-Super-Text2Image",
+                  runtimes: ["Diffusers", "SGLang Diffusion", "vLLM-Omni"],
+                  minVramGb: 144,
+                  recVramGb: 192,
+                },
+              ],
+            },
+            {
+              updated: "2026-07-09",
+              benchmarkRefs: [
+                {
+                  name: "Artificial Analysis Text to Image Arena",
+                  result: "#1 open weights · Elo 1,216",
+                  sourceLabel: "Artificial Analysis",
+                  sourceUrl: "https://artificialanalysis.ai/image/leaderboard/text-to-image/open-weights",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "nano-policy-droid",
+        name: "Nano Policy DROID",
+        date: "May 2026",
+        ctx: "N/A",
+        license: "OpenMDW 1.1",
+        category: "robotics",
+        capabilities: ["robot-control", "world-modeling", "reasoning"],
+        sizes: [
+          officialSize(
+            "16B",
+            16,
+            {
+              Policy: [
+                {
+                  repo: "nvidia/Cosmos3-Nano-Policy-DROID",
+                  runtimes: ["Cosmos", "PyTorch", "Isaac Lab"],
+                  minVramGb: 36,
+                  recVramGb: 48,
+                },
+              ],
+            },
+            { updated: "2026-07-09" },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "hidream",
+    name: "HiDream",
+    vendor: "HiDream.ai",
+    tags: "text-to-image, image editing, unified image generation",
+    category: "image-generation",
+    capabilities: ["image-generation", "image-editing"],
+    releases: [
+      {
+        id: "o1-image-2604",
+        name: "HiDream O1 Image Dev 2604",
+        date: "May 2026",
+        ctx: "N/A",
+        license: "MIT",
+        sizes: [
+          officialSize(
+            "9B",
+            9,
+            {
+              Dev: [
+                {
+                  repo: "HiDream-ai/HiDream-O1-Image-Dev-2604",
+                  runtimes: ["Transformers", "PyTorch"],
+                  minVramGb: 20,
+                  recVramGb: 24,
+                },
+              ],
+            },
+            {
+              updated: "2026-05-15",
+              benchmarkRefs: [
+                {
+                  name: "Artificial Analysis Text to Image Arena",
+                  result: "#2 open weights · Elo 1,185",
+                  sourceLabel: "Artificial Analysis",
+                  sourceUrl: "https://artificialanalysis.ai/image/leaderboard/text-to-image/open-weights",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "ltx",
+    name: "LTX",
+    vendor: "Lightricks",
+    tags: "text-to-video, image-to-video, synchronized audio generation",
+    category: "video-generation",
+    capabilities: ["video-generation"],
+    releases: [
+      {
+        id: "ltx23",
+        name: "LTX 2.3",
+        date: "Mar 2026",
+        ctx: "N/A",
+        license: "LTX Community",
+        sizes: [
+          officialSize(
+            "22B",
+            22,
+            {
+              Pro: [
+                {
+                  repo: "Lightricks/LTX-2.3",
+                  runtimes: ["LTX Pipelines", "ComfyUI", "Diffusers"],
+                  minVramGb: 48,
+                  recVramGb: 56,
+                },
+                {
+                  repo: "Lightricks/LTX-2.3-fp8",
+                  format: "FP8",
+                  runtimes: ["LTX Pipelines", "ComfyUI"],
+                  minVramGb: 24,
+                  recVramGb: 30,
+                },
+                {
+                  repo: "Lightricks/LTX-2.3-nvfp4",
+                  format: "NVFP4",
+                  runtimes: ["ComfyUI", "TensorRT"],
+                  minVramGb: 16,
+                  recVramGb: 20,
+                },
+              ],
+              Fast: [
+                {
+                  repo: "Lightricks/LTX-2.3",
+                  format: "Distilled BF16",
+                  runtimes: ["LTX Pipelines", "ComfyUI"],
+                  minVramGb: 48,
+                  recVramGb: 56,
+                },
+              ],
+            },
+            {
+              updated: "2026-07-09",
+              benchmarkRefs: [
+                {
+                  name: "Artificial Analysis Text to Video Arena",
+                  result: "#1 open weights with audio · Fast Elo 974",
+                  sourceLabel: "Artificial Analysis",
+                  sourceUrl: "https://artificialanalysis.ai/video/leaderboard/text-to-video/open-weights",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "fish-audio",
+    name: "Fish Audio",
+    vendor: "Fish Audio",
+    tags: "multilingual expressive text-to-speech",
+    category: "audio-speech",
+    capabilities: ["text-to-speech", "multilingual"],
+    releases: [
+      {
+        id: "s2-pro",
+        name: "Fish Audio S2 Pro",
+        date: "Mar 2026",
+        ctx: "N/A",
+        license: "Fish Audio Research",
+        sizes: [
+          officialSize(
+            "4.6B",
+            4.6,
+            {
+              TTS: [
+                {
+                  repo: "fishaudio/s2-pro",
+                  runtimes: ["Fish Speech", "Transformers"],
+                  minVramGb: 12,
+                  recVramGb: 16,
+                },
+              ],
+            },
+            {
+              updated: "2026-03-11",
+              benchmarkRefs: [
+                {
+                  name: "Artificial Analysis Speech Arena",
+                  result: "#1 open weights · Elo 1,117",
+                  sourceLabel: "Artificial Analysis",
+                  sourceUrl: "https://artificialanalysis.ai/text-to-speech/leaderboard/provider-voice/open-weights",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "step-audio",
+    name: "Step Audio",
+    vendor: "StepFun",
+    tags: "expressive speech editing, text-to-speech",
+    category: "audio-speech",
+    capabilities: ["text-to-speech", "multilingual"],
+    releases: [
+      {
+        id: "editx",
+        name: "Step Audio EditX",
+        date: "Nov 2025",
+        ctx: "N/A",
+        license: "StepFun Model License",
+        sizes: [
+          officialSize(
+            "4B",
+            4,
+            {
+              TTS: [
+                {
+                  repo: "stepfun-ai/Step-Audio-EditX",
+                  runtimes: ["vLLM", "PyTorch"],
+                  minVramGb: 10,
+                  recVramGb: 14,
+                },
+                {
+                  repo: "stepfun-ai/Step-Audio-EditX-AWQ-4bit",
+                  format: "AWQ 4-bit",
+                  runtimes: ["vLLM"],
+                  minVramGb: 4,
+                  recVramGb: 6,
+                },
+              ],
+            },
+            {
+              updated: "2026-02-14",
+              benchmarkRefs: [
+                {
+                  name: "Artificial Analysis Speech Arena",
+                  result: "#2 open weights · Elo 1,109",
+                  sourceLabel: "Artificial Analysis",
+                  sourceUrl: "https://artificialanalysis.ai/text-to-speech/leaderboard/provider-voice/open-weights",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "parakeet",
+    name: "Parakeet",
+    vendor: "NVIDIA",
+    tags: "multilingual speech recognition, high-throughput transcription",
+    category: "audio-speech",
+    capabilities: ["speech-recognition", "multilingual"],
+    releases: [
+      {
+        id: "tdt-06b-v3",
+        name: "Parakeet TDT 0.6B v3",
+        date: "Aug 2025",
+        ctx: "3h audio",
+        license: "CC-BY-4.0",
+        sizes: [
+          officialSize(
+            "0.6B",
+            0.6,
+            {
+              ASR: [
+                {
+                  repo: "nvidia/parakeet-tdt-0.6b-v3",
+                  format: "F32",
+                  runtimes: ["NeMo", "Transformers"],
+                  kinds: ["cpu", "cuda", "dgx"],
+                  minVramGb: 2,
+                  recVramGb: 3,
+                },
+              ],
+            },
+            {
+              updated: "2026-06-29",
+              benchmarkRefs: [
+                {
+                  name: "Open ASR Leaderboard",
+                  result: "6.32 mean WER · 3,332.74x RTFx",
+                  sourceLabel: "Hugging Face Open ASR",
+                  sourceUrl: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3#evaluation-results",
+                  measuredAt: "2026-06-29",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "lyra",
+    name: "Lyra",
+    vendor: "NVIDIA",
+    tags: "explorable 3D worlds, camera control, 3D Gaussian reconstruction",
+    category: "world-models",
+    capabilities: ["world-modeling", "3d-generation", "video-generation"],
+    releases: [
+      {
+        id: "lyra2",
+        name: "Lyra 2.0",
+        date: "Apr 2026",
+        ctx: "N/A",
+        license: "NVIDIA Research-only",
+        sizes: [
+          officialSize(
+            "14B",
+            14,
+            {
+              World: [
+                {
+                  repo: "nvidia/Lyra-2.0",
+                  runtimes: ["PyTorch", "NeMo", "3D Gaussian Splatting"],
+                  minVramGb: 48,
+                  recVramGb: 80,
+                },
+              ],
+            },
+            {
+              updated: "2026-07-15",
+              benchmarkRefs: [
+                {
+                  name: "WorldRoamBench",
+                  result: "#1 open model · 70.32 overall · 91.41 action",
+                  sourceLabel: "WorldRoamBench",
+                  sourceUrl: "https://arxiv.org/abs/2606.31672",
+                  measuredAt: "2026-06-30",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "hy-world",
+    name: "HY-World",
+    vendor: "Tencent",
+    tags: "interactive world generation, persistent 3D worlds, reconstruction",
+    capabilities: ["world-modeling", "3d-generation", "video-generation"],
+    releases: [
+      {
+        id: "hyworld2",
+        name: "HY-World 2.0",
+        date: "Apr 2026",
+        ctx: "N/A",
+        license: "Tencent HY-World Community",
+        category: "3d-spatial",
+        capabilities: ["world-modeling", "3d-generation"],
+        benchmarkRefs: [
+          {
+            name: "HY-World 2.0 Technical Evaluation",
+            result: "Open SOTA for persistent 3D world generation and reconstruction",
+            sourceLabel: "Tencent HY-World 2.0",
+            sourceUrl: "https://github.com/Tencent-Hunyuan/HY-World-2.0#evaluation",
+            measuredAt: "2026-04-16",
+          },
+        ],
+        sizes: [
+          officialSize(
+            "80B",
+            80,
+            {
+              "HY-Pano": [
+                {
+                  repo: "tencent/HY-World-2.0",
+                  runtimes: ["PyTorch", "Diffusers", "WorldLens"],
+                  minVramGb: 160,
+                  recVramGb: 192,
+                },
+              ],
+            },
+            { updated: "2026-05-21" },
+          ),
+          officialSize(
+            "17B",
+            17,
+            {
+              WorldStereo: [
+                {
+                  repo: "tencent/HY-World-2.0",
+                  runtimes: ["PyTorch", "WorldLens", "3D Gaussian Splatting"],
+                  minVramGb: 40,
+                  recVramGb: 48,
+                },
+              ],
+            },
+            { updated: "2026-05-21" },
+          ),
+          officialSize(
+            "1.2B",
+            1.2,
+            {
+              WorldMirror: [
+                {
+                  repo: "tencent/HY-World-2.0",
+                  runtimes: ["PyTorch", "WorldLens", "3D Gaussian Splatting"],
+                  minVramGb: 10,
+                  recVramGb: 16,
+                },
+              ],
+            },
+            { updated: "2026-05-21" },
+          ),
+        ],
+      },
+      {
+        id: "hyworld15",
+        name: "HY-World 1.5",
+        date: "Dec 2025",
+        ctx: "N/A",
+        license: "Tencent HY-WorldPlay Community",
+        category: "world-models",
+        capabilities: ["world-modeling", "video-generation"],
+        sizes: [
+          officialSize(
+            "8B",
+            8,
+            {
+              Autoregressive: [
+                {
+                  repo: "tencent/HY-WorldPlay",
+                  runtimes: ["PyTorch", "HY-WorldPlay", "SageAttention"],
+                  minVramGb: 72,
+                  recVramGb: 80,
+                },
+              ],
+              RL: [
+                {
+                  repo: "tencent/HY-WorldPlay",
+                  runtimes: ["PyTorch", "HY-WorldPlay"],
+                  minVramGb: 72,
+                  recVramGb: 80,
+                },
+              ],
+              Distilled: [
+                {
+                  repo: "tencent/HY-WorldPlay",
+                  format: "Distilled BF16",
+                  runtimes: ["PyTorch", "HY-WorldPlay"],
+                  minVramGb: 28,
+                  recVramGb: 34,
+                },
+              ],
+            },
+            {
+              updated: "2026-03-06",
+              benchmarkRefs: [
+                {
+                  name: "WorldRoamBench",
+                  result: "#2 open model · 70.29 overall · 91.61 action",
+                  sourceLabel: "WorldRoamBench",
+                  sourceUrl: "https://arxiv.org/abs/2606.31672",
+                  measuredAt: "2026-06-30",
+                },
+              ],
+            },
+          ),
+          officialSize(
+            "5B",
+            5,
+            {
+              Distilled: [
+                {
+                  repo: "tencent/HY-WorldPlay",
+                  format: "Distilled BF16",
+                  runtimes: ["PyTorch", "HY-WorldPlay"],
+                  minVramGb: 16,
+                  recVramGb: 24,
+                },
+              ],
+            },
+            { updated: "2026-03-06" },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "lingbot-world",
+    name: "LingBot-World",
+    vendor: "Ant Group",
+    tags: "interactive world simulation, long-horizon memory, camera control",
+    category: "world-models",
+    capabilities: ["world-modeling", "video-generation"],
+    releases: [
+      {
+        id: "v2",
+        name: "LingBot-World 2.0",
+        date: "Jul 2026",
+        ctx: "N/A",
+        license: "CC-BY-NC-SA-4.0",
+        sizes: [
+          officialSize(
+            "14B",
+            14,
+            {
+              "Causal Fast": [
+                {
+                  repo: "robbyant/lingbot-world-v2-14b-causal-fast",
+                  format: "Distilled BF16",
+                  runtimes: ["PyTorch", "SGLang Diffusion", "FlashDreams"],
+                  minVramGb: 80,
+                  recVramGb: 96,
+                },
+              ],
+            },
+            { updated: "2026-07-08" },
+          ),
+        ],
+      },
+      {
+        id: "v1",
+        name: "LingBot-World",
+        date: "Jan 2026",
+        ctx: "N/A",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "14B",
+            14,
+            {
+              "Base Camera": [
+                {
+                  repo: "robbyant/lingbot-world-base-cam",
+                  runtimes: ["PyTorch", "SGLang Diffusion"],
+                  minVramGb: 80,
+                  recVramGb: 96,
+                },
+              ],
+            },
+            {
+              updated: "2026-02-02",
+              benchmarkRefs: [
+                {
+                  name: "WorldRoamBench",
+                  result: "#3 open model · 64.25 overall · 91.31 action",
+                  sourceLabel: "WorldRoamBench",
+                  sourceUrl: "https://arxiv.org/abs/2606.31672",
+                  measuredAt: "2026-06-30",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "matrix-game",
+    name: "Matrix-Game",
+    vendor: "Skywork",
+    tags: "real-time interactive worlds, game simulation, long-horizon memory",
+    category: "world-models",
+    capabilities: ["world-modeling", "video-generation"],
+    releases: [
+      {
+        id: "v3",
+        name: "Matrix-Game 3.0",
+        date: "Mar 2026",
+        ctx: "N/A",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "5B",
+            5,
+            {
+              Base: [
+                {
+                  repo: "Skywork/Matrix-Game-3.0",
+                  runtimes: ["PyTorch", "Diffusers", "FlashAttention"],
+                  minVramGb: 40,
+                  recVramGb: 48,
+                },
+              ],
+              Distilled: [
+                {
+                  repo: "Skywork/Matrix-Game-3.0",
+                  format: "INT8",
+                  runtimes: ["PyTorch", "Diffusers", "FlashAttention"],
+                  minVramGb: 24,
+                  recVramGb: 32,
+                },
+              ],
+            },
+            {
+              updated: "2026-04-28",
+              benchmarkRefs: [
+                {
+                  name: "WorldRoamBench",
+                  result: "#4 open model · 63.31 overall · 5.34 Hz",
+                  sourceLabel: "WorldRoamBench",
+                  sourceUrl: "https://arxiv.org/abs/2606.31672",
+                  measuredAt: "2026-06-30",
+                },
+                {
+                  name: "WBench Navi View",
+                  result: "71.2",
+                  sourceLabel: "Hugging Face evaluation result",
+                  sourceUrl: "https://huggingface.co/Skywork/Matrix-Game-3.0#evaluation-results",
+                  measuredAt: "2026-04-28",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "sana-wm",
+    name: "SANA-WM",
+    vendor: "NVIDIA / MIT HAN Lab",
+    tags: "efficient minute-scale world modeling, hybrid linear diffusion",
+    category: "world-models",
+    capabilities: ["world-modeling", "video-generation"],
+    releases: [
+      {
+        id: "v1",
+        name: "SANA-WM",
+        date: "May 2026",
+        ctx: "N/A",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "2.6B",
+            2.6,
+            {
+              Bidirectional: [
+                {
+                  repo: "Efficient-Large-Model/SANA-WM_bidirectional",
+                  runtimes: ["PyTorch", "SANA", "Diffusers"],
+                  minVramGb: 64,
+                  recVramGb: 96,
+                },
+              ],
+              Streaming: [
+                {
+                  repo: "Efficient-Large-Model/SANA-WM_streaming",
+                  runtimes: ["PyTorch", "SANA"],
+                  minVramGb: 48,
+                  recVramGb: 80,
+                },
+              ],
+              "Chunk Causal": [
+                {
+                  repo: "Efficient-Large-Model/SANA-WM_chunk_causal",
+                  runtimes: ["PyTorch", "SANA"],
+                  minVramGb: 48,
+                  recVramGb: 80,
+                },
+              ],
+            },
+            {
+              updated: "2026-06-10",
+              benchmarkRefs: [
+                {
+                  name: "WorldRoamBench",
+                  result: "#5 open model · 62.16 overall · 73.08 visual",
+                  sourceLabel: "WorldRoamBench",
+                  sourceUrl: "https://arxiv.org/abs/2606.31672",
+                  measuredAt: "2026-06-30",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "hunyuan3d",
+    name: "Hunyuan3D",
+    vendor: "Tencent",
+    tags: "image-to-3D, text-to-3D, PBR materials",
+    category: "3d-spatial",
+    capabilities: ["3d-generation"],
+    releases: [
+      {
+        id: "hy3d21",
+        name: "Hunyuan3D 2.1",
+        date: "Jun 2025",
+        ctx: "N/A",
+        license: "Tencent Hunyuan Community",
+        sizes: [
+          officialSize(
+            "5.3B",
+            5.3,
+            {
+              System: [
+                {
+                  repo: "tencent/Hunyuan3D-2.1",
+                  runtimes: ["PyTorch", "Diffusers", "ComfyUI"],
+                  minVramGb: 24,
+                  recVramGb: 32,
+                },
+              ],
+            },
+            {
+              updated: "2025-10-17",
+              benchmarkRefs: [
+                {
+                  name: "3D Arena",
+                  result: "Top-tier open image-to-3D model",
+                  sourceLabel: "Hugging Face 3D Arena",
+                  sourceUrl: "https://huggingface.co/3d-arena",
+                  measuredAt: "2026-07-18",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "gr00t",
+    name: "GR00T",
+    vendor: "NVIDIA",
+    tags: "vision-language-action, humanoid robotics, generalist control",
+    category: "robotics",
+    capabilities: ["robot-control", "world-modeling", "reasoning"],
+    releases: [
+      {
+        id: "n17",
+        name: "GR00T N1.7",
+        date: "Apr 2026",
+        ctx: "N/A",
+        license: "NVIDIA Open Model",
+        sizes: [
+          officialSize(
+            "3B",
+            3,
+            {
+              Base: [
+                {
+                  repo: "nvidia/GR00T-N1.7-3B",
+                  runtimes: ["Isaac GR00T", "PyTorch", "TensorRT"],
+                  minVramGb: 8,
+                  recVramGb: 12,
+                },
+              ],
+            },
+            {
+              updated: "2026-04-23",
+              benchmarkRefs: [
+                {
+                  name: "LIBERO",
+                  result: "94.35%-98.45% success across four suites after fine-tuning",
+                  sourceLabel: "NVIDIA Isaac GR00T evaluation",
+                  sourceUrl: "https://github.com/NVIDIA/Isaac-GR00T/blob/main/examples/LIBERO/README.md",
+                  measuredAt: "2026-04-23",
+                },
+              ],
+            },
+          ),
+        ],
+      },
     ],
   },
   {

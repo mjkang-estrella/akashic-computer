@@ -141,7 +141,6 @@ export function AtlasApp() {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "model");
     url.searchParams.set("model", entry.slug);
-    url.searchParams.delete("family");
     if (variant) url.searchParams.set("variant", variant);
     else url.searchParams.delete("variant");
     url.hash = "";
@@ -313,7 +312,13 @@ export function AtlasApp() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1240px] px-5">
+      <main
+        className={`mx-auto w-full px-5 ${
+          tab === "model" && !selectedModel && !query.trim()
+            ? "max-w-[1440px]"
+            : "max-w-[1240px]"
+        }`}
+      >
         {query.trim() ? (
           <SearchView
             query={query}
