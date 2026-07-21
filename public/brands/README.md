@@ -8,3 +8,7 @@ property of their respective owners.
 `k2.webp` is the LLM360 organization avatar from its Hugging Face profile.
 
 `thinking-machines.png` is the official Thinking Machines Lab site icon.
+
+`internlm.webp` is the InternLM organization avatar from its Hugging Face profile.
+
+`poolside.webp` is the Poolside organization avatar from its Hugging Face profile.

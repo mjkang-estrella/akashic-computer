@@ -18,8 +18,7 @@ import {
   TextIcon,
   Video01Icon,
 } from "@hugeicons/core-free-icons";
-import { FAMILIES } from "@/lib/atlas/data";
-import { MODEL_ENTRIES, type ModelEntry } from "@/lib/atlas/models";
+import type { ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
 import {
   MODEL_CAPABILITIES,
@@ -27,6 +26,7 @@ import {
   type ModelCapabilityId,
   type ModelCategoryId,
 } from "@/lib/atlas/taxonomy";
+import type { Family } from "@/lib/atlas/types";
 import { FamilyLogo } from "./FamilyLogo";
 
 type SizeBand = "all" | "compact" | "medium" | "large" | "frontier";
@@ -70,6 +70,8 @@ function setUrlParam(url: URL, key: string, value: string, defaultValue = "all")
 }
 
 interface FilterPanelProps {
+  families: Family[];
+  totalEntries: number;
   category: CategoryFilter;
   categoryCounts: Map<ModelCategoryId, number>;
   capabilities: Set<ModelCapabilityId>;
@@ -94,6 +96,8 @@ interface FilterPanelProps {
 }
 
 function FilterPanel({
+  families,
+  totalEntries,
   category,
   categoryCounts,
   capabilities,
@@ -142,7 +146,7 @@ function FilterPanel({
           >
             <HugeiconsIcon icon={DashboardSquare01Icon} size={16} strokeWidth={1.7} aria-hidden="true" />
             <span className="min-w-0 flex-1">All models</span>
-            <span className="font-mono text-[11px] opacity-70">{MODEL_ENTRIES.length}</span>
+            <span className="font-mono text-[11px] opacity-70">{totalEntries}</span>
           </button>
           {visibleCategories.map((item) => (
             <button
@@ -194,7 +198,7 @@ function FilterPanel({
             Company
             <select value={familyId} onChange={(event) => onFamily(event.target.value)} className={selectClass}>
               <option value="all">All companies</option>
-              {FAMILIES.map((family) => (
+              {families.map((family) => (
                 <option key={family.id} value={family.id}>{family.vendor} / {family.name}</option>
               ))}
             </select>
@@ -243,9 +247,13 @@ function FilterPanel({
 }
 
 export function ModelCatalogView({
+  entries: modelEntries,
+  families,
   initialFamilyId,
   onOpen,
 }: {
+  entries: ModelEntry[];
+  families: Family[];
   initialFamilyId?: string | null;
   onOpen: (entry: ModelEntry) => void;
 }) {
@@ -260,16 +268,16 @@ export function ModelCatalogView({
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const variants = useMemo(
-    () => [...new Set(MODEL_ENTRIES.flatMap((entry) => entry.size.variants))].sort(),
-    [],
+    () => [...new Set(modelEntries.flatMap((entry) => entry.size.variants))].sort(),
+    [modelEntries],
   );
   const quantizations = useMemo(
-    () => [...new Set(MODEL_ENTRIES.flatMap((entry) => entry.quantizations))].sort(),
-    [],
+    () => [...new Set(modelEntries.flatMap((entry) => entry.quantizations))].sort(),
+    [modelEntries],
   );
   const providers = useMemo(
-    () => [...new Set(MODEL_ENTRIES.flatMap((entry) => entry.providers))].sort(),
-    [],
+    () => [...new Set(modelEntries.flatMap((entry) => entry.providers))].sort(),
+    [modelEntries],
   );
 
   useEffect(() => {
@@ -331,12 +339,12 @@ export function ModelCatalogView({
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<ModelCategoryId, number>();
-    MODEL_ENTRIES.forEach((entry) => counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1));
+    modelEntries.forEach((entry) => counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1));
     return counts;
-  }, []);
+  }, [modelEntries]);
   const categoryEntries = useMemo(
-    () => MODEL_ENTRIES.filter((entry) => category === "all" || entry.category === category),
-    [category],
+    () => modelEntries.filter((entry) => category === "all" || entry.category === category),
+    [category, modelEntries],
   );
   const capabilityCounts = useMemo(() => {
     const counts = new Map<ModelCapabilityId, number>();
@@ -383,6 +391,8 @@ export function ModelCatalogView({
     });
   };
   const filterPanelProps: FilterPanelProps = {
+    families,
+    totalEntries: modelEntries.length,
     category,
     categoryCounts,
     capabilities,
@@ -418,7 +428,7 @@ export function ModelCatalogView({
     })),
     familyId !== "all" && {
       key: "family",
-      label: FAMILIES.find((family) => family.id === familyId)?.vendor ?? familyId,
+      label: families.find((family) => family.id === familyId)?.vendor ?? familyId,
       clear: () => setFamilyId("all"),
     },
     sizeBand !== "all" && {
@@ -441,7 +451,7 @@ export function ModelCatalogView({
             Open-weight releases by model and parameter size, ordered by their most recent release or material update.
           </p>
         </div>
-        <span className="font-mono text-[13px] text-muted">{entries.length} of {MODEL_ENTRIES.length}</span>
+        <span className="font-mono text-[13px] text-muted">{entries.length} of {modelEntries.length}</span>
       </header>
 
       <nav className="-mx-5 flex gap-2 overflow-x-auto border-b border-line px-5 py-3 xl:hidden" aria-label="Model categories">

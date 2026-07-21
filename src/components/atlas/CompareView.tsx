@@ -3,12 +3,11 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   BENCHES,
   BENCH_CATEGORIES,
-  COMPARE_MODELS,
   HEADLINE_BENCHES,
 } from "@/lib/atlas/data";
 import { fitOf } from "@/lib/atlas/fit";
 import { activeParamsLabel, uploaderDisplay } from "@/lib/atlas/naming";
-import type { BenchCategory, BenchKey, RigProfile } from "@/lib/atlas/types";
+import type { BenchCategory, BenchKey, CompareModel, RigProfile } from "@/lib/atlas/types";
 import {
   DeltaChip,
   PropertyChip,
@@ -19,6 +18,7 @@ export type CompareSortKey = BenchKey | "model";
 export type CompareCategory = BenchCategory | "all";
 
 export function CompareView({
+  models,
   query,
   rig,
   onlyRunnable,
@@ -32,6 +32,7 @@ export function CompareView({
   onSort,
   onToggleExpand,
 }: {
+  models: CompareModel[];
   query: string;
   rig: RigProfile;
   onlyRunnable: boolean;
@@ -52,10 +53,10 @@ export function CompareView({
       : b.category === category,
   );
   const benches = offered.filter((b) => activeBenches.has(b.key));
-  const hasBenchmarkData = COMPARE_MODELS.length > 0;
+  const hasBenchmarkData = models.length > 0;
 
   const normalizedQuery = query.trim().toLowerCase();
-  const matchingModels = COMPARE_MODELS.filter(
+  const matchingModels = models.filter(
     (model) =>
       !normalizedQuery ||
       model.name.toLowerCase().includes(normalizedQuery) ||
@@ -138,13 +139,13 @@ export function CompareView({
         {rows.length === 0 ? (
           <div className="px-4 py-10 text-center text-muted">
             <b className="mb-1.5 block text-[15px] text-ink">
-              {COMPARE_MODELS.length === 0
+              {models.length === 0
                 ? "Benchmark data is being sourced"
                 : matchingModels.length === 0
                 ? `No scored model matches “${query.trim()}”`
                 : `Nothing fits within ${rig.gb} GB`}
             </b>
-            {COMPARE_MODELS.length === 0
+            {models.length === 0
               ? "Major models remain available in Model while verified score sets are added."
               : matchingModels.length === 0
               ? "Search by model family, vendor, or capability."

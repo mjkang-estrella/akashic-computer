@@ -17,13 +17,13 @@ import {
 } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
 import {
-  MODEL_ENTRIES,
-  modelEntryForSlug,
-  modelEntryForTarget,
+  findModelEntryForSlug,
+  findModelEntryForTarget,
   type ModelEntry,
 } from "@/lib/atlas/models";
 import type { BenchKey } from "@/lib/atlas/types";
 import { CompareDrawer } from "./CompareDrawer";
+import { useCatalog } from "./CatalogProvider";
 import {
   CompareView,
   type CompareCategory,
@@ -43,16 +43,8 @@ const LEGACY_TABS: Record<string, Tab> = {
   learn: "docs",
 };
 
-const ALL_ARTIFACTS = Array.from(
-  new Map(
-    MODEL_ENTRIES.flatMap((entry) => entry.artifacts).map((artifact) => [
-      artifact.repo,
-      artifact,
-    ]),
-  ).values(),
-);
-
 export function AtlasApp() {
+  const { entries, families, compareModels } = useCatalog();
   const [tab, setTab] = useState<Tab>("model");
   const [query, setQuery] = useState("");
 
@@ -117,8 +109,13 @@ export function AtlasApp() {
   const rig = resolveProfile(RIG_PRESETS, presetId, manualGb);
 
   const checkedArtifacts = useMemo(() => {
-    return ALL_ARTIFACTS.filter((artifact) => checked.has(artifact.repo));
-  }, [checked]);
+    const allArtifacts = Array.from(
+      new Map(
+        entries.flatMap((entry) => entry.artifacts).map((artifact) => [artifact.repo, artifact]),
+      ).values(),
+    );
+    return allArtifacts.filter((artifact) => checked.has(artifact.repo));
+  }, [checked, entries]);
 
   const toggleChecked = (repo: string, on: boolean) => {
     setChecked((prev) => {
@@ -157,7 +154,8 @@ export function AtlasApp() {
   };
 
   const selectSearchResult = (target: SearchTarget) => {
-    const entry = modelEntryForTarget(
+    const entry = findModelEntryForTarget(
+      entries,
       target.familyId,
       target.releaseId,
       target.sizeLabel,
@@ -250,7 +248,7 @@ export function AtlasApp() {
       onManualGb={setManualGb}
     />
   );
-  const selectedModel = modelEntryForSlug(modelSlug);
+  const selectedModel = findModelEntryForSlug(entries, modelSlug);
 
   return (
     <div className="min-h-screen pb-28">
@@ -322,6 +320,8 @@ export function AtlasApp() {
         {query.trim() ? (
           <SearchView
             query={query}
+            entries={entries}
+            families={families}
             onSelect={selectSearchResult}
             onClear={() => setQuery("")}
           />
@@ -340,12 +340,15 @@ export function AtlasApp() {
           ) : (
             <ModelCatalogView
               key={catalogFamilyId ?? "all"}
+              entries={entries}
+              families={families}
               initialFamilyId={catalogFamilyId}
               onOpen={openModel}
             />
           )
         ) : tab === "benchmark" ? (
           <CompareView
+            models={compareModels}
             query={query}
             rig={rig}
             onlyRunnable={false}

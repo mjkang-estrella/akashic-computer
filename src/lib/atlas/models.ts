@@ -124,7 +124,11 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
 );
 
 export function modelEntryForSlug(slug: string | null): ModelEntry | null {
-  return MODEL_ENTRIES.find((entry) => entry.slug === slug) ?? null;
+  return findModelEntryForSlug(MODEL_ENTRIES, slug);
+}
+
+export function findModelEntryForSlug(entries: ModelEntry[], slug: string | null): ModelEntry | null {
+  return entries.find((entry) => entry.slug === slug) ?? null;
 }
 
 export function modelEntryForTarget(
@@ -132,9 +136,18 @@ export function modelEntryForTarget(
   releaseId?: string,
   sizeLabel?: string,
 ): ModelEntry | null {
+  return findModelEntryForTarget(MODEL_ENTRIES, familyId, releaseId, sizeLabel);
+}
+
+export function findModelEntryForTarget(
+  entries: ModelEntry[],
+  familyId: string,
+  releaseId?: string,
+  sizeLabel?: string,
+): ModelEntry | null {
   if (!releaseId || !sizeLabel) return null;
   return (
-    MODEL_ENTRIES.find(
+    entries.find(
       (entry) =>
         entry.family.id === familyId &&
         entry.release.id === releaseId &&

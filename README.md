@@ -35,7 +35,9 @@ Open `http://localhost:3000`.
 
 ## Convex
 
-Convex is installed and the initial schema lives in `convex/schema.ts`.
+Convex is the runtime source of truth for the public catalog. The static
+`src/lib/atlas/catalog.ts` file is retained as the migration fixture and
+rollback snapshot.
 
 To create and sync a Convex dev deployment:
 
@@ -44,6 +46,25 @@ npx convex dev
 ```
 
 The first run will open the Convex login/project setup flow.
+
+Seed the current snapshot after setting an operator secret:
+
+```bash
+npx convex env set CATALOG_ADMIN_SECRET '<random-secret>'
+npx convex run seed:seedCurrentCatalog '{"secret":"<random-secret>"}'
+```
+
+See `docs/catalog-sync.md` for production deployment, Hugging Face webhooks,
+daily reconciliation, validation rules, and operational checks.
+
+## Verification
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
 
 ## Planning Docs
 

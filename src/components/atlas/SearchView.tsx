@@ -1,7 +1,8 @@
+import { useMemo } from "react";
 import { ArrowUpRight, SearchX } from "lucide-react";
-import { FAMILIES } from "@/lib/atlas/data";
-import { artifactsFor } from "@/lib/atlas/fit";
-import { modelDisplayName, uploaderDisplay } from "@/lib/atlas/naming";
+import type { ModelEntry } from "@/lib/atlas/models";
+import { uploaderDisplay } from "@/lib/atlas/naming";
+import type { Family } from "@/lib/atlas/types";
 
 export interface SearchTarget {
   familyId: string;
@@ -21,54 +22,49 @@ interface SearchItem {
   repo?: string;
 }
 
-const SEARCH_ITEMS: SearchItem[] = FAMILIES.flatMap((family) => {
-  const familyItem: SearchItem = {
+function searchItems(families: Family[], entries: ModelEntry[]): SearchItem[] {
+  const familyItems: SearchItem[] = families.map((family) => ({
     id: `family-${family.id}`,
     kind: "Family",
     title: family.name,
     meta: `${family.vendor} · ${family.tags}`,
     searchable: `${family.name} ${family.vendor} ${family.tags}`.toLowerCase(),
     target: { familyId: family.id },
-  };
-  const modelItems = family.releases.flatMap((release) =>
-    release.sizes.flatMap((size) => {
-      const title = modelDisplayName(family, release, size);
+  }));
+  const modelItems = entries.flatMap((entry) => {
       const model: SearchItem = {
-        id: `model-${family.id}-${release.id}-${size.label}`,
+        id: `model-${entry.slug}`,
         kind: "Model",
-        title,
-        meta: `${family.vendor} · ${size.variants.join(", ")} · ${size.context ?? release.ctx} context`,
-        searchable: `${family.name} ${family.vendor} ${title} ${size.variants.join(" ")} ${release.license} ${size.context ?? release.ctx}`.toLowerCase(),
+        title: entry.name,
+        meta: `${entry.family.vendor} · ${entry.quantizations.join(", ")}`,
+        searchable: `${entry.family.name} ${entry.family.vendor} ${entry.name} ${entry.size.variants.join(" ")} ${entry.release.license} ${entry.quantizations.join(" ")}`.toLowerCase(),
         target: {
-          familyId: family.id,
-          releaseId: release.id,
-          sizeLabel: size.label,
+          familyId: entry.family.id,
+          releaseId: entry.release.id,
+          sizeLabel: entry.size.label,
         },
       };
-      const artifacts = size.variants.flatMap((variant) =>
-        artifactsFor(family, release, size, variant).map(
+      const artifacts = entry.artifacts.map(
           (artifact): SearchItem => ({
-            id: `artifact-${family.id}-${release.id}-${size.label}-${variant}-${artifact.repo}`,
+            id: `artifact-${entry.slug}-${artifact.variant}-${artifact.repo}`,
             kind: "Artifact",
             title: artifact.repo,
             meta: `${artifact.format} · ${uploaderDisplay(artifact.repo)} · ${artifact.runtimes.join(", ")}`,
-            searchable: `${family.name} ${release.name} ${size.label} ${variant} ${artifact.repo} ${artifact.format} ${artifact.runtimes.join(" ")}`.toLowerCase(),
+            searchable: `${entry.family.name} ${entry.release.name} ${entry.size.label} ${artifact.variant} ${artifact.repo} ${artifact.format} ${artifact.runtimes.join(" ")}`.toLowerCase(),
             target: {
-              familyId: family.id,
-              releaseId: release.id,
-              sizeLabel: size.label,
-              variant,
+              familyId: entry.family.id,
+              releaseId: entry.release.id,
+              sizeLabel: entry.size.label,
+              variant: artifact.variant,
               quantization: artifact.format,
             },
             repo: artifact.repo,
           }),
-        ),
       );
       return [model, ...artifacts];
-    }),
-  );
-  return [familyItem, ...modelItems];
-});
+    });
+  return [...familyItems, ...modelItems];
+}
 
 function score(item: SearchItem, query: string) {
   const title = item.title.toLowerCase();
@@ -80,15 +76,20 @@ function score(item: SearchItem, query: string) {
 
 export function SearchView({
   query,
+  entries,
+  families,
   onSelect,
   onClear,
 }: {
   query: string;
+  entries: ModelEntry[];
+  families: Family[];
   onSelect: (target: SearchTarget) => void;
   onClear: () => void;
 }) {
+  const items = useMemo(() => searchItems(families, entries), [entries, families]);
   const normalized = query.trim().toLowerCase();
-  const matches = SEARCH_ITEMS.filter((item) => item.searchable.includes(normalized)).sort(
+  const matches = items.filter((item) => item.searchable.includes(normalized)).sort(
     (a, b) => score(a, normalized) - score(b, normalized),
   );
   const groups = (["Family", "Model", "Artifact"] as const)

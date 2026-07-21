@@ -848,6 +848,296 @@ export const FAMILIES: Family[] = [
     ],
   },
   {
+    id: "intern-s",
+    name: "Intern-S",
+    vendor: "Shanghai AI Laboratory",
+    tags: "multimodal scientific reasoning, long-horizon agents, tool use",
+    category: "vision-documents",
+    capabilities: [
+      "general",
+      "reasoning",
+      "science",
+      "mathematics",
+      "agentic",
+      "long-context",
+      "image-understanding",
+      "video-understanding",
+      "document-qa",
+    ],
+    releases: [
+      {
+        id: "s2-preview-397b",
+        name: "Intern-S2 Preview",
+        date: "Jul 2026",
+        ctx: "256K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "397B",
+            397,
+            {
+              Reasoning: [
+                {
+                  repo: "internlm/Intern-S2-Preview-397B",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 850,
+                  recVramGb: 960,
+                },
+                {
+                  repo: "internlm/Intern-S2-Preview-397B-FP8",
+                  format: "FP8",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 430,
+                  recVramGb: 480,
+                },
+              ],
+            },
+            {
+              updated: "2026-07-17",
+              benchmarkRefs: [
+                {
+                  name: "Official model evaluation",
+                  result: "General, scientific & long-horizon agent suite",
+                  sourceLabel: "InternLM model card",
+                  sourceUrl:
+                    "https://huggingface.co/internlm/Intern-S2-Preview-397B#performance",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "s2-preview",
+        name: "Intern-S2 Preview",
+        date: "May 2026",
+        ctx: "262K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "35B-A3B",
+            35,
+            {
+              Reasoning: [
+                {
+                  repo: "internlm/Intern-S2-Preview",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 72,
+                  recVramGb: 80,
+                },
+                {
+                  repo: "internlm/Intern-S2-Preview-FP8",
+                  format: "FP8",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 40,
+                  recVramGb: 48,
+                },
+              ],
+            },
+            {
+              updated: "2026-05-29",
+              benchmarkRefs: [
+                {
+                  name: "Official model evaluation",
+                  result: "General, scientific & agent benchmark suite",
+                  sourceLabel: "InternLM model card",
+                  sourceUrl:
+                    "https://huggingface.co/internlm/Intern-S2-Preview#performance",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "s1-pro",
+        name: "Intern-S1 Pro",
+        date: "Feb 2026",
+        ctx: "262K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "1T-A22B",
+            1000,
+            {
+              Reasoning: [
+                {
+                  repo: "internlm/Intern-S1-Pro-BF16",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 1900,
+                  recVramGb: 2048,
+                },
+                {
+                  repo: "internlm/Intern-S1-Pro",
+                  format: "FP8",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 1024,
+                  recVramGb: 1152,
+                },
+              ],
+            },
+            {
+              updated: "2026-03-30",
+              benchmarkRefs: [
+                {
+                  name: "Official model evaluation",
+                  result: "General multimodal & AI4Science suite",
+                  sourceLabel: "InternLM model card",
+                  sourceUrl:
+                    "https://huggingface.co/internlm/Intern-S1-Pro#performance",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "s1",
+        name: "Intern-S1",
+        date: "Jul 2025",
+        ctx: "64K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "241B-A28B",
+            241,
+            {
+              Reasoning: [
+                {
+                  repo: "internlm/Intern-S1",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 520,
+                  recVramGb: 576,
+                },
+                {
+                  repo: "internlm/Intern-S1-FP8",
+                  format: "FP8",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 260,
+                  recVramGb: 300,
+                },
+                {
+                  repo: "internlm/Intern-S1-GGUF",
+                  format: "GGUF",
+                  runtimes: ["llama.cpp"],
+                  kinds: ["mac", "cpu", "cuda"],
+                  minVramGb: 260,
+                  recVramGb: 300,
+                },
+              ],
+            },
+            {
+              updated: "2026-03-29",
+              benchmarkRefs: [
+                {
+                  name: "OpenCompass & VLMEvalKit",
+                  result: "MMLU-Pro 83.5 · MMMU 77.7 · SFE 44.3",
+                  sourceLabel: "InternLM model card",
+                  sourceUrl:
+                    "https://huggingface.co/internlm/Intern-S1#performance",
+                },
+              ],
+            },
+          ),
+          officialSize(
+            "8B",
+            8,
+            {
+              Reasoning: [
+                {
+                  repo: "internlm/Intern-S1-mini",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 18,
+                  recVramGb: 24,
+                },
+                {
+                  repo: "internlm/Intern-S1-mini-FP8",
+                  format: "FP8",
+                  runtimes: ["LMDeploy", "vLLM", "SGLang"],
+                  minVramGb: 10,
+                  recVramGb: 16,
+                },
+                {
+                  repo: "internlm/Intern-S1-mini-GGUF",
+                  format: "GGUF",
+                  runtimes: ["llama.cpp", "Ollama"],
+                  kinds: ["mac", "cpu", "cuda"],
+                  minVramGb: 10,
+                  recVramGb: 16,
+                },
+              ],
+            },
+            {
+              updated: "2026-03-29",
+              benchmarkRefs: [
+                {
+                  name: "OpenCompass & VLMEvalKit",
+                  result: "MMLU-Pro 74.78 · MMMU 72.33 · GPQA 65.15",
+                  sourceLabel: "InternLM model card",
+                  sourceUrl:
+                    "https://huggingface.co/internlm/Intern-S1-mini#performance",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: "internlm",
+    name: "InternLM",
+    vendor: "Shanghai AI Laboratory",
+    tags: "general language, reasoning, thinking mode, long context",
+    category: "language",
+    capabilities: ["general", "reasoning", "mathematics", "long-context"],
+    releases: [
+      {
+        id: "internlm3",
+        name: "InternLM3",
+        date: "Jan 2025",
+        ctx: "128K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "8B",
+            8,
+            {
+              Instruct: [
+                {
+                  repo: "internlm/internlm3-8b-instruct",
+                  runtimes: ["Transformers", "LMDeploy", "vLLM"],
+                  minVramGb: 18,
+                  recVramGb: 24,
+                },
+                {
+                  repo: "internlm/internlm3-8b-instruct-gguf",
+                  format: "GGUF",
+                  runtimes: ["llama.cpp", "Ollama", "LM Studio"],
+                  kinds: ["mac", "cpu", "cuda"],
+                  minVramGb: 5,
+                  recVramGb: 8,
+                },
+              ],
+            },
+            {
+              updated: "2025-07-25",
+              benchmarkRefs: [
+                {
+                  name: "OpenCompass",
+                  result: "MMLU-Pro 57.6 · MATH-500 83.0 · IFEval 79.3",
+                  sourceLabel: "InternLM model card",
+                  sourceUrl:
+                    "https://huggingface.co/internlm/internlm3-8b-instruct#performance-evaluation",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
     id: "phi",
     name: "Phi",
     vendor: "Microsoft",
@@ -1574,6 +1864,88 @@ export const FAMILIES: Family[] = [
     ],
   },
   {
+    id: "whisper",
+    name: "Whisper",
+    vendor: "OpenAI",
+    tags: "multilingual speech recognition and speech translation",
+    category: "audio-speech",
+    capabilities: ["speech-recognition", "multilingual"],
+    releases: [
+      {
+        id: "large-v3-turbo",
+        name: "Whisper Large v3 Turbo",
+        date: "Oct 2024",
+        ctx: "30s audio",
+        license: "MIT",
+        sizes: [
+          officialSize(
+            "0.809B",
+            0.809,
+            {
+              ASR: [
+                {
+                  repo: "openai/whisper-large-v3-turbo",
+                  runtimes: ["Transformers", "PyTorch"],
+                  kinds: ["mac", "cpu", "cuda", "dgx"],
+                  minVramGb: 2,
+                  recVramGb: 4,
+                },
+              ],
+            },
+            {
+              updated: "2024-10-04",
+              benchmarkRefs: [
+                {
+                  name: "Open ASR Leaderboard",
+                  result: "7.83 mean WER",
+                  sourceLabel: "Hugging Face Open ASR",
+                  sourceUrl:
+                    "https://huggingface.co/openai/whisper-large-v3-turbo#evaluation-results",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+      {
+        id: "large-v3",
+        name: "Whisper Large v3",
+        date: "Nov 2023",
+        ctx: "30s audio",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "1.55B",
+            1.55,
+            {
+              ASR: [
+                {
+                  repo: "openai/whisper-large-v3",
+                  runtimes: ["Transformers", "PyTorch"],
+                  kinds: ["mac", "cpu", "cuda", "dgx"],
+                  minVramGb: 4,
+                  recVramGb: 6,
+                },
+              ],
+            },
+            {
+              updated: "2024-08-12",
+              benchmarkRefs: [
+                {
+                  name: "Open ASR Leaderboard",
+                  result: "7.44 mean WER · 145.51x RTFx",
+                  sourceLabel: "Hugging Face Open ASR",
+                  sourceUrl:
+                    "https://huggingface.co/openai/whisper-large-v3#evaluation-results",
+                },
+              ],
+            },
+          ),
+        ],
+      },
+    ],
+  },
+  {
     id: "lyra",
     name: "Lyra",
     vendor: "NVIDIA",
@@ -2110,6 +2482,119 @@ export const FAMILIES: Family[] = [
               },
             ],
           }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "laguna",
+    name: "Laguna",
+    vendor: "Poolside",
+    tags: "agentic coding, reasoning, long context, mixture of experts",
+    category: "language",
+    capabilities: ["coding", "reasoning", "agentic", "long-context"],
+    releases: [
+      {
+        id: "s21",
+        name: "Laguna S 2.1",
+        date: "Jul 13 2026",
+        ctx: "1M",
+        license: "OpenMDW-1.1",
+        sizes: [
+          officialSize(
+            "118B-A8B",
+            118,
+            {
+              Instruct: [
+                { repo: "poolside/Laguna-S-2.1" },
+                { repo: "poolside/Laguna-S-2.1-FP8", format: "FP8" },
+                { repo: "poolside/Laguna-S-2.1-INT4", format: "INT4" },
+                { repo: "poolside/Laguna-S-2.1-NVFP4", format: "NVFP4" },
+                { repo: "poolside/Laguna-S-2.1-GGUF", format: "GGUF" },
+                {
+                  repo: "poolside/Laguna-S-2.1-NVFP4-mlx",
+                  format: "MLX NVFP4",
+                  kinds: ["mac"],
+                  runtimes: ["mlx-lm"],
+                },
+              ],
+              Base: [{ repo: "poolside/Laguna-S-2.1-base" }],
+            },
+            { updated: "2026-07-21" },
+          ),
+        ],
+      },
+      {
+        id: "xs21",
+        name: "Laguna XS 2.1",
+        date: "Jun 20 2026",
+        ctx: "262K",
+        license: "OpenMDW-1.1",
+        sizes: [
+          officialSize(
+            "33B-A3B",
+            33,
+            {
+              Instruct: [
+                { repo: "poolside/Laguna-XS-2.1" },
+                { repo: "poolside/Laguna-XS-2.1-FP8", format: "FP8" },
+                { repo: "poolside/Laguna-XS-2.1-INT4", format: "INT4" },
+                { repo: "poolside/Laguna-XS-2.1-NVFP4", format: "NVFP4" },
+                { repo: "poolside/Laguna-XS-2.1-GGUF", format: "GGUF" },
+                {
+                  repo: "poolside/Laguna-XS-2.1-NVFP4-mlx",
+                  format: "MLX NVFP4",
+                  kinds: ["mac"],
+                  runtimes: ["mlx-lm"],
+                },
+              ],
+            },
+            { updated: "2026-07-20" },
+          ),
+        ],
+      },
+      {
+        id: "m1",
+        name: "Laguna M.1",
+        date: "Jun 15 2026",
+        ctx: "262K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "225B-A23B",
+            225,
+            {
+              Instruct: [
+                { repo: "poolside/Laguna-M.1" },
+                { repo: "poolside/Laguna-M.1-FP8", format: "FP8" },
+                { repo: "poolside/Laguna-M.1-NVFP4", format: "NVFP4" },
+              ],
+              Base: [{ repo: "poolside/Laguna-M.1-base" }],
+            },
+            { updated: "2026-07-14" },
+          ),
+        ],
+      },
+      {
+        id: "xs2",
+        name: "Laguna XS.2",
+        date: "Apr 23 2026",
+        ctx: "262K",
+        license: "Apache-2.0",
+        sizes: [
+          officialSize(
+            "33B-A3B",
+            33,
+            {
+              Instruct: [
+                { repo: "poolside/Laguna-XS.2" },
+                { repo: "poolside/Laguna-XS.2-FP8", format: "FP8" },
+                { repo: "poolside/Laguna-XS.2-INT4", format: "INT4" },
+                { repo: "poolside/Laguna-XS.2-NVFP4", format: "NVFP4" },
+              ],
+            },
+            { updated: "2026-07-14" },
+          ),
         ],
       },
     ],
