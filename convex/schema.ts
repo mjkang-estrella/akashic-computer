@@ -46,6 +46,7 @@ export default defineSchema({
     ...sourceFields,
   })
     .index("by_family", ["familyId"])
+    .index("by_family_slug", ["familyId", "slug"])
     .index("by_slug", ["slug"]),
 
   modelSizes: defineTable({
@@ -84,6 +85,7 @@ export default defineSchema({
     ...sourceFields,
   })
     .index("by_size", ["sizeId"])
+    .index("by_size_slug", ["sizeId", "slug"])
     .index("by_slug", ["slug"]),
 
   artifacts: defineTable({
@@ -116,7 +118,8 @@ export default defineSchema({
     ...sourceFields,
   })
     .index("by_variant", ["variantId"])
-    .index("by_repo", ["huggingFaceRepo"]),
+    .index("by_repo", ["huggingFaceRepo"])
+    .index("by_repo_variant", ["huggingFaceRepo", "variantId"]),
 
   modelBenchmarks: defineTable({
     variantId: v.id("modelVariants"),
@@ -130,6 +133,7 @@ export default defineSchema({
     lastSyncedAt: v.optional(v.number()),
   })
     .index("by_variant", ["variantId"])
+    .index("by_variant_benchmark", ["variantId", "benchmarkName"])
     .index("by_benchmark", ["benchmarkName"]),
 
   monitoredSources: defineTable({

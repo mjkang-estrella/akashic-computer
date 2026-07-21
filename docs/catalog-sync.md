@@ -66,6 +66,26 @@ Use the Hugging Face webhook Activity page and replay control for initial
 verification. A replay of an already processed SHA is recorded as an
 idempotent no-op.
 
+## Database I/O Profile
+
+- The first audit after adding a source hydrates every repository whose SHA is
+  not yet recorded. This is the expensive baseline pass, not the expected daily
+  cost.
+- Later audits compare the Hub list SHA with `sourceRepositories.headSha` and
+  hydrate only new or changed repositories. Replayed or unchanged webhook
+  events exit before catalog reconciliation.
+- Known creator and provider repositories resolve through the indexed artifact,
+  variant, and size graph. A family-wide catalog read is reserved for a genuinely
+  new model identity that has no existing repository or `base_model` link.
+- Release, variant, artifact, and benchmark upserts use compound indexes instead
+  of post-query filters. In steady state, `applyRepoResult` I/O should scale with
+  one changed model and its artifacts rather than the total entries in its
+  family.
+- After each daily audit, compare `latestAudit.changed` with
+  `latestAudit.discovered`. A large changed count is expected for a newly
+  monitored source; repeated large counts indicate missing or unstable Hub SHAs
+  and should be investigated before increasing audit frequency.
+
 ## Validation
 
 Automatic publication requires an approved source, recognized full-model

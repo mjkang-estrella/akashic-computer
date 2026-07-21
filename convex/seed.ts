@@ -91,8 +91,7 @@ export const seedFamily = internalMutation({
     for (const release of family.releases) {
       const releaseDocument = await ctx.db
         .query("modelReleases")
-        .withIndex("by_family", (q) => q.eq("familyId", familyId))
-        .filter((q) => q.eq(q.field("slug"), release.id))
+        .withIndex("by_family_slug", (q) => q.eq("familyId", familyId).eq("slug", release.id))
         .unique();
       const releaseValue = {
         familyId,
@@ -118,8 +117,7 @@ export const seedFamily = internalMutation({
         const sizeSlug = `${family.id}-${release.id}-${slugPart(size.label)}`;
         const sizeDocument = await ctx.db
           .query("modelSizes")
-          .withIndex("by_release", (q) => q.eq("releaseId", releaseId))
-          .filter((q) => q.eq(q.field("slug"), sizeSlug))
+          .withIndex("by_slug", (q) => q.eq("slug", sizeSlug))
           .unique();
         const active = activeParamsLabel(size.label);
         const sizeValue = {
@@ -146,8 +144,7 @@ export const seedFamily = internalMutation({
         for (const variant of size.variants) {
           const variantDocument = await ctx.db
             .query("modelVariants")
-            .withIndex("by_size", (q) => q.eq("sizeId", sizeId))
-            .filter((q) => q.eq(q.field("slug"), slugPart(variant)))
+            .withIndex("by_size_slug", (q) => q.eq("sizeId", sizeId).eq("slug", slugPart(variant)))
             .unique();
           const variantValue = {
             sizeId,
@@ -166,8 +163,7 @@ export const seedFamily = internalMutation({
           for (const artifact of artifacts) {
             const existingArtifact = await ctx.db
               .query("artifacts")
-              .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", artifact.repo))
-              .filter((q) => q.eq(q.field("variantId"), variantId))
+              .withIndex("by_repo_variant", (q) => q.eq("huggingFaceRepo", artifact.repo).eq("variantId", variantId))
               .unique();
             const artifactValue = {
               variantId,
@@ -196,8 +192,7 @@ export const seedFamily = internalMutation({
           for (const benchmark of entry.benchmarkRefs) {
             const existingBenchmark = await ctx.db
               .query("modelBenchmarks")
-              .withIndex("by_variant", (q) => q.eq("variantId", variantId))
-              .filter((q) => q.eq(q.field("benchmarkName"), benchmark.name))
+              .withIndex("by_variant_benchmark", (q) => q.eq("variantId", variantId).eq("benchmarkName", benchmark.name))
               .first();
             const benchmarkValue = {
               variantId,

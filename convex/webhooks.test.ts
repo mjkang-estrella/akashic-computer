@@ -187,6 +187,40 @@ describe("webhook ingestion", () => {
     )!;
     const payload = publishableEntry(entry);
     const runId = await t.run(async (ctx) => {
+      const familyId = await ctx.db.insert("modelFamilies", {
+        slug: entry.family.id,
+        name: entry.family.name,
+        vendor: entry.family.vendor,
+        summary: entry.family.tags,
+        modalities: [],
+        tags: [],
+      });
+      const releaseId = await ctx.db.insert("modelReleases", {
+        familyId,
+        slug: entry.release.id,
+        name: entry.release.name,
+      });
+      const sizeId = await ctx.db.insert("modelSizes", {
+        releaseId,
+        slug: entry.slug,
+        label: entry.size.label,
+        parameterCountB: entry.size.paramsB,
+      });
+      const variantId = await ctx.db.insert("modelVariants", {
+        sizeId,
+        slug: "instruct",
+        name: "Instruct",
+        variantKind: "instruct",
+      });
+      await ctx.db.insert("artifacts", {
+        variantId,
+        huggingFaceRepo: "Qwen/Qwen3-8B",
+        format: "BF16",
+        uploaderKind: "official",
+        runtimeSupport: [],
+        available: true,
+        confidence: "verified",
+      });
       await ctx.db.insert("catalogEntries", {
         slug: entry.slug,
         familyId: entry.family.id,
@@ -234,13 +268,14 @@ describe("webhook ingestion", () => {
       role: "creator",
       familyIds: ["qwen"],
     });
-    await t.mutation(internal.sync.applyRepoResult, {
+    const outcome = await t.mutation(internal.sync.applyRepoResult, {
       classification,
       sourceOwner: "Qwen",
       repoKey: "stable-qwen-8b",
       runId,
       now: 2,
     });
+    expect(outcome).toMatchObject({ status: "published", resolution: "direct" });
     const published = await t.query(api.catalog.getBySlug, { slug: entry.slug });
     expect(published).toMatchObject({ name: "Protected model name" });
   });

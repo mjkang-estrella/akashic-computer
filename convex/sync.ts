@@ -5,6 +5,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
   classifyHuggingFaceRepo,
@@ -260,8 +261,38 @@ async function applyOverride(ctx: MutationCtx, slug: string, payload: PublishedC
   return override ? (deepMerge(payload, override.patch) as PublishedCatalogEntry) : payload;
 }
 
+async function catalogEntryForRepo(ctx: MutationCtx, repoName: string) {
+  const artifact = await ctx.db
+    .query("artifacts")
+    .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", repoName))
+    .first();
+  if (!artifact) return null;
+  const variant = await ctx.db.get(artifact.variantId);
+  if (!variant) return null;
+  const size = await ctx.db.get(variant.sizeId);
+  if (!size) return null;
+  return await ctx.db
+    .query("catalogEntries")
+    .withIndex("by_slug", (q) => q.eq("slug", size.slug))
+    .unique();
+}
+
+async function directlyLinkedCatalogEntry(
+  ctx: MutationCtx,
+  parsed: ParsedHuggingFaceRepo,
+  previousRepoName?: string,
+) {
+  const repoNames = [parsed.repo.id, previousRepoName, ...parsed.repo.baseModels]
+    .filter((repoName): repoName is string => Boolean(repoName));
+  for (const repoName of new Set(repoNames)) {
+    const entry = await catalogEntryForRepo(ctx, repoName);
+    if (entry) return entry;
+  }
+  return null;
+}
+
 function targetForParsed(
-  documents: Array<{ payload: unknown; sourceRepos: string[]; familyId: string }>,
+  documents: Array<Doc<"catalogEntries">>,
   parsed: ParsedHuggingFaceRepo,
   rule: MonitoredSourceRule,
   knownRepoNames: string[] = [],
@@ -287,7 +318,7 @@ function targetForParsed(
 }
 
 function familyForParsed(
-  documents: Array<{ payload: unknown; familyId: string }>,
+  documents: Array<Doc<"catalogEntries">>,
   parsed: ParsedHuggingFaceRepo,
   rule: MonitoredSourceRule,
 ): PublishedCatalogEntry["family"] | null {
@@ -423,8 +454,7 @@ async function upsertNormalized(
   if (!family) throw new Error("Failed to materialize family");
   let release = await ctx.db
     .query("modelReleases")
-    .withIndex("by_family", (q) => q.eq("familyId", family!._id))
-    .filter((q) => q.eq(q.field("slug"), payload.release.id))
+    .withIndex("by_family_slug", (q) => q.eq("familyId", family!._id).eq("slug", payload.release.id))
     .unique();
   if (!release) {
     const releaseId = await ctx.db.insert("modelReleases", clean({
@@ -449,8 +479,7 @@ async function upsertNormalized(
   if (!release) throw new Error("Failed to materialize release");
   let size = await ctx.db
     .query("modelSizes")
-    .withIndex("by_release", (q) => q.eq("releaseId", release!._id))
-    .filter((q) => q.eq(q.field("label"), payload.size.label))
+    .withIndex("by_slug", (q) => q.eq("slug", payload.slug))
     .unique();
   if (!size) {
     const sizeId = await ctx.db.insert("modelSizes", clean({
@@ -476,8 +505,7 @@ async function upsertNormalized(
   const variantName = payload.artifacts.find((artifact) => artifact.repo === parsed.repo.id)?.variant ?? parsed.variant;
   let variant = await ctx.db
     .query("modelVariants")
-    .withIndex("by_size", (q) => q.eq("sizeId", size!._id))
-    .filter((q) => q.eq(q.field("slug"), slugPart(variantName)))
+    .withIndex("by_size_slug", (q) => q.eq("sizeId", size!._id).eq("slug", slugPart(variantName)))
     .unique();
   if (!variant) {
     const kindText = variantName.toLowerCase();
@@ -503,13 +531,11 @@ async function upsertNormalized(
   if (!variant) throw new Error("Failed to materialize variant");
   const existingArtifact = await ctx.db
     .query("artifacts")
-    .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", parsed.repo.id))
-    .filter((q) => q.eq(q.field("variantId"), variant!._id))
+    .withIndex("by_repo_variant", (q) => q.eq("huggingFaceRepo", parsed.repo.id).eq("variantId", variant!._id))
     .unique() ?? (previousRepoName && previousRepoName !== parsed.repo.id
       ? await ctx.db
           .query("artifacts")
-          .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", previousRepoName))
-          .filter((q) => q.eq(q.field("variantId"), variant!._id))
+          .withIndex("by_repo_variant", (q) => q.eq("huggingFaceRepo", previousRepoName).eq("variantId", variant!._id))
           .unique()
       : null);
   const artifactValue = clean({
@@ -539,8 +565,7 @@ async function upsertNormalized(
   for (const row of parsed.benchmarkRows) {
     const existing = await ctx.db
       .query("modelBenchmarks")
-      .withIndex("by_variant", (q) => q.eq("variantId", variant!._id))
-      .filter((q) => q.eq(q.field("benchmarkName"), row.name))
+      .withIndex("by_variant_benchmark", (q) => q.eq("variantId", variant!._id).eq("benchmarkName", row.name))
       .first();
     const value = {
       variantId: variant._id,
@@ -632,16 +657,20 @@ export const applyRepoResult = internalMutation({
 
     const parsed = classification.parsed;
     const rule = sourceRule(source);
-    const documents = (await Promise.all(
-      rule.familyIds.map((familyId) =>
-        ctx.db
-          .query("catalogEntries")
-          .withIndex("by_family", (q) => q.eq("familyId", familyId))
-          .collect(),
-      ),
-    )).flat();
     const previousRepoName = priorByName?.repoName !== parsed.repo.id ? priorByName?.repoName : undefined;
-    const target = targetForParsed(documents, parsed, rule, previousRepoName ? [previousRepoName] : []);
+    const directTarget = await directlyLinkedCatalogEntry(ctx, parsed, previousRepoName);
+    const documents = directTarget
+      ? [directTarget]
+      : (await Promise.all(
+          rule.familyIds.map((familyId) =>
+            ctx.db
+              .query("catalogEntries")
+              .withIndex("by_family", (q) => q.eq("familyId", familyId))
+              .collect(),
+          ),
+        )).flat();
+    const target = directTarget ?? targetForParsed(documents, parsed, rule, previousRepoName ? [previousRepoName] : []);
+    const resolution = directTarget ? "direct" as const : target ? "family_scan" as const : "new" as const;
     let payload: PublishedCatalogEntry | null = target
       ? mergeParsedIntoPayload(target.payload as PublishedCatalogEntry, parsed, source.role, previousRepoName)
       : null;
@@ -662,10 +691,12 @@ export const applyRepoResult = internalMutation({
     }
 
     payload = await applyOverride(ctx, payload.slug, payload);
-    const existingEntry = await ctx.db
-      .query("catalogEntries")
-      .withIndex("by_slug", (q) => q.eq("slug", payload!.slug))
-      .unique();
+    const existingEntry = target?.slug === payload.slug
+      ? target
+      : await ctx.db
+          .query("catalogEntries")
+          .withIndex("by_slug", (q) => q.eq("slug", payload!.slug))
+          .unique();
     const sourceRepos = payload.artifacts.map((artifact) => artifact.repo);
     const catalogValue = {
       slug: payload.slug,
@@ -702,7 +733,7 @@ export const applyRepoResult = internalMutation({
       });
     }
     if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
-    return { status: "published" as const, slug: payload.slug };
+    return { status: "published" as const, slug: payload.slug, resolution };
   },
 });
 
