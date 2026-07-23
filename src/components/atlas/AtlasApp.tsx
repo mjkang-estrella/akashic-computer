@@ -10,9 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { AkashicMark } from "@/components/brand/AkashicMark";
 import {
-  BENCHES,
   DEFAULT_PRESET_ID,
-  HEADLINE_BENCHES,
   RIG_PRESETS,
 } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
@@ -21,14 +19,9 @@ import {
   findModelEntryForTarget,
   type ModelEntry,
 } from "@/lib/atlas/models";
-import type { BenchKey } from "@/lib/atlas/types";
+import { BenchmarkView } from "./BenchmarkView";
 import { CompareDrawer } from "./CompareDrawer";
 import { useCatalog } from "./CatalogProvider";
-import {
-  CompareView,
-  type CompareCategory,
-  type CompareSortKey,
-} from "./CompareView";
 import { FitBar } from "./FitBar";
 import { LearnView } from "./LearnView";
 import { ModelCatalogView } from "./ModelCatalogView";
@@ -44,7 +37,7 @@ const LEGACY_TABS: Record<string, Tab> = {
 };
 
 export function AtlasApp() {
-  const { entries, families, compareModels } = useCatalog();
+  const { entries, families } = useCatalog();
   const [tab, setTab] = useState<Tab>("model");
   const [query, setQuery] = useState("");
 
@@ -57,15 +50,6 @@ export function AtlasApp() {
   // rig profile
   const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
   const [manualGb, setManualGb] = useState<number | null>(null);
-
-  // benchmark tab: category first, then its benchmarks
-  const [category, setCategory] = useState<CompareCategory>("all");
-  const [activeBenches, setActiveBenches] = useState<Set<BenchKey>>(
-    new Set(HEADLINE_BENCHES),
-  );
-  const [sortKey, setSortKey] = useState<CompareSortKey>("mmlu");
-  const [sortDir, setSortDir] = useState<1 | -1>(-1);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Keep the app state aligned with shareable URLs and browser navigation.
   useEffect(() => {
@@ -193,43 +177,6 @@ export function AtlasApp() {
       });
     }
   };
-  const selectCategory = (c: CompareCategory) => {
-    setCategory(c);
-    const keys =
-      c === "all"
-        ? HEADLINE_BENCHES
-        : BENCHES.filter((b) => b.category === c).map((b) => b.key);
-    setActiveBenches(new Set(keys));
-    setSortKey(keys[0]);
-    setSortDir(-1);
-  };
-  const toggleBench = (key: BenchKey) => {
-    setActiveBenches((prev) => {
-      const next = new Set(prev);
-      if (next.has(key) && next.size > 1) next.delete(key);
-      else next.add(key);
-      if (!next.has(sortKey as BenchKey) && sortKey !== "model") {
-        setSortKey([...next][0]);
-      }
-      return next;
-    });
-  };
-  const sortBy = (key: CompareSortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === -1 ? 1 : -1));
-    else {
-      setSortKey(key);
-      setSortDir(-1);
-    }
-  };
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const drawerOpen = tab === "model" && checkedArtifacts.length >= 1;
   const tabs = [
     { id: "model", label: "Model", icon: CubeIcon },
@@ -272,9 +219,19 @@ export function AtlasApp() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search models, families, artifacts…"
-              aria-label="Search families, models, and artifacts"
-              aria-controls="search-results"
+              placeholder={
+                tab === "benchmark"
+                  ? "Search benchmarks or models…"
+                  : "Search models, families, artifacts…"
+              }
+              aria-label={
+                tab === "benchmark"
+                  ? "Search benchmarks and ranked models"
+                  : "Search families, models, and artifacts"
+              }
+              aria-controls={
+                tab === "benchmark" ? "benchmark-results" : "search-results"
+              }
               className="w-full min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
             />
           </label>
@@ -317,7 +274,7 @@ export function AtlasApp() {
             : "max-w-[1240px]"
         }`}
       >
-        {query.trim() ? (
+        {query.trim() && tab !== "benchmark" ? (
           <SearchView
             query={query}
             entries={entries}
@@ -347,20 +304,10 @@ export function AtlasApp() {
             />
           )
         ) : tab === "benchmark" ? (
-          <CompareView
-            models={compareModels}
+          <BenchmarkView
+            entries={entries}
             query={query}
-            rig={rig}
-            onlyRunnable={false}
-            category={category}
-            activeBenches={activeBenches}
-            sortKey={sortKey}
-            sortDir={sortDir}
-            expanded={expanded}
-            onCategory={selectCategory}
-            onToggleBench={toggleBench}
-            onSort={sortBy}
-            onToggleExpand={toggleExpand}
+            onOpen={openModel}
           />
         ) : (
           <LearnView />
