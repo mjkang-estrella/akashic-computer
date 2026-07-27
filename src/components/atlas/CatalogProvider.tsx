@@ -18,6 +18,9 @@ interface CatalogContextValue {
   compareModels: CompareModel[];
   revision: string;
   syncedAt: number | null;
+  health: {
+    catalogStale: boolean;
+  } | null;
   loading: boolean;
   source: "convex" | "snapshot";
 }
@@ -28,6 +31,7 @@ const snapshot: CatalogContextValue = {
   compareModels: compareModelsForEntries(MODEL_ENTRIES),
   revision: "migration-snapshot",
   syncedAt: null,
+  health: null,
   loading: false,
   source: "snapshot",
 };
@@ -44,6 +48,9 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
       compareModels: compareModelsForEntries(hydrated.entries),
       revision: result.revision,
       syncedAt: result.syncedAt,
+      health: {
+        catalogStale: result.catalogStale,
+      },
       loading: false,
       source: "convex",
     };

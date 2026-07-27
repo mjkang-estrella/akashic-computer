@@ -62,6 +62,22 @@ export const LEARN_TERMS: LearnTerm[] = [
     category: "Model structure",
   },
   {
+    id: "post-training",
+    term: "Post-training",
+    short: "Training stages applied after a foundation checkpoint is pretrained.",
+    definition:
+      "Post-training can include continued pretraining, supervised fine-tuning, preference optimization, reward-driven training, distillation, and safety tuning.",
+    category: "Model structure",
+  },
+  {
+    id: "fine-tuning",
+    term: "Fine-tuning",
+    short: "Updating a pretrained model for a narrower behavior or dataset.",
+    definition:
+      "Fine-tuning can update every model parameter or use parameter-efficient methods that train a smaller adapter.",
+    category: "Model structure",
+  },
+  {
     id: "artifact",
     term: "Artifact",
     short: "A downloadable set of model weights in a specific format.",
@@ -123,6 +139,22 @@ export const LEARN_TERMS: LearnTerm[] = [
     short: "A portable format commonly used by llama.cpp applications.",
     definition:
       "GGUF packages weights and model metadata for local inference, especially on CPUs and Apple Silicon. A GGUF repository often contains several quantization levels.",
+    category: "Artifacts and precision",
+  },
+  {
+    id: "lora",
+    term: "LoRA",
+    short: "A parameter-efficient method that learns low-rank weight updates.",
+    definition:
+      "LoRA freezes the base checkpoint and trains small adapter matrices. The adapter remains dependent on the exact base model unless it is merged.",
+    category: "Artifacts and precision",
+  },
+  {
+    id: "qlora",
+    term: "QLoRA",
+    short: "LoRA training performed over a frozen quantized base model.",
+    definition:
+      "QLoRA reduces the base-weight memory used during training while keeping trainable adapters at a suitable compute precision.",
     category: "Artifacts and precision",
   },
   {
@@ -193,6 +225,30 @@ export const LEARN_MATERIALS = [
     source: "Hugging Face Transformers",
     href: "https://huggingface.co/docs/transformers/quantization/concept_guide",
     description: "A deeper explanation of calibration, granularity, PTQ, and QAT.",
+  },
+  {
+    title: "Post-training with TRL",
+    source: "Hugging Face TRL",
+    href: "https://huggingface.co/docs/trl/en/index",
+    description: "Supervised fine-tuning, preference optimization, reward modeling, and online training methods.",
+  },
+  {
+    title: "LoRA and QLoRA",
+    source: "Hugging Face PEFT",
+    href: "https://huggingface.co/docs/peft/main/package_reference/lora",
+    description: "Adapter configuration, target modules, and QLoRA-style training.",
+  },
+  {
+    title: "Experts backends",
+    source: "Hugging Face Transformers",
+    href: "https://huggingface.co/docs/transformers/experts_interface",
+    description: "How mixture-of-experts routing and expert computation are implemented by inference backends.",
+  },
+  {
+    title: "NVFP4 quantization",
+    source: "NVIDIA Nemotron",
+    href: "https://docs.nvidia.com/nemotron/nightly/train-models/reference/optimize/quantize.html",
+    description: "NVIDIA's reference configuration and export path for NVFP4 checkpoints.",
   },
   {
     title: "Quantized inference support",

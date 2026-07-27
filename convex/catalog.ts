@@ -20,6 +20,9 @@ export const listPublished = query({
       entries,
       syncedAt: state?.syncedAt ?? null,
       revision: state?.revision ?? "unseeded",
+      catalogStale:
+        state?.syncedAt === undefined ||
+        Date.now() - state.syncedAt > 26 * 60 * 60 * 1000,
     };
   },
 });

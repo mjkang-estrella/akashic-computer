@@ -68,8 +68,29 @@ body {
   transform-origin: left center;
   animation: constellation-draw 0.6s ease-out;
 }
+
+@keyframes catalog-field-scan {
+  0%,
+  75%,
+  100% {
+    opacity: 0.42;
+    transform: scaleY(0.96);
+  }
+  8%,
+  18% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.catalog-field-bar {
+  transform-origin: bottom center;
+  animation: catalog-field-scan 4.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .constellation-line {
+  .constellation-line,
+  .catalog-field-bar {
     animation: none;
   }
 }

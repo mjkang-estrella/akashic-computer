@@ -23,12 +23,13 @@ import { BenchmarkView } from "./BenchmarkView";
 import { CompareDrawer } from "./CompareDrawer";
 import { useCatalog } from "./CatalogProvider";
 import { FitBar } from "./FitBar";
+import { HomeView } from "./HomeView";
 import { LearnView } from "./LearnView";
 import { ModelCatalogView } from "./ModelCatalogView";
 import { ModelDetailView } from "./ModelDetailView";
 import { SearchView, type SearchTarget } from "./SearchView";
 
-type Tab = "model" | "benchmark" | "docs";
+type Tab = "home" | "model" | "benchmark" | "docs";
 
 const LEGACY_TABS: Record<string, Tab> = {
   explore: "model",
@@ -37,14 +38,22 @@ const LEGACY_TABS: Record<string, Tab> = {
 };
 
 export function AtlasApp() {
-  const { entries, families } = useCatalog();
-  const [tab, setTab] = useState<Tab>("model");
+  const {
+    entries,
+    families,
+    syncedAt,
+    health,
+    loading,
+    source,
+  } = useCatalog();
+  const [tab, setTab] = useState<Tab>("home");
   const [query, setQuery] = useState("");
 
   // model catalog and dedicated detail route
   const [modelSlug, setModelSlug] = useState<string | null>(null);
   const [catalogFamilyId, setCatalogFamilyId] = useState<string | null>(null);
   const [preferredVariant, setPreferredVariant] = useState<string | null>(null);
+  const [docSlug, setDocSlug] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
   // rig profile
@@ -57,15 +66,23 @@ export function AtlasApp() {
       const url = new URL(window.location.href);
       const param = url.searchParams.get("tab");
       const nextTab =
-        param === "model" || param === "benchmark" || param === "docs"
+        param === "home" ||
+        param === "model" ||
+        param === "benchmark" ||
+        param === "docs"
           ? param
           : param
             ? LEGACY_TABS[param]
-            : "model";
-      setTab(nextTab ?? "model");
+            : "home";
+      setTab(nextTab ?? "home");
       setModelSlug(url.searchParams.get("model"));
       setCatalogFamilyId(url.searchParams.get("family"));
       setPreferredVariant(url.searchParams.get("variant"));
+      setDocSlug(url.searchParams.get("doc"));
+      if (param === "home") {
+        url.searchParams.delete("tab");
+        window.history.replaceState(null, "", url);
+      }
       if (param && nextTab && param !== nextTab) {
         url.searchParams.set("tab", nextTab);
         window.history.replaceState(null, "", url);
@@ -82,12 +99,30 @@ export function AtlasApp() {
     setQuery("");
     setModelSlug(null);
     setPreferredVariant(null);
+    setDocSlug(null);
     const url = new URL(window.location.href);
-    url.searchParams.set("tab", t);
+    if (t === "home") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", t);
     url.searchParams.delete("model");
     url.searchParams.delete("variant");
+    url.searchParams.delete("doc");
     url.hash = "";
     window.history.pushState(null, "", url);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  const goHome = () => {
+    setTab("home");
+    setQuery("");
+    setModelSlug(null);
+    setCatalogFamilyId(null);
+    setPreferredVariant(null);
+    setDocSlug(null);
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    window.history.pushState(null, "", url);
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const rig = resolveProfile(RIG_PRESETS, presetId, manualGb);
@@ -122,6 +157,7 @@ export function AtlasApp() {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "model");
     url.searchParams.set("model", entry.slug);
+    url.searchParams.delete("doc");
     if (variant) url.searchParams.set("variant", variant);
     else url.searchParams.delete("variant");
     url.hash = "";
@@ -159,23 +195,59 @@ export function AtlasApp() {
     url.searchParams.set("family", target.familyId);
     url.searchParams.delete("model");
     url.searchParams.delete("variant");
+    url.searchParams.delete("doc");
     url.hash = "";
     window.history.pushState(null, "", url);
   };
   const openLearn = (term?: string) => {
     setTab("docs");
     setQuery("");
+    setDocSlug(term ? "lexicon" : null);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", "docs");
+    if (term) url.searchParams.set("doc", "lexicon");
+    else url.searchParams.delete("doc");
     url.hash = term ? `term-${term}` : "";
     window.history.replaceState(null, "", url);
     if (term) {
       window.requestAnimationFrame(() => {
-        document
-          .getElementById(`term-${term}`)
-          ?.scrollIntoView({ block: "start" });
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById(`term-${term}`)
+            ?.scrollIntoView({ block: "start" });
+        });
+      });
+    } else {
+      window.requestAnimationFrame(() => {
+        document.getElementById("docs-index-title")?.focus({ preventScroll: true });
       });
     }
+  };
+  const openDoc = (slug: string) => {
+    setTab("docs");
+    setQuery("");
+    setDocSlug(slug);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "docs");
+    url.searchParams.set("doc", slug);
+    url.hash = "";
+    window.history.pushState(null, "", url);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    window.requestAnimationFrame(() => {
+      document.getElementById("docs-article-title")?.focus({ preventScroll: true });
+    });
+  };
+  const closeDoc = () => {
+    setDocSlug(null);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "docs");
+    url.searchParams.delete("doc");
+    url.hash = "";
+    window.history.pushState(null, "", url);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    window.requestAnimationFrame(() => {
+      document.getElementById("docs-index-title")?.focus({ preventScroll: true });
+    });
   };
   const drawerOpen = tab === "model" && checkedArtifacts.length >= 1;
   const tabs = [
@@ -201,12 +273,18 @@ export function AtlasApp() {
     <div className="min-h-screen pb-28">
       <header className="border-b border-line bg-paper">
         <div className="mx-auto grid w-full max-w-[1440px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-3 lg:grid-cols-[auto_minmax(280px,420px)_minmax(0,1fr)_auto] lg:gap-x-5">
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={goHome}
+            aria-label="Akashic home"
+            aria-current={tab === "home" ? "page" : undefined}
+            className="flex min-h-11 items-center gap-2.5 text-left sm:min-h-9"
+          >
             <AkashicMark className="flex-none text-ink" />
             <h1 className="font-display text-[19px] font-semibold leading-none">
               Akashic
             </h1>
-          </div>
+          </button>
           <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-[7px] border border-line bg-panel px-3 py-1.5 sm:min-h-9">
             <HugeiconsIcon
               icon={Search01Icon}
@@ -244,7 +322,7 @@ export function AtlasApp() {
                 key={item.id}
                 aria-current={tab === item.id ? "page" : undefined}
                 onClick={() => switchTab(item.id)}
-                className={`relative flex min-h-10 items-center gap-1.5 px-3 py-1.5 text-[13.5px] font-semibold transition-colors after:absolute after:inset-x-3 after:-bottom-3 after:h-0.5 after:bg-ink after:transition-opacity lg:after:-bottom-[17px] ${
+                className={`relative flex min-h-11 items-center gap-1.5 px-3 py-1.5 text-[13.5px] font-semibold transition-colors after:absolute after:inset-x-3 after:-bottom-3 after:h-0.5 after:bg-ink after:transition-opacity lg:after:-bottom-[17px] ${
                   tab === item.id
                     ? "text-ink after:opacity-100"
                     : "text-muted after:opacity-0 hover:text-ink"
@@ -269,7 +347,7 @@ export function AtlasApp() {
 
       <main
         className={`mx-auto w-full px-5 ${
-          tab === "model" && !selectedModel && !query.trim()
+          (tab === "home" || (tab === "model" && !selectedModel)) && !query.trim()
             ? "max-w-[1440px]"
             : "max-w-[1240px]"
         }`}
@@ -281,6 +359,19 @@ export function AtlasApp() {
             families={families}
             onSelect={selectSearchResult}
             onClear={() => setQuery("")}
+          />
+        ) : tab === "home" ? (
+          <HomeView
+            entries={entries}
+            syncedAt={syncedAt}
+            loading={loading}
+            source={source}
+            health={health}
+            onOpenModel={openModel}
+            onViewModels={() => switchTab("model")}
+            onViewBenchmarks={() => switchTab("benchmark")}
+            onOpenDoc={openDoc}
+            onViewDocs={() => switchTab("docs")}
           />
         ) : tab === "model" ? (
           selectedModel ? (
@@ -310,7 +401,7 @@ export function AtlasApp() {
             onOpen={openModel}
           />
         ) : (
-          <LearnView />
+          <LearnView slug={docSlug} onOpen={openDoc} onBack={closeDoc} />
         )}
 
         {drawerOpen && (
