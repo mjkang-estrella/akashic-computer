@@ -86,6 +86,20 @@ idempotent no-op.
   monitored source; repeated large counts indicate missing or unstable Hub SHAs
   and should be investigated before increasing audit frequency.
 
+## Last Updated Semantics
+
+The public model `Last Updated` date means the newest significant change to its
+canonical full-model weights. During ingestion, Akashic reads the repository
+tree at the immutable head SHA, hashes the paths, sizes, and object IDs of
+recognized weight blobs, and records the newest per-file weight commit. README,
+model-card, configuration, discussion, and other description-only changes do
+not advance the public date.
+
+Quantizations retain their own weight update timestamps, but they do not
+advance the base model's date, even when the model creator publishes them. The
+daily audit gradually backfills legacy creator records that predate weight-level
+provenance, with a per-source cap to avoid another expensive baseline pass.
+
 ## Validation
 
 Automatic publication requires an approved source, recognized full-model

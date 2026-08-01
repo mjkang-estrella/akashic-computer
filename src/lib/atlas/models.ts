@@ -157,9 +157,11 @@ export function findModelEntryForTarget(
 }
 
 export function modelDescription(entry: ModelEntry): string {
-  const active = activeParamsLabel(entry.size.label);
+  const active = activeParamsLabel(entry.size.label, entry.size.activeParamsB);
   const scale = active
     ? `${sizeDisplay(entry.size.label)} total parameters with ${active}`
+    : entry.size.isMoe
+      ? `${sizeDisplay(entry.size.label)} total parameters in a mixture-of-experts architecture`
     : `${sizeDisplay(entry.size.label)} parameters`;
   const context =
     entry.context === "N/A"

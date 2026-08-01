@@ -85,6 +85,8 @@ export interface Artifact {
 export interface SizeNode {
   label: string;
   paramsB: number;
+  activeParamsB?: number;
+  isMoe?: boolean;
   variants: string[];
   /** Maximum supported context when sizes in one release differ. */
   context?: string;

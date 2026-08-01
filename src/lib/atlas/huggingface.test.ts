@@ -3,6 +3,7 @@ import {
   acceptedWebhookEvent,
   classifyHuggingFaceRepo,
   normalizeHuggingFaceRepo,
+  weightMetadataFromTree,
   webhookDedupeKey,
   type MonitoredSourceRule,
 } from "./huggingface";
@@ -39,6 +40,28 @@ describe("Hugging Face repository classification", () => {
       category: "language",
     });
     expect(result.parsed.minVramGb).toBeGreaterThan(0);
+  });
+
+  it("retains approved MoE and active-parameter metadata when the repo name omits it", () => {
+    const result = classifyHuggingFaceRepo(repo({
+      id: "upstage/Solar-Open2-250B",
+      author: "upstage",
+      tags: ["license:other", "moe"],
+      safetensors: { parameters: { BF16: 250_287_810_304 } },
+      cardData: { license: "other" },
+      config: { num_experts_per_tok: 8, n_routed_experts: 320 },
+    }), {
+      owner: "upstage",
+      role: "creator",
+      familyIds: ["solar"],
+    });
+    expect(result.status).toBe("publishable");
+    if (result.status !== "publishable") return;
+    expect(result.parsed).toMatchObject({
+      paramsB: 250.287810304,
+      activeParamsB: 15,
+      isMoe: true,
+    });
   });
 
   it("links a provider quantization only through structured base_model metadata", () => {
@@ -113,6 +136,61 @@ describe("Hugging Face repository classification", () => {
       },
     }));
     expect((normalized.cardData.oversized as number[]).length).toBe(2_048);
+  });
+
+  it("derives the significant update from weight commits and ignores documentation", () => {
+    const weights = [
+      {
+        type: "file",
+        path: "model-00002-of-00002.safetensors",
+        size: 20,
+        lfs: { oid: "weight-b" },
+        lastCommit: { id: "weights-sha", date: "2026-07-21T17:02:54.000Z" },
+      },
+      {
+        type: "file",
+        path: "README.md",
+        size: 100,
+        oid: "docs-only",
+        lastCommit: { id: "docs-sha", date: "2026-07-31T12:00:00.000Z" },
+      },
+      {
+        type: "file",
+        path: "model-00001-of-00002.safetensors",
+        size: 10,
+        lfs: { oid: "weight-a" },
+        lastCommit: { id: "weights-sha", date: "2026-07-21T17:02:54.000Z" },
+      },
+    ];
+    const metadata = weightMetadataFromTree(weights);
+    expect(metadata).toMatchObject({
+      fileCount: 2,
+      lastModified: "2026-07-21T17:02:54.000Z",
+      commitSha: "weights-sha",
+    });
+    expect(weightMetadataFromTree([...weights].reverse())?.manifestHash).toBe(metadata?.manifestHash);
+    expect(weightMetadataFromTree([
+      ...weights,
+      {
+        type: "file",
+        path: "config.json",
+        size: 12,
+        oid: "config-only",
+        lastCommit: { id: "config-sha", date: "2026-08-01T00:00:00.000Z" },
+      },
+    ])?.manifestHash).toBe(metadata?.manifestHash);
+  });
+
+  it("retains enriched weight provenance during normalization", () => {
+    expect(normalizeHuggingFaceRepo(repo({
+      _akashicWeightManifestHash: "manifest",
+      _akashicWeightsLastModified: "2026-07-21T17:02:54.000Z",
+      _akashicWeightCommitSha: "weights-sha",
+    }))).toMatchObject({
+      weightManifestHash: "manifest",
+      weightsLastModified: "2026-07-21T17:02:54.000Z",
+      weightCommitSha: "weights-sha",
+    });
   });
 });
 

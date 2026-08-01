@@ -20,6 +20,9 @@ export interface HuggingFaceRepoInfo {
   sha: string;
   createdAt: string | null;
   lastModified: string | null;
+  weightManifestHash: string | null;
+  weightsLastModified: string | null;
+  weightCommitSha: string | null;
   private: boolean;
   gated: boolean;
   disabled: boolean;
@@ -33,6 +36,13 @@ export interface HuggingFaceRepoInfo {
   config: Record<string, unknown>;
 }
 
+export interface HuggingFaceWeightMetadata {
+  manifestHash: string;
+  lastModified: string;
+  commitSha: string | null;
+  fileCount: number;
+}
+
 export interface ParsedHuggingFaceRepo {
   repo: HuggingFaceRepoInfo;
   format: string;
@@ -40,6 +50,7 @@ export interface ParsedHuggingFaceRepo {
   sizeLabel: string | null;
   paramsB: number | null;
   activeParamsB: number | null;
+  isMoe: boolean;
   variant: string;
   category: ModelCategoryId | null;
   capabilities: ModelCapabilityId[];
@@ -62,8 +73,12 @@ export type RepoClassification =
   | { status: "skipped"; reason: string; repo: HuggingFaceRepoInfo };
 
 const WEIGHT_FILE = /(?:\.safetensors(?:\.index\.json)?|\.gguf|pytorch_model.*\.bin)$/i;
+const WEIGHT_BLOB_FILE = /(?:\.safetensors|\.gguf|pytorch_model.*\.bin|\.onnx|\.pt|\.pth|\.ckpt|\.msgpack)$/i;
 const EXCLUDED_NAME = /(?:^|[-_.])(adapter|lora|qlora|checkpoint|demo|test|merge)(?:$|[-_.])/i;
 const EXCLUDED_TAGS = new Set(["adapter", "lora", "peft", "diffusers:adapter"]);
+const APPROVED_ACTIVE_PARAMS_B: Record<string, number> = {
+  "upstage/solar-open2-250b": 15,
+};
 
 const CATEGORY_BY_PIPELINE: Record<string, ModelCategoryId> = {
   "text-generation": "language",
@@ -130,6 +145,56 @@ function numericTotal(value: unknown): number | null {
   return values.length ? values.reduce((sum, entry) => sum + entry, 0) : null;
 }
 
+function parameterBillions(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value > 1_000_000 ? value / 1_000_000_000 : value;
+  }
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/(\d+(?:\.\d+)?)\s*([BT])?/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  return amount * (match[2]?.toUpperCase() === "T" ? 1000 : 1);
+}
+
+export function isWeightBlobFile(path: string): boolean {
+  return WEIGHT_BLOB_FILE.test(path);
+}
+
+export function weightMetadataFromTree(rawEntries: unknown[]): HuggingFaceWeightMetadata | null {
+  const files = new Map<string, { path: string; size: number; oid: string; date: string; commitSha: string | null }>();
+  for (const rawEntry of rawEntries) {
+    const entry = asRecord(rawEntry);
+    const path = firstString(entry.path, entry.rfilename);
+    if (!path || !isWeightBlobFile(path)) continue;
+    if (entry.type && entry.type !== "file") continue;
+    const lfs = asRecord(entry.lfs);
+    const lastCommit = asRecord(entry.lastCommit ?? entry.last_commit);
+    const date = firstString(lastCommit.date, lastCommit.createdAt, lastCommit.created_at);
+    if (!date || !Number.isFinite(Date.parse(date))) continue;
+    const size = typeof entry.size === "number" && Number.isFinite(entry.size) ? entry.size : 0;
+    const oid = firstString(lfs.oid, lfs.sha256, entry.oid, entry.blobId, entry.blob_id) ?? "unknown";
+    files.set(path, {
+      path,
+      size,
+      oid,
+      date,
+      commitSha: firstString(lastCommit.id, lastCommit.sha),
+    });
+  }
+  if (files.size === 0) return null;
+  const ordered = [...files.values()].sort((left, right) => left.path.localeCompare(right.path));
+  const latest = ordered.reduce((current, file) =>
+    Date.parse(file.date) > Date.parse(current.date) ? file : current,
+  );
+  const manifest = ordered.map((file) => `${file.path}\0${file.size}\0${file.oid}`).join("\n");
+  return {
+    manifestHash: `${stableHash(`weights-a:${manifest}`)}${stableHash(`weights-b:${manifest}`)}`,
+    lastModified: latest.date,
+    commitSha: latest.commitSha,
+    fileCount: ordered.length,
+  };
+}
+
 export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
   const value = asRecord(raw);
   const cardData = asRecord(compactMetadata(value.cardData ?? value.card_data));
@@ -165,6 +230,9 @@ export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
     sha: firstString(value.sha) ?? "",
     createdAt: firstString(value.createdAt, value.created_at),
     lastModified: firstString(value.lastModified, value.last_modified),
+    weightManifestHash: firstString(value._akashicWeightManifestHash),
+    weightsLastModified: firstString(value._akashicWeightsLastModified),
+    weightCommitSha: firstString(value._akashicWeightCommitSha),
     private: value.private === true,
     gated: value.gated === true || typeof value.gated === "string",
     disabled: value.disabled === true,
@@ -272,6 +340,7 @@ function parameterMetadata(repo: HuggingFaceRepoInfo): {
   sizeLabel: string | null;
   paramsB: number | null;
   activeParamsB: number | null;
+  isMoe: boolean;
 } {
   const name = repo.id.split("/").at(-1) ?? repo.id;
   const matches = [...name.matchAll(/(\d+(?:\.\d+)?)\s*([BT])(?:[-_]?A(\d+(?:\.\d+)?)B)?/gi)];
@@ -282,13 +351,24 @@ function parameterMetadata(repo: HuggingFaceRepoInfo): {
   const paramsB = repo.safetensorsParameters
     ? repo.safetensorsParameters / 1_000_000_000
     : fromName;
-  const activeParamsB = match?.[3] ? Number(match[3]) : null;
+  const activeParamsB = (match?.[3] ? Number(match[3]) : null) ??
+    parameterBillions(repo.config.active_parameter_count) ??
+    parameterBillions(repo.config.active_parameters) ??
+    parameterBillions(repo.cardData.active_parameter_count) ??
+    parameterBillions(repo.cardData.active_parameters) ??
+    APPROVED_ACTIVE_PARAMS_B[repo.id.toLowerCase()] ??
+    null;
+  const isMoe = activeParamsB !== null ||
+    repo.tags.some((tag) => tag.toLowerCase() === "moe") ||
+    ["num_experts_per_tok", "n_routed_experts", "num_local_experts"].some(
+      (key) => typeof repo.config[key] === "number",
+    );
   const sizeLabel = match
     ? `${match[1]}${match[2].toUpperCase()}${match[3] ? `-A${match[3]}B` : ""}`
     : paramsB
       ? `${Number(paramsB.toFixed(paramsB >= 10 ? 0 : 1))}B`
       : null;
-  return { sizeLabel, paramsB, activeParamsB };
+  return { sizeLabel, paramsB, activeParamsB, isMoe };
 }
 
 function variantFor(repo: HuggingFaceRepoInfo): string {

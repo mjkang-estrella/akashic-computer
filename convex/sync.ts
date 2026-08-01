@@ -10,9 +10,11 @@ import { v } from "convex/values";
 import {
   classifyHuggingFaceRepo,
   estimateVram,
+  isWeightBlobFile,
   matchesSourceRules,
   normalizeHuggingFaceRepo,
   normalizeOwnerKey,
+  weightMetadataFromTree,
   type MonitoredSourceRule,
   type ParsedHuggingFaceRepo,
   type RepoClassification,
@@ -31,6 +33,8 @@ const NULL_DELTAS: Record<BenchKey, null> = {
   lcb: null,
   swe: null,
 };
+
+const WEIGHT_DATE_POLICY_VERSION = 1;
 
 type AnyRecord = Record<string, unknown>;
 
@@ -61,6 +65,17 @@ function timestamp(value: string | null | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function significantTimestamp(
+  repo: ParsedHuggingFaceRepo["repo"],
+  fallback?: number,
+): number {
+  return timestamp(repo.weightsLastModified) ??
+    fallback ??
+    timestamp(repo.createdAt) ??
+    timestamp(repo.lastModified) ??
+    Date.now();
 }
 
 function dateLabel(value: number): string {
@@ -119,7 +134,7 @@ function artifactFor(
     qualityRank: 99,
     gated: parsed.repo.gated,
     vramEstimated: true,
-    lastUpdatedAt: timestamp(parsed.repo.lastModified),
+    lastUpdatedAt: significantTimestamp(parsed.repo),
   };
 }
 
@@ -164,6 +179,44 @@ async function fetchRepo(repoName: string): Promise<{ status: number; data?: unk
   );
   if (!response.ok) return { status: response.status };
   return { status: response.status, data: await response.json() };
+}
+
+async function fetchWeightMetadata(repoName: string, revision: string) {
+  const encodedRepo = repoName.split("/").map(encodeURIComponent).join("/");
+  const encodedRevision = encodeURIComponent(revision);
+  let url: string | null = `https://huggingface.co/api/models/${encodedRepo}/tree/${encodedRevision}?recursive=true&expand=true&limit=100`;
+  const weightEntries: unknown[] = [];
+  let pages = 0;
+  while (url && pages < 100) {
+    const response: Response = await fetch(url, { headers: hfHeaders() });
+    if (!response.ok) throw new Error(`Hugging Face weight tree failed for ${repoName}: ${response.status}`);
+    const page = await response.json();
+    if (!Array.isArray(page)) throw new Error(`Hugging Face weight tree returned a non-array for ${repoName}`);
+    for (const entry of page) {
+      const path = entry && typeof entry === "object" && "path" in entry ? String(entry.path) : "";
+      if (isWeightBlobFile(path)) weightEntries.push(entry);
+    }
+    const link = response.headers.get("link");
+    const next = link?.match(/<([^>]+)>;\s*rel="next"/i)?.[1];
+    url = next ? new URL(next, "https://huggingface.co").toString() : null;
+    pages += 1;
+  }
+  if (url) throw new Error(`Hugging Face weight-tree pagination exceeded 100 pages for ${repoName}`);
+  return weightMetadataFromTree(weightEntries);
+}
+
+async function classifyWithWeightMetadata(raw: unknown, rule: MonitoredSourceRule): Promise<RepoClassification> {
+  const initial = classifyHuggingFaceRepo(raw, rule);
+  if (initial.status !== "publishable") return initial;
+  const metadata = await fetchWeightMetadata(initial.parsed.repo.id, initial.parsed.repo.sha);
+  if (!metadata) return initial;
+  const enriched = {
+    ...(raw as AnyRecord),
+    _akashicWeightManifestHash: metadata.manifestHash,
+    _akashicWeightsLastModified: metadata.lastModified,
+    _akashicWeightCommitSha: metadata.commitSha ?? undefined,
+  };
+  return classifyHuggingFaceRepo(enriched, rule);
 }
 
 async function listRepos(owner: string): Promise<unknown[]> {
@@ -339,7 +392,7 @@ function newPayload(
   parsed: ParsedHuggingFaceRepo,
 ): PublishedCatalogEntry | null {
   if (!parsed.paramsB || !parsed.sizeLabel || !parsed.category) return null;
-  const updatedAt = timestamp(parsed.repo.lastModified) ?? timestamp(parsed.repo.createdAt) ?? Date.now();
+  const updatedAt = significantTimestamp(parsed.repo);
   const releaseName = releaseNameFor(parsed);
   const releaseId = slugPart(releaseName);
   const context = contextMetadata(parsed.repo.config);
@@ -362,6 +415,8 @@ function newPayload(
     size: {
       label: parsed.sizeLabel,
       paramsB: parsed.paramsB,
+      activeParamsB: parsed.activeParamsB ?? undefined,
+      isMoe: parsed.isMoe || undefined,
       variants: [parsed.variant],
       context: context.label,
       updated: dateLabel(updatedAt),
@@ -390,7 +445,7 @@ function mergeParsedIntoPayload(
   role: string,
   previousRepoName?: string,
 ): PublishedCatalogEntry {
-  const updatedAt = timestamp(parsed.repo.lastModified) ?? original.timestamp;
+  const updatedAt = significantTimestamp(parsed.repo, original.timestamp);
   const existing = original.artifacts.find(
     (artifact) => artifact.repo === parsed.repo.id || artifact.repo === previousRepoName,
   );
@@ -403,6 +458,10 @@ function mergeParsedIntoPayload(
           : artifact,
       )
     : [...original.artifacts, nextArtifact];
+  const canonicalRepo = original.artifacts[0]?.repo;
+  const updatesCanonicalWeights = trustForRole(role, parsed.repo.baseModels.length > 0) === "official" &&
+    existing?.repo === canonicalRepo;
+  const modelUpdatedAt = updatesCanonicalWeights ? updatedAt : original.timestamp;
   const benchmarkRefs = [...original.benchmarkRefs];
   for (const row of parsed.benchmarkRows) {
     if (!benchmarkRefs.some((existingRow) => existingRow.name === row.name && existingRow.sourceUrl === row.sourceUrl)) {
@@ -411,10 +470,15 @@ function mergeParsedIntoPayload(
   }
   return {
     ...original,
-    effectiveDate: dateLabel(Math.max(original.timestamp, updatedAt)),
-    dateLabel: dateLabel(Math.max(original.timestamp, updatedAt)),
+    effectiveDate: dateLabel(modelUpdatedAt),
+    dateLabel: dateLabel(modelUpdatedAt),
     updated: true,
-    timestamp: Math.max(original.timestamp, updatedAt),
+    timestamp: modelUpdatedAt,
+    size: {
+      ...original.size,
+      activeParamsB: parsed.activeParamsB ?? original.size.activeParamsB,
+      isMoe: parsed.isMoe || original.size.isMoe || undefined,
+    },
     artifacts,
     quantizations: [...new Set(artifacts.map((artifact) => artifact.format))],
     providers: [...new Set(artifacts.map((artifact) => uploaderDisplay(artifact.repo)))].sort(),
@@ -554,7 +618,7 @@ async function upsertNormalized(
     available: true,
     provenanceUrl: `https://huggingface.co/${parsed.repo.id}/tree/${parsed.repo.sha}`,
     confidence: "verified" as const,
-    lastUpdatedAt: timestamp(parsed.repo.lastModified),
+    lastUpdatedAt: significantTimestamp(parsed.repo),
     sourceRepo: parsed.repo.id,
     sourceSha: parsed.repo.sha,
     lastSyncedAt: now,
@@ -622,6 +686,10 @@ export const applyRepoResult = internalMutation({
       headSha: repo.sha,
       createdAt: timestamp(repo.createdAt),
       lastModifiedAt: timestamp(repo.lastModified),
+      weightManifestHash: repo.weightManifestHash ?? undefined,
+      weightsLastModifiedAt: timestamp(repo.weightsLastModified),
+      weightCommitSha: repo.weightCommitSha ?? undefined,
+      weightDatePolicyVersion: repo.weightsLastModified ? WEIGHT_DATE_POLICY_VERSION : undefined,
       private: repo.private,
       gated: repo.gated,
       disabled: repo.disabled,
@@ -884,7 +952,14 @@ export const processWebhook = internalAction({
       if (!response.data) throw new Error(`Hugging Face repo fetch failed: ${response.status}`);
       const normalized = normalizeHuggingFaceRepo(response.data);
       const prior = await ctx.runQuery(internal.sync.sourceRepoById, { repoId: event.repoId });
-      if (prior?.headSha && prior.headSha === normalized.sha && prior.repoName === normalized.id) {
+      if (
+        prior?.headSha &&
+        prior.headSha === normalized.sha &&
+        prior.repoName === normalized.id &&
+        prior.weightManifestHash &&
+        prior.weightsLastModifiedAt &&
+        prior.weightDatePolicyVersion === WEIGHT_DATE_POLICY_VERSION
+      ) {
         await ctx.runMutation(internal.sync.completeUnchangedWebhook, {
           eventId: args.eventId,
           runId,
@@ -894,7 +969,7 @@ export const processWebhook = internalAction({
       }
       const source = await ctx.runQuery(internal.sync.sourceByOwner, { owner: event.owner });
       if (!source?.enabled) throw new Error(`Source ${event.owner} is no longer monitored`);
-      const classification = classifyHuggingFaceRepo(response.data, sourceRule(source));
+      const classification = await classifyWithWeightMetadata(response.data, sourceRule(source));
       await ctx.runMutation(internal.sync.applyRepoResult, {
         classification,
         sourceOwner: event.owner,
@@ -1103,12 +1178,26 @@ export const auditSource = internalAction({
       let changed = 0;
       let published = 0;
       let skipped = 0;
+      let remainingWeightBackfills = 24;
       for (let offset = 0; offset < candidates.length; offset += 12) {
         const batch = candidates.slice(offset, offset + 12);
         const previous = await Promise.all(
           batch.map((repo) => ctx.runQuery(internal.sync.sourceRepoByName, { repoName: repo.id })),
         );
-        const changedRepos = batch.filter((repo, index) => previous[index]?.headSha !== repo.sha);
+        const changedRepos = batch.filter((repo, index) => {
+          const prior = previous[index];
+          if (prior?.headSha !== repo.sha) return true;
+          const needsWeightBackfill = source.role !== "artifact_provider" &&
+            prior.status === "published" &&
+            (
+              !prior.weightManifestHash ||
+              !prior.weightsLastModifiedAt ||
+              prior.weightDatePolicyVersion !== WEIGHT_DATE_POLICY_VERSION
+            ) &&
+            remainingWeightBackfills > 0;
+          if (needsWeightBackfill) remainingWeightBackfills -= 1;
+          return needsWeightBackfill;
+        });
         const hydrated: Array<{ repo: (typeof changedRepos)[number]; data: unknown }> = [];
         for (const repo of changedRepos) {
           const response = await fetchRepo(repo.id);
@@ -1118,7 +1207,7 @@ export const auditSource = internalAction({
           hydrated.push({ repo, data: response.data });
         }
         for (const result of hydrated) {
-          const classification = classifyHuggingFaceRepo(result.data, rule);
+          const classification = await classifyWithWeightMetadata(result.data, rule);
           const outcome = await ctx.runMutation(internal.sync.applyRepoResult, {
             classification,
             sourceOwner: args.owner,

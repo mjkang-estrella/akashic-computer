@@ -233,9 +233,9 @@ export function CompareView({
                                 {model.name}
                               </span>
                               <PropertyChip>{model.variant}</PropertyChip>
-                              {activeParamsLabel(model.size.label) && (
+                              {activeParamsLabel(model.size.label, model.size.activeParamsB) && (
                                 <PropertyChip>
-                                  {activeParamsLabel(model.size.label)}
+                                  {activeParamsLabel(model.size.label, model.size.activeParamsB)}
                                 </PropertyChip>
                               )}
                             </span>

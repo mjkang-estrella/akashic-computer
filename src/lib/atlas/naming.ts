@@ -2,22 +2,37 @@ import type { Family, Release, SizeNode } from "./types";
 
 /** "80B-A13B" -> "80B", "Scout 109B-A17B" -> "Scout 109B", "27B" -> "27B" */
 export function sizeDisplay(label: string): string {
-  return label.replace(/-A\d+B$/, "");
+  return label.replace(/-A\d+(?:\.\d+)?B$/, "");
 }
 
 /** "80B-A13B" -> "13B active", "27B" -> null */
-export function activeParamsLabel(label: string): string | null {
-  const m = label.match(/-A(\d+)B$/);
+export function activeParamsLabel(label: string, activeParamsB?: number): string | null {
+  if (activeParamsB !== undefined) return `${formatParameterBillions(activeParamsB)} active`;
+  const m = label.match(/-A(\d+(?:\.\d+)?)B$/);
   return m ? `${m[1]}B active` : null;
 }
 
+export function formatParameterBillions(paramsB: number): string {
+  if (paramsB >= 1000) return `${Number((paramsB / 1000).toFixed(2))}T`;
+  if (paramsB >= 100) return `${Math.round(paramsB)}B`;
+  if (paramsB >= 10) return `${Number(paramsB.toFixed(1))}B`;
+  return `${Number(paramsB.toFixed(2))}B`;
+}
+
+export function parameterTotalLabel(size: SizeNode): string {
+  return formatParameterBillions(size.paramsB);
+}
+
+export function parameterDetailLabel(size: SizeNode): string | null {
+  const active = activeParamsLabel(size.label, size.activeParamsB);
+  if (active) return `MoE · ${active}`;
+  return size.isMoe ? "MoE" : null;
+}
+
 export function parameterCountLabel(size: SizeNode): string {
-  const total =
-    size.paramsB >= 1000
-      ? `${Number((size.paramsB / 1000).toFixed(2))}T`
-      : `${size.paramsB}B`;
-  const active = activeParamsLabel(size.label)?.replace(" active", "");
-  return active ? `${total} (${active})` : total;
+  const total = parameterTotalLabel(size);
+  const detail = parameterDetailLabel(size);
+  return detail ? `${total} (${detail})` : total;
 }
 
 /** Human release identity without parameter size: "Qwen 3.6", "DeepSeek R2-Lite". */

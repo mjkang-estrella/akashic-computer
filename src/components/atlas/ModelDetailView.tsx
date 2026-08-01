@@ -38,7 +38,7 @@ export function ModelDetailView({
   const [variant, setVariant] = useState(initialVariant);
   const artifacts = entry.artifacts.filter((artifact) => artifact.variant === variant);
   const compareLimitReached = checked.size >= 4;
-  const active = activeParamsLabel(entry.size.label);
+  const active = activeParamsLabel(entry.size.label, entry.size.activeParamsB);
 
   return (
     <article className="pt-5" aria-labelledby="model-detail-title">
@@ -74,9 +74,9 @@ export function ModelDetailView({
 
         <dl className={`mt-5 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-linesoft pt-4 ${entry.context === "N/A" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
           <div>
-            <dt className="text-[11.5px] text-muted">Size</dt>
+            <dt className="text-[11.5px] text-muted">Parameters</dt>
             <dd className="mt-0.5 font-mono text-[13px] font-semibold">
-              {sizeDisplay(entry.size.label)}{active ? ` · ${active}` : ""}
+              {sizeDisplay(entry.size.label)}{entry.size.isMoe ? " · MoE" : ""}{active ? ` · ${active}` : ""}
             </dd>
           </div>
           {entry.context !== "N/A" ? (

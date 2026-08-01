@@ -19,7 +19,7 @@ import {
   Video01Icon,
 } from "@hugeicons/core-free-icons";
 import type { ModelEntry } from "@/lib/atlas/models";
-import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
+import { modelReleaseName, parameterDetailLabel, parameterTotalLabel } from "@/lib/atlas/naming";
 import {
   MODEL_CAPABILITIES,
   MODEL_CATEGORIES,
@@ -551,7 +551,10 @@ export function ModelCatalogView({
                     </span>
                     <span>
                       <span className="text-[11px] text-muted lg:hidden">Parameters · </span>
-                      <span className="font-mono text-[13px] font-semibold">{parameterCountLabel(entry.size)}</span>
+                      <span className="block font-mono text-[13px] font-semibold">{parameterTotalLabel(entry.size)}</span>
+                      {parameterDetailLabel(entry.size) ? (
+                        <span className="mt-0.5 block text-[11px] text-muted">{parameterDetailLabel(entry.size)}</span>
+                      ) : null}
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5 lg:col-start-4">
                       <span className="w-full text-[11px] text-muted lg:hidden">Quantizations</span>

@@ -38,6 +38,17 @@ const snapshot: CatalogContextValue = {
 
 const CatalogContext = createContext<CatalogContextValue>(snapshot);
 
+function absoluteHttpUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.href.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   const result = useQuery(api.catalog.listPublished);
   const value = useMemo<CatalogContextValue>(() => {
@@ -58,12 +69,26 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
 }
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const configuredConvexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const convexUrl = absoluteHttpUrl(configuredConvexUrl);
 const convexClient = convexUrl ? new ConvexReactClient(convexUrl) : null;
+const invalidConvexUrl = Boolean(configuredConvexUrl && !convexUrl);
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
   if (!convexClient) {
-    return <CatalogContext.Provider value={snapshot}>{children}</CatalogContext.Provider>;
+    const value = invalidConvexUrl
+      ? { ...snapshot, health: { catalogStale: true } }
+      : snapshot;
+    return (
+      <CatalogContext.Provider value={value}>
+        {invalidConvexUrl && (
+          <div role="alert" className="border-b border-line bg-panel2 px-4 py-2 text-center text-[12px] text-muted">
+            Live catalog unavailable: the Convex deployment URL is invalid. Showing the bundled snapshot.
+          </div>
+        )}
+        {children}
+      </CatalogContext.Provider>
+    );
   }
   return (
     <ConvexProvider client={convexClient}>

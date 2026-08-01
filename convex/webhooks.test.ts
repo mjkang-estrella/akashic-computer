@@ -280,6 +280,95 @@ describe("webhook ingestion", () => {
     expect(published).toMatchObject({ name: "Protected model name" });
   });
 
+  it("uses the newest weight commit rather than a newer description commit", async () => {
+    const t = await monitoredTest();
+    const entry = MODEL_ENTRIES.find((candidate) =>
+      candidate.artifacts.some((artifact) => artifact.repo === "Qwen/Qwen3-8B"),
+    )!;
+    const baseline = Date.parse("2026-01-01T00:00:00.000Z");
+    const weightUpdate = Date.parse("2026-07-21T17:02:54.000Z");
+    const newerQuantUpdate = Date.parse("2026-08-01T00:00:00.000Z");
+    const payload = {
+      ...publishableEntry(entry),
+      effectiveDate: "2026-01-01",
+      dateLabel: "2026-01-01",
+      timestamp: baseline,
+      artifacts: publishableEntry(entry).artifacts.map((artifact, index) => ({
+        ...artifact,
+        lastUpdatedAt: index === 0 ? baseline : newerQuantUpdate,
+      })),
+    };
+    expect(payload.artifacts.length).toBeGreaterThan(1);
+    const runId = await t.run(async (ctx) => {
+      await ctx.db.insert("catalogEntries", {
+        slug: entry.slug,
+        familyId: entry.family.id,
+        releaseId: entry.release.id,
+        sizeLabel: entry.size.label,
+        sourceRepos: payload.artifacts.map((artifact) => artifact.repo),
+        updatedAt: baseline,
+        payload,
+        publishedAt: baseline,
+        sourceRevision: "seed",
+      });
+      return await ctx.db.insert("syncRuns", {
+        kind: "webhook",
+        status: "running",
+        startedAt: baseline,
+        discovered: 1,
+        changed: 0,
+        published: 0,
+        skipped: 0,
+        failed: 0,
+        retries: 0,
+      });
+    });
+    const classification = classifyHuggingFaceRepo({
+      id: "Qwen/Qwen3-8B",
+      author: "Qwen",
+      sha: "description-sha",
+      createdAt: "2025-05-01T00:00:00.000Z",
+      lastModified: "2026-07-31T12:00:00.000Z",
+      _akashicWeightManifestHash: "manifest-v1",
+      _akashicWeightsLastModified: "2026-07-21T17:02:54.000Z",
+      _akashicWeightCommitSha: "weights-sha",
+      pipeline_tag: "text-generation",
+      tags: ["license:apache-2.0"],
+      siblings: [{ rfilename: "model.safetensors" }],
+      safetensors: { parameters: { BF16: 8_000_000_000 } },
+      cardData: { license: "apache-2.0" },
+      config: { max_position_embeddings: 32768 },
+    }, {
+      owner: "Qwen",
+      role: "creator",
+      familyIds: ["qwen"],
+    });
+    expect(await t.mutation(internal.sync.applyRepoResult, {
+      classification,
+      sourceOwner: "Qwen",
+      repoKey: "stable-qwen-8b",
+      runId,
+      now: Date.parse("2026-07-31T12:05:00.000Z"),
+    })).toMatchObject({ status: "published" });
+
+    const state = await t.run(async (ctx) => ({
+      entry: await ctx.db.query("catalogEntries").first(),
+      source: await ctx.db.query("sourceRepositories").first(),
+    }));
+    expect(state.entry).toMatchObject({ updatedAt: weightUpdate });
+    expect(state.entry?.payload).toMatchObject({
+      dateLabel: "2026-07-21",
+      timestamp: weightUpdate,
+    });
+    expect(state.source).toMatchObject({
+      lastModifiedAt: Date.parse("2026-07-31T12:00:00.000Z"),
+      weightsLastModifiedAt: weightUpdate,
+      weightManifestHash: "manifest-v1",
+      weightCommitSha: "weights-sha",
+      weightDatePolicyVersion: 1,
+    });
+  });
+
   it("records health alerts only on state transitions", async () => {
     const t = convexTest(schema, modules);
     const staleCheck = {
