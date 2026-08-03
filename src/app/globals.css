@@ -83,6 +83,21 @@ body {
   }
 }
 
+@keyframes catalog-skeleton-pulse {
+  0%,
+  100% {
+    background-color: var(--track);
+  }
+  50% {
+    background-color: var(--line);
+  }
+}
+
+.catalog-skeleton {
+  background-color: var(--track);
+  animation: catalog-skeleton-pulse 1.6s ease-in-out infinite;
+}
+
 .catalog-field-bar {
   transform-origin: bottom center;
   animation: catalog-field-scan 4.8s ease-in-out infinite;
@@ -90,7 +105,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .constellation-line,
-  .catalog-field-bar {
+  .catalog-field-bar,
+  .catalog-skeleton {
     animation: none;
   }
 }

@@ -25,7 +25,7 @@ import { useCatalog } from "./CatalogProvider";
 import { FitBar } from "./FitBar";
 import { HomeView } from "./HomeView";
 import { LearnView } from "./LearnView";
-import { ModelCatalogView } from "./ModelCatalogView";
+import { ModelCatalogSkeleton, ModelCatalogView } from "./ModelCatalogView";
 import { ModelDetailView } from "./ModelDetailView";
 import { SearchView, type SearchTarget } from "./SearchView";
 
@@ -352,7 +352,9 @@ export function AtlasApp() {
             : "max-w-[1240px]"
         }`}
       >
-        {query.trim() && tab !== "benchmark" ? (
+        {loading && tab === "model" ? (
+          <ModelCatalogSkeleton detail={Boolean(modelSlug)} />
+        ) : query.trim() && tab !== "benchmark" ? (
           <SearchView
             query={query}
             entries={entries}

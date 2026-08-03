@@ -52,6 +52,133 @@ const CATEGORY_ICONS: Record<ModelCategoryId, IconSvgElement> = {
   robotics: Robot01Icon,
 };
 
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <span aria-hidden="true" className={`catalog-skeleton block rounded-[5px] ${className}`} />;
+}
+
+export function ModelCatalogSkeleton({ detail = false }: { detail?: boolean }) {
+  if (detail) {
+    return (
+      <section className="pt-5" aria-busy="true" aria-label="Loading model details">
+        <span className="sr-only" role="status">Loading model details</span>
+        <div className="border-b border-line pb-5">
+          <SkeletonBlock className="h-4 w-20" />
+          <div className="mt-5 flex items-start gap-4">
+            <SkeletonBlock className="h-12 w-12 flex-none" />
+            <div className="min-w-0 flex-1">
+              <SkeletonBlock className="h-7 w-[min(72%,360px)]" />
+              <SkeletonBlock className="mt-2 h-4 w-40" />
+            </div>
+          </div>
+          <SkeletonBlock className="mt-5 h-4 w-full max-w-[680px]" />
+          <SkeletonBlock className="mt-2 h-4 w-full max-w-[520px]" />
+        </div>
+        <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_250px]">
+          <div className="border-y border-line">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className="grid min-h-[108px] grid-cols-[minmax(0,1fr)_92px] items-center gap-5 border-b border-linesoft px-2 py-4 last:border-b-0">
+                <div>
+                  <SkeletonBlock className="h-4 w-36" />
+                  <SkeletonBlock className="mt-3 h-3 w-56 max-w-full" />
+                  <SkeletonBlock className="mt-2 h-3 w-40 max-w-[80%]" />
+                </div>
+                <div className="justify-self-end">
+                  <SkeletonBlock className="h-5 w-16" />
+                  <SkeletonBlock className="mt-2 h-3 w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <aside className="hidden border-l border-line pl-5 lg:block">
+            <SkeletonBlock className="h-3 w-24" />
+            <SkeletonBlock className="mt-4 h-9 w-full" />
+            <SkeletonBlock className="mt-6 h-3 w-20" />
+            <SkeletonBlock className="mt-4 h-4 w-32" />
+            <SkeletonBlock className="mt-3 h-4 w-24" />
+          </aside>
+        </div>
+      </section>
+    );
+  }
+
+  const mobileCategoryWidths = ["w-16", "w-28", "w-32", "w-28"];
+
+  return (
+    <section className="pt-5" aria-busy="true" aria-labelledby="model-catalog-loading-title">
+      <span className="sr-only" role="status">Loading models</span>
+      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-5">
+        <div>
+          <h2 id="model-catalog-loading-title" className="font-display text-[25px] font-semibold">Models</h2>
+          <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-muted">
+            Open-weight releases by model and parameter size, ordered by their most recent release or material update.
+          </p>
+        </div>
+        <SkeletonBlock className="h-4 w-16" />
+      </header>
+
+      <div className="-mx-5 flex gap-2 overflow-hidden border-b border-line px-5 py-3 xl:hidden">
+        {mobileCategoryWidths.map((width, index) => (
+          <SkeletonBlock key={index} className={`h-9 flex-none ${width}`} />
+        ))}
+      </div>
+
+      <div className="xl:grid xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
+        <aside className="hidden border-r border-line pr-5 xl:block" aria-hidden="true">
+          <div className="space-y-7 py-5 pr-1">
+            {[5, 4, 5].map((itemCount, sectionIndex) => (
+              <div key={sectionIndex}>
+                <SkeletonBlock className="h-3 w-20" />
+                <div className="mt-3 space-y-2">
+                  {Array.from({ length: itemCount }, (_, index) => (
+                    <SkeletonBlock key={index} className="h-8 w-full" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="min-w-0">
+          <div className="flex min-h-[52px] items-center border-b border-line py-2.5 xl:hidden">
+            <SkeletonBlock className="h-9 w-24" />
+          </div>
+          <div className="border-b border-line">
+            <div className="hidden grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] border-b border-line px-2 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted lg:grid">
+              <span>Model</span>
+              <span>Parameters</span>
+              <span className="col-start-4">Quantizations</span>
+              <span className="col-start-5">Last Updated</span>
+            </div>
+            <div className="divide-y divide-linesoft">
+              {Array.from({ length: 9 }, (_, index) => (
+                <div key={index} className="grid min-h-[82px] w-full gap-3 py-4 lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <SkeletonBlock className="h-8 w-8 flex-none" />
+                    <span className="min-w-0 flex-1">
+                      <SkeletonBlock className={`h-4 ${index % 3 === 0 ? "w-32" : index % 3 === 1 ? "w-24" : "w-40"}`} />
+                      <SkeletonBlock className="mt-2 h-3 w-20" />
+                    </span>
+                  </span>
+                  <span>
+                    <SkeletonBlock className="h-4 w-16" />
+                    <SkeletonBlock className="mt-2 h-3 w-12" />
+                  </span>
+                  <span className="flex items-center gap-1.5 lg:col-start-4">
+                    <SkeletonBlock className="h-5 w-12" />
+                    <SkeletonBlock className="h-5 w-14" />
+                    {index % 2 === 0 ? <SkeletonBlock className="h-5 w-12" /> : null}
+                  </span>
+                  <SkeletonBlock className="h-4 w-24 lg:col-start-5" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function inSizeBand(entry: ModelEntry, band: SizeBand): boolean {
   if (band === "all") return true;
   if (band === "compact") return entry.size.paramsB < 10;

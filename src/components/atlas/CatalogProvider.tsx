@@ -36,6 +36,17 @@ const snapshot: CatalogContextValue = {
   source: "snapshot",
 };
 
+const loadingCatalog: CatalogContextValue = {
+  entries: [],
+  families: [],
+  compareModels: [],
+  revision: "loading",
+  syncedAt: null,
+  health: null,
+  loading: true,
+  source: "convex",
+};
+
 const CatalogContext = createContext<CatalogContextValue>(snapshot);
 
 function absoluteHttpUrl(value: string | undefined): string | null {
@@ -52,7 +63,7 @@ function absoluteHttpUrl(value: string | undefined): string | null {
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   const result = useQuery(api.catalog.listPublished);
   const value = useMemo<CatalogContextValue>(() => {
-    if (!result) return { ...snapshot, loading: true };
+    if (!result) return loadingCatalog;
     const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogEntry[]);
     return {
       ...hydrated,
