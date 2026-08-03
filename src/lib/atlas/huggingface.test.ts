@@ -64,6 +64,44 @@ describe("Hugging Face repository classification", () => {
     });
   });
 
+  it("uses canonical DeepSeek parameters and mixed precision for packed MoE weights", () => {
+    const result = classifyHuggingFaceRepo(repo({
+      id: "deepseek-ai/DeepSeek-V4-Flash-0731",
+      author: "deepseek-ai",
+      tags: ["license:mit", "8-bit", "fp8"],
+      safetensors: {
+        parameters: {
+          BF16: 1_483_567_488,
+          F8_E4M3: 6_304_038_912,
+          I8: 296_352_743_424,
+        },
+      },
+      cardData: { license: "mit" },
+      config: {
+        expert_dtype: "fp4",
+        n_routed_experts: 256,
+        num_experts_per_tok: 6,
+        quantization_config: { quant_method: "fp8" },
+      },
+      _akashicWeightBytes: 166_886_535_336,
+    }), {
+      owner: "deepseek-ai",
+      role: "creator",
+      familyIds: ["deepseek"],
+    });
+    expect(result.status).toBe("publishable");
+    if (result.status !== "publishable") return;
+    expect(result.parsed).toMatchObject({
+      format: "FP4 + FP8",
+      sizeLabel: "284B",
+      paramsB: 284,
+      activeParamsB: 13,
+      isMoe: true,
+      minVramGb: 176,
+      recVramGb: 202,
+    });
+  });
+
   it("links a provider quantization only through structured base_model metadata", () => {
     const provider: MonitoredSourceRule = {
       owner: "nvidia",
@@ -165,6 +203,7 @@ describe("Hugging Face repository classification", () => {
     const metadata = weightMetadataFromTree(weights);
     expect(metadata).toMatchObject({
       fileCount: 2,
+      totalBytes: 30,
       lastModified: "2026-07-21T17:02:54.000Z",
       commitSha: "weights-sha",
     });

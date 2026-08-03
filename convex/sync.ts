@@ -34,7 +34,7 @@ const NULL_DELTAS: Record<BenchKey, null> = {
   swe: null,
 };
 
-const WEIGHT_DATE_POLICY_VERSION = 1;
+const WEIGHT_DATE_POLICY_VERSION = 2;
 
 type AnyRecord = Record<string, unknown>;
 
@@ -215,6 +215,7 @@ async function classifyWithWeightMetadata(raw: unknown, rule: MonitoredSourceRul
     _akashicWeightManifestHash: metadata.manifestHash,
     _akashicWeightsLastModified: metadata.lastModified,
     _akashicWeightCommitSha: metadata.commitSha ?? undefined,
+    _akashicWeightBytes: metadata.totalBytes,
   };
   return classifyHuggingFaceRepo(enriched, rule);
 }
@@ -462,6 +463,8 @@ function mergeParsedIntoPayload(
   const updatesCanonicalWeights = trustForRole(role, parsed.repo.baseModels.length > 0) === "official" &&
     existing?.repo === canonicalRepo;
   const modelUpdatedAt = updatesCanonicalWeights ? updatedAt : original.timestamp;
+  const canonicalParamsB = updatesCanonicalWeights ? parsed.paramsB ?? original.size.paramsB : original.size.paramsB;
+  const canonicalSizeLabel = updatesCanonicalWeights ? parsed.sizeLabel ?? original.size.label : original.size.label;
   const benchmarkRefs = [...original.benchmarkRefs];
   for (const row of parsed.benchmarkRows) {
     if (!benchmarkRefs.some((existingRow) => existingRow.name === row.name && existingRow.sourceUrl === row.sourceUrl)) {
@@ -470,12 +473,19 @@ function mergeParsedIntoPayload(
   }
   return {
     ...original,
+    id: updatesCanonicalWeights
+      ? `${original.family.id}:${original.release.id}:${canonicalSizeLabel}`
+      : original.id,
+    name: updatesCanonicalWeights ? `${original.release.name} ${canonicalSizeLabel}` : original.name,
     effectiveDate: dateLabel(modelUpdatedAt),
     dateLabel: dateLabel(modelUpdatedAt),
     updated: true,
     timestamp: modelUpdatedAt,
     size: {
       ...original.size,
+      label: canonicalSizeLabel,
+      paramsB: canonicalParamsB,
+      updated: updatesCanonicalWeights ? dateLabel(modelUpdatedAt) : original.size.updated,
       activeParamsB: parsed.activeParamsB ?? original.size.activeParamsB,
       isMoe: parsed.isMoe || original.size.isMoe || undefined,
     },
@@ -563,7 +573,14 @@ async function upsertNormalized(
     }));
     size = await ctx.db.get(sizeId);
   } else {
-    await ctx.db.patch(size._id, clean({ lastUpdatedAt: payload.timestamp, sourceSha: parsed.repo.sha, lastSyncedAt: now }));
+    await ctx.db.patch(size._id, clean({
+      label: payload.size.label,
+      parameterCountB: payload.size.paramsB,
+      activeParameterCountB: payload.size.activeParamsB,
+      lastUpdatedAt: payload.timestamp,
+      sourceSha: parsed.repo.sha,
+      lastSyncedAt: now,
+    }));
   }
   if (!size) throw new Error("Failed to materialize size");
   const variantName = payload.artifacts.find((artifact) => artifact.repo === parsed.repo.id)?.variant ?? parsed.variant;
@@ -689,6 +706,7 @@ export const applyRepoResult = internalMutation({
       weightManifestHash: repo.weightManifestHash ?? undefined,
       weightsLastModifiedAt: timestamp(repo.weightsLastModified),
       weightCommitSha: repo.weightCommitSha ?? undefined,
+      weightBytes: repo.weightBytes ?? undefined,
       weightDatePolicyVersion: repo.weightsLastModified ? WEIGHT_DATE_POLICY_VERSION : undefined,
       private: repo.private,
       gated: repo.gated,
@@ -953,6 +971,7 @@ export const processWebhook = internalAction({
       const normalized = normalizeHuggingFaceRepo(response.data);
       const prior = await ctx.runQuery(internal.sync.sourceRepoById, { repoId: event.repoId });
       if (
+        !event.scope.startsWith("repo.config") &&
         prior?.headSha &&
         prior.headSha === normalized.sha &&
         prior.repoName === normalized.id &&

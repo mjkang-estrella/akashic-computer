@@ -365,7 +365,7 @@ describe("webhook ingestion", () => {
       weightsLastModifiedAt: weightUpdate,
       weightManifestHash: "manifest-v1",
       weightCommitSha: "weights-sha",
-      weightDatePolicyVersion: 1,
+      weightDatePolicyVersion: 2,
     });
   });
 

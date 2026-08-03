@@ -167,6 +167,7 @@ export default defineSchema({
     weightManifestHash: v.optional(v.string()),
     weightsLastModifiedAt: v.optional(v.number()),
     weightCommitSha: v.optional(v.string()),
+    weightBytes: v.optional(v.number()),
     weightDatePolicyVersion: v.optional(v.number()),
     private: v.boolean(),
     gated: v.boolean(),

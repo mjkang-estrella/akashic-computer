@@ -23,6 +23,7 @@ export interface HuggingFaceRepoInfo {
   weightManifestHash: string | null;
   weightsLastModified: string | null;
   weightCommitSha: string | null;
+  weightBytes: number | null;
   private: boolean;
   gated: boolean;
   disabled: boolean;
@@ -41,6 +42,7 @@ export interface HuggingFaceWeightMetadata {
   lastModified: string;
   commitSha: string | null;
   fileCount: number;
+  totalBytes: number;
 }
 
 export interface ParsedHuggingFaceRepo {
@@ -76,8 +78,9 @@ const WEIGHT_FILE = /(?:\.safetensors(?:\.index\.json)?|\.gguf|pytorch_model.*\.
 const WEIGHT_BLOB_FILE = /(?:\.safetensors|\.gguf|pytorch_model.*\.bin|\.onnx|\.pt|\.pth|\.ckpt|\.msgpack)$/i;
 const EXCLUDED_NAME = /(?:^|[-_.])(adapter|lora|qlora|checkpoint|demo|test|merge)(?:$|[-_.])/i;
 const EXCLUDED_TAGS = new Set(["adapter", "lora", "peft", "diffusers:adapter"]);
-const APPROVED_ACTIVE_PARAMS_B: Record<string, number> = {
-  "upstage/solar-open2-250b": 15,
+const APPROVED_PARAMETER_METADATA: Record<string, { paramsB?: number; activeParamsB?: number }> = {
+  "deepseek-ai/deepseek-v4-flash-0731": { paramsB: 284, activeParamsB: 13 },
+  "upstage/solar-open2-250b": { activeParamsB: 15 },
 };
 
 const CATEGORY_BY_PIPELINE: Record<string, ModelCategoryId> = {
@@ -192,6 +195,7 @@ export function weightMetadataFromTree(rawEntries: unknown[]): HuggingFaceWeight
     lastModified: latest.date,
     commitSha: latest.commitSha,
     fileCount: ordered.length,
+    totalBytes: ordered.reduce((sum, file) => sum + file.size, 0),
   };
 }
 
@@ -233,6 +237,9 @@ export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
     weightManifestHash: firstString(value._akashicWeightManifestHash),
     weightsLastModified: firstString(value._akashicWeightsLastModified),
     weightCommitSha: firstString(value._akashicWeightCommitSha),
+    weightBytes: typeof value._akashicWeightBytes === "number" && value._akashicWeightBytes > 0
+      ? value._akashicWeightBytes
+      : null,
     private: value.private === true,
     gated: value.gated === true || typeof value.gated === "string",
     disabled: value.disabled === true,
@@ -267,8 +274,12 @@ export function matchesSourceRules(repoId: string, rule: MonitoredSourceRule): b
 
 function detectedFormat(repo: HuggingFaceRepoInfo): string {
   const text = `${repo.id} ${repo.tags.join(" ")} ${JSON.stringify(repo.config)}`.toUpperCase();
+  const quantization = asRecord(repo.config.quantization_config);
+  const expertDtype = firstString(repo.config.expert_dtype)?.toUpperCase();
+  const quantMethod = firstString(quantization.quant_method)?.toUpperCase();
   if (text.includes("NVFP4")) return "NVFP4";
   if (text.includes("MXFP8")) return "MXFP8";
+  if (expertDtype === "FP4" && quantMethod === "FP8") return "FP4 + FP8";
   if (text.includes("FP8")) return "FP8";
   if (text.includes("AWQ")) return "AWQ";
   if (text.includes("GPTQ") && text.includes("INT8")) return "GPTQ INT8";
@@ -301,6 +312,13 @@ function formatProfile(format: string): {
       runtimes: ["TensorRT-LLM", "vLLM"],
     };
   }
+  if (format.includes("FP4")) {
+    return {
+      factor: 0.62,
+      kinds: ["cuda", "dgx"],
+      runtimes: ["vLLM", "SGLang"],
+    };
+  }
   if (format.includes("INT4") || format === "AWQ") {
     return {
       factor: 0.62,
@@ -325,9 +343,11 @@ function formatProfile(format: string): {
 export function estimateVram(
   paramsB: number,
   format: string,
+  checkpointBytes?: number | null,
 ): { minVramGb: number; recVramGb: number; kinds: HardwareKind[]; runtimes: string[] } {
   const profile = formatProfile(format);
-  const minVramGb = Math.max(2, Math.round(paramsB * profile.factor));
+  const checkpointGb = checkpointBytes && format !== "GGUF" ? checkpointBytes / 1_000_000_000 : null;
+  const minVramGb = Math.max(2, Math.ceil(checkpointGb ? checkpointGb * 1.05 : paramsB * profile.factor));
   return {
     minVramGb,
     recVramGb: Math.max(3, Math.round(minVramGb * 1.15)),
@@ -348,15 +368,16 @@ function parameterMetadata(repo: HuggingFaceRepoInfo): {
   const fromName = match
     ? Number(match[1]) * (match[2].toUpperCase() === "T" ? 1000 : 1)
     : null;
-  const paramsB = repo.safetensorsParameters
+  const approved = APPROVED_PARAMETER_METADATA[repo.id.toLowerCase()];
+  const paramsB = approved?.paramsB ?? (repo.safetensorsParameters
     ? repo.safetensorsParameters / 1_000_000_000
-    : fromName;
+    : fromName);
   const activeParamsB = (match?.[3] ? Number(match[3]) : null) ??
     parameterBillions(repo.config.active_parameter_count) ??
     parameterBillions(repo.config.active_parameters) ??
     parameterBillions(repo.cardData.active_parameter_count) ??
     parameterBillions(repo.cardData.active_parameters) ??
-    APPROVED_ACTIVE_PARAMS_B[repo.id.toLowerCase()] ??
+    approved?.activeParamsB ??
     null;
   const isMoe = activeParamsB !== null ||
     repo.tags.some((tag) => tag.toLowerCase() === "moe") ||
@@ -476,7 +497,7 @@ export function classifyHuggingFaceRepo(
   if (!category && repo.baseModels.length === 0) {
     return { status: "skipped", reason: "pipeline category is not recognized", repo };
   }
-  const vram = parameters.paramsB ? estimateVram(parameters.paramsB, format) : null;
+  const vram = parameters.paramsB ? estimateVram(parameters.paramsB, format, repo.weightBytes) : null;
   return {
     status: "publishable",
     parsed: {
