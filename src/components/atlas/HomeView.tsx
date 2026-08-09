@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  ArrowDown01Icon,
   ArrowRight01Icon,
   BookOpen02Icon,
   ChartColumnIcon,
+  Clock01Icon,
+  CubeIcon,
   RefreshIcon,
 } from "@hugeicons/core-free-icons";
 import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
 import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
 import type { ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
+import type { RigProfile } from "@/lib/atlas/types";
 import { FamilyLogo } from "./FamilyLogo";
 
 const FEATURED_BENCHMARK_IDS = [
@@ -30,6 +34,10 @@ interface CatalogHealth {
   catalogStale: boolean;
 }
 
+const LAST_VISIT_KEY = "akashic:last-catalog-visit";
+const SESSION_VISIT_KEY = "akashic:catalog-session-start";
+const SESSION_PREVIOUS_VISIT_KEY = "akashic:catalog-previous-visit";
+
 function formatSyncTime(value: number): string {
   return new Intl.DateTimeFormat("en", {
     month: "short",
@@ -41,6 +49,15 @@ function formatSyncTime(value: number): string {
     timeZone: "UTC",
     timeZoneName: "short",
   }).format(value);
+}
+
+function releaseTimestamp(entry: ModelEntry): number {
+  const parsed = Date.parse(entry.release.date);
+  return Number.isFinite(parsed) ? parsed : entry.timestamp;
+}
+
+function releaseDateLabel(entry: ModelEntry): string {
+  return new Date(releaseTimestamp(entry)).toISOString().slice(0, 10);
 }
 
 function SectionLink({
@@ -73,11 +90,13 @@ function CatalogStatus({
   loading,
   source,
   health,
+  revision,
 }: {
   syncedAt: number | null;
   loading: boolean;
   source: "convex" | "snapshot";
   health: CatalogHealth | null;
+  revision: string;
 }) {
   const delayed = health?.catalogStale;
 
@@ -90,21 +109,37 @@ function CatalogStatus({
   }
 
   return (
-    <p
-      aria-live="polite"
-      className={`flex items-center gap-2 font-mono text-[11px] lg:min-h-11 ${
-        delayed ? "text-caution" : "text-faint"
-      }`}
-    >
-      <HugeiconsIcon
-        icon={RefreshIcon}
-        size={15}
-        strokeWidth={1.8}
-        aria-hidden="true"
-        className={loading ? "animate-spin motion-reduce:animate-none" : ""}
-      />
-      {label}
-    </p>
+    <details className="group/status max-w-[620px] text-[11px] text-faint">
+      <summary
+        aria-live="polite"
+        className={`flex min-h-9 cursor-pointer list-none items-center gap-2 font-mono marker:hidden ${
+          delayed ? "text-caution" : "text-faint"
+        }`}
+      >
+        <HugeiconsIcon
+          icon={RefreshIcon}
+          size={15}
+          strokeWidth={1.8}
+          aria-hidden="true"
+          className={loading ? "animate-spin motion-reduce:animate-none" : ""}
+        />
+        <span>{label}</span>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          size={14}
+          strokeWidth={1.8}
+          aria-hidden="true"
+          className="transition-transform group-open/status:rotate-180"
+        />
+      </summary>
+      <div className="grid gap-1 border-l border-line pl-5 pb-2 font-mono leading-relaxed sm:grid-cols-2 sm:gap-x-6">
+        <span>Source · {source === "convex" ? "Live Convex catalog" : "Bundled snapshot"}</span>
+        <span>Revision · {revision === "loading" ? "Resolving" : revision.slice(0, 12)}</span>
+        <span className="sm:col-span-2">
+          Freshness reflects the latest successful catalog sync. Delayed data stays visible rather than being replaced by a partial refresh.
+        </span>
+      </div>
+    </details>
   );
 }
 
@@ -217,6 +252,8 @@ export function HomeView({
   loading,
   source,
   health,
+  revision,
+  rig,
   onOpenModel,
   onViewModels,
   onViewBenchmarks,
@@ -228,33 +265,75 @@ export function HomeView({
   loading: boolean;
   source: "convex" | "snapshot";
   health: CatalogHealth | null;
+  revision: string;
+  rig: RigProfile;
   onOpenModel: (entry: ModelEntry) => void;
   onViewModels: () => void;
   onViewBenchmarks: () => void;
   onOpenDoc: (slug: string) => void;
   onViewDocs: () => void;
 }) {
+  const [previousVisit, setPreviousVisit] = useState<number | null | undefined>(undefined);
+
+  useEffect(() => {
+    let priorVisit: number | null = null;
+    try {
+      const sessionStart = window.sessionStorage.getItem(SESSION_VISIT_KEY);
+      if (sessionStart) {
+        const prior = window.sessionStorage.getItem(SESSION_PREVIOUS_VISIT_KEY);
+        priorVisit = prior ? Number(prior) : null;
+      } else {
+        const now = Date.now();
+        const prior = window.localStorage.getItem(LAST_VISIT_KEY);
+        window.sessionStorage.setItem(SESSION_VISIT_KEY, String(now));
+        window.sessionStorage.setItem(SESSION_PREVIOUS_VISIT_KEY, prior ?? "");
+        window.localStorage.setItem(LAST_VISIT_KEY, String(now));
+        priorVisit = prior ? Number(prior) : null;
+      }
+    } catch {
+      priorVisit = null;
+    }
+    const timer = window.setTimeout(() => setPreviousVisit(priorVisit), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const showEmptyLoadingState = loading && entries.length === 0;
+  const changesSinceVisit = useMemo(
+    () =>
+      previousVisit == null
+        ? null
+        : entries.filter((entry) => entry.timestamp > previousVisit).length,
+    [entries, previousVisit],
+  );
+  const runnableEntries = useMemo(
+    () =>
+      entries.filter((entry) =>
+        entry.artifacts.some((artifact) => artifact.recVramGb <= rig.gb),
+      ).length,
+    [entries, rig.gb],
+  );
   const recentEntries = useMemo(
     () =>
       [...entries]
         .sort(
           (a, b) =>
-            b.timestamp - a.timestamp ||
+            releaseTimestamp(b) - releaseTimestamp(a) ||
             a.name.localeCompare(b.name) ||
             b.size.paramsB - a.size.paramsB,
         )
         .slice(0, 6),
     [entries],
   );
-  const featuredBenchmarks = useMemo(() => {
+  const benchmarkCoverage = useMemo(() => {
     const resolved = resolveOfficialBenchmarks(entries);
+    const comparable = resolved.filter((benchmark) => benchmark.results.length >= 2);
     const preferred = FEATURED_BENCHMARK_IDS.flatMap((id) => {
       const benchmark = resolved.find((candidate) => candidate.id === id);
       return benchmark && benchmark.results.length >= 2 ? [benchmark] : [];
     });
-    if (preferred.length === FEATURED_BENCHMARK_IDS.length) return preferred;
-    return preferred.concat(
+    const featured = preferred.length === FEATURED_BENCHMARK_IDS.length
+      ? preferred
+      : preferred.concat(
       resolved
         .filter(
           (benchmark) =>
@@ -262,8 +341,14 @@ export function HomeView({
             !preferred.some((candidate) => candidate.id === benchmark.id),
         )
         .slice(0, FEATURED_BENCHMARK_IDS.length - preferred.length),
-    );
+      );
+    return {
+      featured,
+      benchmarkCount: comparable.length,
+      modelCount: new Set(comparable.flatMap((benchmark) => benchmark.results.map((result) => result.entry.id))).size,
+    };
   }, [entries]);
+  const featuredBenchmarks = benchmarkCoverage.featured;
   const featuredDocs = FEATURED_DOC_SLUGS.flatMap((slug) => {
     const article = DOC_ARTICLES.find((candidate) => candidate.slug === slug);
     return article ? [article] : [];
@@ -290,20 +375,74 @@ export function HomeView({
               loading={loading}
               source={source}
               health={health}
+              revision={revision}
             />
+          </div>
+          <div className="mt-4 grid border-y border-line sm:grid-cols-2">
+            <p className="flex min-h-12 items-center gap-2 py-2 text-[11.5px] text-muted sm:pr-4">
+              <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
+              {previousVisit === undefined
+                ? "Checking changes since your last visit"
+                : previousVisit === null
+                  ? "This is your first tracked catalog visit"
+                  : `${changesSinceVisit ?? 0} model ${changesSinceVisit === 1 ? "change" : "changes"} since your last visit`}
+            </p>
+            <p className="flex min-h-12 items-center gap-2 border-t border-linesoft py-2 text-[11.5px] text-muted sm:border-t-0 sm:border-l sm:pl-4">
+              <HugeiconsIcon icon={CubeIcon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
+              {loading
+                ? `Checking listed artifacts against ${rig.label}`
+                : `${rig.label}: ${runnableEntries} of ${entries.length} model sizes have an artifact estimated to fit`}
+            </p>
           </div>
         </div>
       </header>
+
+      <nav aria-label="Start exploring" className="grid border-b border-line md:grid-cols-3">
+        {[
+          {
+            label: "Browse model releases",
+            detail: "Families, sizes, and quantizations",
+            icon: CubeIcon,
+            onClick: onViewModels,
+          },
+          {
+            label: "Compare benchmark evidence",
+            detail: "Official creator-reported results",
+            icon: ChartColumnIcon,
+            onClick: onViewBenchmarks,
+          },
+          {
+            label: "Understand model mechanics",
+            detail: "Quantization, MoE, and memory",
+            icon: BookOpen02Icon,
+            onClick: () => onOpenDoc("quantization"),
+          },
+        ].map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            onClick={item.onClick}
+            className="group flex min-h-[72px] items-center gap-3 border-b border-linesoft py-3 text-left last:border-b-0 hover:bg-panel md:border-r md:border-b-0 md:px-5 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
+          >
+            <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.7} aria-hidden="true" className="flex-none text-faint group-hover:text-ink" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px] font-semibold">{item.label}</span>
+              <span className="mt-0.5 block text-[11px] text-muted">{item.detail}</span>
+            </span>
+            <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
+          </button>
+        ))}
+      </nav>
 
       <div className="grid gap-8 pt-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.85fr)] xl:gap-12">
         <section aria-labelledby="recent-models-title" className="min-w-0">
           <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
             <div>
               <h3 id="recent-models-title" className="font-display text-[22px] font-semibold">
-                Recently updated
+                New models
               </h3>
               <p className="mt-0.5 text-[12px] text-muted">
-                Model-size releases ordered by their latest material update.
+                Recently published model-size releases.
               </p>
             </div>
             <SectionLink onClick={onViewModels}>View all models</SectionLink>
@@ -332,7 +471,7 @@ export function HomeView({
                   <span>Model</span>
                   <span>Parameters</span>
                   <span>Quantizations</span>
-                  <span>Last updated</span>
+                  <span>Released</span>
                   <span className="sr-only">Open</span>
                 </div>
                 <div className="divide-y divide-linesoft">
@@ -384,8 +523,8 @@ export function HomeView({
                             </span>
                           ) : null}
                         </span>
-                        <span className="col-start-2 row-start-1 self-start whitespace-nowrap font-mono text-[11.5px] text-muted sm:col-auto sm:row-auto sm:self-auto sm:text-[12px]">
-                          {entry.dateLabel}
+                        <span className="col-start-2 row-start-1 self-start whitespace-nowrap font-mono text-[11.5px] text-muted sm:col-auto sm:row-auto sm:self-auto sm:text-left sm:text-[12px]">
+                          {releaseDateLabel(entry)}
                         </span>
                         <HugeiconsIcon
                           icon={ArrowRight01Icon}
@@ -410,7 +549,7 @@ export function HomeView({
                 Benchmark pulse
               </h3>
               <p className="mt-0.5 text-[12px] text-muted">
-                Official scores reported by model creators.
+                {benchmarkCoverage.benchmarkCount} comparable benchmarks across {benchmarkCoverage.modelCount} catalog models.
               </p>
             </div>
             <SectionLink onClick={onViewBenchmarks}>View all benchmarks</SectionLink>
@@ -457,7 +596,7 @@ export function HomeView({
                           {benchmark.name}
                         </h4>
                         <p className="mt-0.5 font-mono text-[11px] text-faint">
-                          {benchmark.metric} · higher is better
+                          {benchmark.metric} · {benchmark.results.length} models · higher is better
                         </p>
                       </div>
                       <HugeiconsIcon

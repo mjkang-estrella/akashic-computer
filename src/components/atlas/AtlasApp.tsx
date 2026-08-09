@@ -45,6 +45,7 @@ export function AtlasApp() {
     health,
     loading,
     source,
+    revision,
   } = useCatalog();
   const [tab, setTab] = useState<Tab>("home");
   const [query, setQuery] = useState("");
@@ -369,6 +370,8 @@ export function AtlasApp() {
             loading={loading}
             source={source}
             health={health}
+            revision={revision}
+            rig={rig}
             onOpenModel={openModel}
             onViewModels={() => switchTab("model")}
             onViewBenchmarks={() => switchTab("benchmark")}
