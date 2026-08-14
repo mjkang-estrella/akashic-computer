@@ -102,6 +102,63 @@ describe("Hugging Face repository classification", () => {
     });
   });
 
+  it("publishes MiniMax H3 as video generation with its inference footprint", () => {
+    const result = classifyHuggingFaceRepo(repo({
+      id: "MiniMaxAI/MiniMax-H3",
+      author: "MiniMaxAI",
+      pipeline_tag: "image-text-to-video",
+      tags: ["diffusers", "text-to-video"],
+      safetensors: undefined,
+      cardData: {},
+      _akashicWeightBytes: 498_370_198_420,
+    }), {
+      owner: "MiniMaxAI",
+      role: "creator",
+      familyIds: ["minimax"],
+    });
+    expect(result.status).toBe("publishable");
+    if (result.status !== "publishable") return;
+    expect(result.parsed).toMatchObject({
+      paramsB: 33.122992896,
+      sizeLabel: "33B",
+      category: "video-generation",
+      variant: "Generator",
+      minVramGb: 152,
+      recVramGb: 175,
+      runtimes: ["Diffusers", "SGLang", "ComfyUI"],
+    });
+    expect(result.parsed.capabilities).toContain("video-generation");
+    expect(result.parsed.repo.license).toBe("minimax-h3-community");
+  });
+
+  it("publishes MiniMax Music3 as a music generator from approved metadata", () => {
+    const result = classifyHuggingFaceRepo(repo({
+      id: "MiniMaxAI/MiniMax-Music3",
+      author: "MiniMaxAI",
+      pipeline_tag: "text-to-audio",
+      tags: ["diffusers", "music-generation", "text-to-music"],
+      safetensors: undefined,
+      cardData: {},
+    }), {
+      owner: "MiniMaxAI",
+      role: "creator",
+      familyIds: ["minimax"],
+    });
+    expect(result.status).toBe("publishable");
+    if (result.status !== "publishable") return;
+    expect(result.parsed).toMatchObject({
+      paramsB: 11,
+      sizeLabel: "11B",
+      category: "audio-speech",
+      variant: "Generator",
+      minVramGb: 61,
+      recVramGb: 70,
+      runtimes: ["SGLang Omni", "Diffusers"],
+    });
+    expect(result.parsed.capabilities).toContain("music");
+    expect(result.parsed.repo.license).toBe("minimax-music3-community");
+  });
+
   it("links a provider quantization only through structured base_model metadata", () => {
     const provider: MonitoredSourceRule = {
       owner: "nvidia",

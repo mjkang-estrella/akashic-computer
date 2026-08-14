@@ -8,6 +8,7 @@ import { activeParamsLabel } from "../src/lib/atlas/naming";
 import { CURRENT_MONITORED_SOURCES } from "./sourceConfig";
 import { normalizeOwnerKey } from "../src/lib/atlas/huggingface";
 import type { Trust } from "../src/lib/atlas/types";
+import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -314,8 +315,16 @@ export const finalizeSeed = internalMutation({
       .withIndex("by_key", (q) => q.eq("key", "public"))
       .unique();
     const value = { key: "public", revision: args.revision, syncedAt: args.now };
-    if (state) await ctx.db.patch(state._id, value);
-    else await ctx.db.insert("catalogState", value);
+    const stateId = state
+      ? (await ctx.db.patch(state._id, value), state._id)
+      : await ctx.db.insert("catalogState", value);
+    await scheduleCatalogSnapshotRefresh(
+      ctx,
+      stateId,
+      state?.snapshotRefreshScheduledAt,
+      args.now,
+      0,
+    );
     await ctx.db.patch(args.runId, {
       status: "success",
       completedAt: args.now,

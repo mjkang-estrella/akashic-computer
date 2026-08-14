@@ -281,6 +281,19 @@ export default defineSchema({
     syncedAt: v.number(),
     lastWebhookAt: v.optional(v.number()),
     lastSuccessfulAuditAt: v.optional(v.number()),
+    snapshotRefreshScheduledAt: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
+  catalogSnapshotChunks: defineTable({
+    snapshotKey: v.string(),
+    chunk: v.number(),
+    entries: v.array(v.any()),
+  }).index("by_snapshot_and_chunk", ["snapshotKey", "chunk"]),
+
+  catalogSnapshotState: defineTable({
+    key: v.string(),
+    revision: v.string(),
+    syncedAt: v.number(),
   }).index("by_key", ["key"]),
 
   catalogHealthAlerts: defineTable({

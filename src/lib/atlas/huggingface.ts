@@ -78,9 +78,29 @@ const WEIGHT_FILE = /(?:\.safetensors(?:\.index\.json)?|\.gguf|pytorch_model.*\.
 const WEIGHT_BLOB_FILE = /(?:\.safetensors|\.gguf|pytorch_model.*\.bin|\.onnx|\.pt|\.pth|\.ckpt|\.msgpack)$/i;
 const EXCLUDED_NAME = /(?:^|[-_.])(adapter|lora|qlora|checkpoint|demo|test|merge)(?:$|[-_.])/i;
 const EXCLUDED_TAGS = new Set(["adapter", "lora", "peft", "diffusers:adapter"]);
-const APPROVED_PARAMETER_METADATA: Record<string, { paramsB?: number; activeParamsB?: number }> = {
+interface ApprovedRepoMetadata {
+  paramsB?: number;
+  activeParamsB?: number;
+  license?: string;
+  inferenceWeightBytes?: number;
+  runtimes?: string[];
+}
+
+const APPROVED_REPO_METADATA: Record<string, ApprovedRepoMetadata> = {
   "deepseek-ai/deepseek-v4-flash-0731": { paramsB: 284, activeParamsB: 13 },
   "upstage/solar-open2-250b": { activeParamsB: 15 },
+  "minimaxai/minimax-h3": {
+    paramsB: 33.122992896,
+    license: "minimax-h3-community",
+    inferenceWeightBytes: 144_016_376_436,
+    runtimes: ["Diffusers", "SGLang", "ComfyUI"],
+  },
+  "minimaxai/minimax-music3": {
+    paramsB: 11,
+    license: "minimax-music3-community",
+    inferenceWeightBytes: 57_348_755_456,
+    runtimes: ["SGLang Omni", "Diffusers"],
+  },
 };
 
 const CATEGORY_BY_PIPELINE: Record<string, ModelCategoryId> = {
@@ -92,8 +112,13 @@ const CATEGORY_BY_PIPELINE: Record<string, ModelCategoryId> = {
   "text-to-image": "image-generation",
   "image-to-image": "image-generation",
   "text-to-video": "video-generation",
+  "image-to-video": "video-generation",
+  "image-text-to-video": "video-generation",
+  "video-to-video": "video-generation",
   "automatic-speech-recognition": "audio-speech",
   "text-to-speech": "audio-speech",
+  "text-to-audio": "audio-speech",
+  "audio-to-audio": "audio-speech",
   "feature-extraction": "retrieval",
 };
 
@@ -220,13 +245,14 @@ export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
     ...asStringArray(cardData.base_model),
     ...asStringArray(cardData.base_models),
   ];
+  const id = firstString(value.id, value.modelId) ?? "";
+  const approved = APPROVED_REPO_METADATA[id.toLowerCase()];
   const license = firstString(
     cardData.license,
     tags.find((tag) => tag.startsWith("license:"))?.slice("license:".length),
+    approved?.license,
   );
   const safetensors = asRecord(value.safetensors);
-
-  const id = firstString(value.id, value.modelId) ?? "";
 
   return {
     id,
@@ -237,9 +263,11 @@ export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
     weightManifestHash: firstString(value._akashicWeightManifestHash),
     weightsLastModified: firstString(value._akashicWeightsLastModified),
     weightCommitSha: firstString(value._akashicWeightCommitSha),
-    weightBytes: typeof value._akashicWeightBytes === "number" && value._akashicWeightBytes > 0
-      ? value._akashicWeightBytes
-      : null,
+    weightBytes: approved?.inferenceWeightBytes ?? (
+      typeof value._akashicWeightBytes === "number" && value._akashicWeightBytes > 0
+        ? value._akashicWeightBytes
+        : null
+    ),
     private: value.private === true,
     gated: value.gated === true || typeof value.gated === "string",
     disabled: value.disabled === true,
@@ -368,7 +396,7 @@ function parameterMetadata(repo: HuggingFaceRepoInfo): {
   const fromName = match
     ? Number(match[1]) * (match[2].toUpperCase() === "T" ? 1000 : 1)
     : null;
-  const approved = APPROVED_PARAMETER_METADATA[repo.id.toLowerCase()];
+  const approved = APPROVED_REPO_METADATA[repo.id.toLowerCase()];
   const paramsB = approved?.paramsB ?? (repo.safetensorsParameters
     ? repo.safetensorsParameters / 1_000_000_000
     : fromName);
@@ -394,6 +422,8 @@ function parameterMetadata(repo: HuggingFaceRepoInfo): {
 
 function variantFor(repo: HuggingFaceRepoInfo): string {
   const text = `${repo.id} ${repo.tags.join(" ")}`.toLowerCase();
+  if (repo.pipelineTag && /(?:image|text|video)-to-video/.test(repo.pipelineTag)) return "Generator";
+  if (repo.pipelineTag && /(?:text|audio)-to-audio/.test(repo.pipelineTag)) return "Generator";
   if (text.includes("instruct")) return "Instruct";
   if (text.includes("reasoning") || text.includes("reasoner")) return "Reasoning";
   if (text.includes("coder") || text.includes("code")) return "Code";
@@ -416,7 +446,10 @@ function capabilitiesFor(repo: HuggingFaceRepoInfo, category: ModelCategoryId | 
   if (repo.pipelineTag === "automatic-speech-recognition") capabilities.add("speech-recognition");
   if (repo.pipelineTag === "text-to-speech") capabilities.add("text-to-speech");
   if (repo.pipelineTag === "text-to-image") capabilities.add("image-generation");
-  if (repo.pipelineTag === "text-to-video") capabilities.add("video-generation");
+  if (repo.pipelineTag && /(?:image|text|video)-to-video/.test(repo.pipelineTag)) {
+    capabilities.add("video-generation");
+  }
+  if (repo.pipelineTag === "text-to-audio" && /music/.test(text)) capabilities.add("music");
   if (repo.pipelineTag === "feature-extraction") capabilities.add("embedding");
   return [...capabilities];
 }
@@ -498,6 +531,7 @@ export function classifyHuggingFaceRepo(
     return { status: "skipped", reason: "pipeline category is not recognized", repo };
   }
   const vram = parameters.paramsB ? estimateVram(parameters.paramsB, format, repo.weightBytes) : null;
+  const approved = APPROVED_REPO_METADATA[repo.id.toLowerCase()];
   return {
     status: "publishable",
     parsed: {
@@ -511,7 +545,7 @@ export function classifyHuggingFaceRepo(
       minVramGb: vram?.minVramGb ?? null,
       recVramGb: vram?.recVramGb ?? null,
       kinds: vram?.kinds ?? [],
-      runtimes: vram?.runtimes ?? [],
+      runtimes: approved?.runtimes ?? vram?.runtimes ?? [],
       benchmarkRows: structuredBenchmarks(repo),
     },
   };

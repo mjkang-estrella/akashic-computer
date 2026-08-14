@@ -135,9 +135,45 @@ describe("webhook ingestion", () => {
 
   it("retains a delete tombstone and removes only the unavailable artifact", async () => {
     const t = await monitoredTest();
-    const entry = MODEL_ENTRIES.find((candidate) => candidate.artifacts.length > 1)!;
+    const entry = MODEL_ENTRIES.find(
+      (candidate) => new Set(candidate.artifacts.map((artifact) => artifact.repo)).size > 1,
+    )!;
     const removedRepo = entry.artifacts[0].repo;
     await t.run(async (ctx) => {
+      const familyId = await ctx.db.insert("modelFamilies", {
+        slug: entry.family.id,
+        name: entry.family.name,
+        vendor: entry.family.vendor,
+        summary: entry.family.tags,
+        modalities: [],
+        tags: [],
+      });
+      const releaseId = await ctx.db.insert("modelReleases", {
+        familyId,
+        slug: entry.release.id,
+        name: entry.release.name,
+      });
+      const sizeId = await ctx.db.insert("modelSizes", {
+        releaseId,
+        slug: entry.slug,
+        label: entry.size.label,
+        parameterCountB: entry.size.paramsB,
+      });
+      const variantId = await ctx.db.insert("modelVariants", {
+        sizeId,
+        slug: "test",
+        name: entry.artifacts[0].variant,
+        variantKind: "other",
+      });
+      await ctx.db.insert("artifacts", {
+        variantId,
+        huggingFaceRepo: removedRepo,
+        format: entry.artifacts[0].format,
+        uploaderKind: "official",
+        runtimeSupport: [],
+        available: true,
+        confidence: "verified",
+      });
       await ctx.db.insert("sourceRepositories", {
         repoId: removedRepo,
         repoName: removedRepo,
@@ -278,6 +314,116 @@ describe("webhook ingestion", () => {
     expect(outcome).toMatchObject({ status: "published", resolution: "direct" });
     const published = await t.query(api.catalog.getBySlug, { slug: entry.slug });
     expect(published).toMatchObject({ name: "Protected model name" });
+  });
+
+  it("preserves distinct variants that share one canonical repository", async () => {
+    const t = convexTest(schema, modules);
+    const entry = MODEL_ENTRIES.find((candidate) => candidate.slug === "minimax-h3-33b")!;
+    const payload = publishableEntry(entry);
+    const runId = await t.run(async (ctx) => {
+      await ctx.db.insert("monitoredSources", {
+        owner: "MiniMaxAI",
+        ownerKey: "minimaxai",
+        displayName: "MiniMax",
+        role: "creator",
+        enabled: true,
+        familyIds: ["minimax"],
+      });
+      await ctx.db.insert("sourceRepositories", {
+        repoId: "MiniMaxAI/MiniMax-H3",
+        repoName: "MiniMaxAI/MiniMax-H3",
+        owner: "MiniMaxAI",
+        aliases: [],
+        private: false,
+        gated: false,
+        disabled: false,
+        tags: [],
+        files: [],
+        baseModels: [],
+        status: "skipped",
+        skipReason: "pipeline category is not recognized",
+        missingCount: 0,
+        lastSeenAt: 1,
+      });
+      await ctx.db.insert("catalogEntries", {
+        slug: entry.slug,
+        familyId: entry.family.id,
+        releaseId: entry.release.id,
+        sizeLabel: entry.size.label,
+        sourceRepos: payload.artifacts.map((artifact) => artifact.repo),
+        updatedAt: entry.timestamp,
+        payload,
+        publishedAt: 1,
+        sourceRevision: "seed",
+      });
+      return await ctx.db.insert("syncRuns", {
+        kind: "webhook",
+        status: "running",
+        startedAt: 1,
+        discovered: 1,
+        changed: 0,
+        published: 0,
+        skipped: 0,
+        failed: 0,
+        retries: 0,
+      });
+    });
+    const classification = classifyHuggingFaceRepo({
+      id: "MiniMaxAI/MiniMax-H3",
+      author: "MiniMaxAI",
+      sha: "h3-sha",
+      createdAt: "2026-07-28T00:00:00.000Z",
+      lastModified: "2026-08-03T00:00:00.000Z",
+      pipeline_tag: "image-text-to-video",
+      tags: ["video-generation"],
+      siblings: [{ rfilename: "FL2VA/model.safetensors" }],
+      cardData: {},
+      config: {},
+    }, {
+      owner: "MiniMaxAI",
+      role: "creator",
+      familyIds: ["minimax"],
+    });
+    expect(classification.status).toBe("publishable");
+    expect(await t.mutation(internal.sync.applyRepoResult, {
+      classification,
+      sourceOwner: "MiniMaxAI",
+      repoKey: "MiniMaxAI/MiniMax-H3",
+      runId,
+      now: 2,
+    })).toMatchObject({ status: "published", resolution: "family_scan", changed: true });
+
+    const state = await t.run(async (ctx) => ({
+      entry: await ctx.db.query("catalogEntries").first(),
+      source: await ctx.db.query("sourceRepositories").first(),
+    }));
+    expect((state.entry!.payload as { artifacts: Array<{ variant: string }> }).artifacts.map(
+      (artifact) => artifact.variant,
+    )).toEqual(["FL2VA", "Ref2VA"]);
+    expect(state.source?.status).toBe("published");
+    expect(state.source?.skipReason).toBeUndefined();
+
+    const secondRunId = await t.run(async (ctx) => await ctx.db.insert("syncRuns", {
+      kind: "webhook",
+      status: "running",
+      startedAt: 3,
+      discovered: 1,
+      changed: 0,
+      published: 0,
+      skipped: 0,
+      failed: 0,
+      retries: 0,
+    }));
+    const replayOutcome = await t.mutation(internal.sync.applyRepoResult, {
+      classification,
+      sourceOwner: "MiniMaxAI",
+      repoKey: "MiniMaxAI/MiniMax-H3",
+      runId: secondRunId,
+      now: 3,
+    });
+    expect(replayOutcome).toMatchObject({ status: "published", changed: false });
+    const unchangedEntry = await t.run(async (ctx) => await ctx.db.query("catalogEntries").first());
+    expect(unchangedEntry?.publishedAt).toBe(2);
   });
 
   it("uses the newest weight commit rather than a newer description commit", async () => {

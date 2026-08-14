@@ -22,6 +22,7 @@ import {
 import type { PublishedCatalogEntry, PublishedArtifact } from "../src/lib/atlas/published";
 import { uploaderDisplay } from "../src/lib/atlas/naming";
 import type { BenchKey } from "../src/lib/atlas/types";
+import { convexValuesEqual, scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
 
 const NULL_DELTAS: Record<BenchKey, null> = {
   mmlu: null,
@@ -447,14 +448,15 @@ function mergeParsedIntoPayload(
   previousRepoName?: string,
 ): PublishedCatalogEntry {
   const updatedAt = significantTimestamp(parsed.repo, original.timestamp);
-  const existing = original.artifacts.find(
+  const existingIndex = original.artifacts.findIndex(
     (artifact) => artifact.repo === parsed.repo.id || artifact.repo === previousRepoName,
   );
+  const existing = existingIndex >= 0 ? original.artifacts[existingIndex] : undefined;
   const variant = existing?.variant ?? (original.size.variants.includes(parsed.variant) ? parsed.variant : original.size.variants[0] ?? parsed.variant);
   const nextArtifact = artifactFor(parsed, role, variant, original.size.paramsB);
   const artifacts = existing
-    ? original.artifacts.map((artifact) =>
-        artifact.repo === existing.repo
+    ? original.artifacts.map((artifact, index) =>
+        index === existingIndex
           ? { ...artifact, ...nextArtifact, qualityRank: artifact.qualityRank }
           : artifact,
       )
@@ -727,6 +729,9 @@ export const applyRepoResult = internalMutation({
     const sourceRepoId = priorByName
       ? (await ctx.db.patch(priorByName._id, sourceValue), priorByName._id)
       : await ctx.db.insert("sourceRepositories", sourceValue);
+    if (classification.status === "publishable" && priorByName?.skipReason) {
+      await ctx.db.patch(sourceRepoId, { skipReason: undefined });
+    }
 
     const run = await ctx.db.get(args.runId);
     if (!run) throw new Error("Sync run was deleted");
@@ -783,6 +788,8 @@ export const applyRepoResult = internalMutation({
           .query("catalogEntries")
           .withIndex("by_slug", (q) => q.eq("slug", payload!.slug))
           .unique();
+    const publicPayload = clean(payload);
+    const publicChanged = !existingEntry || !convexValuesEqual(existingEntry.payload, publicPayload);
     const sourceRepos = payload.artifacts.map((artifact) => artifact.repo);
     const catalogValue = {
       slug: payload.slug,
@@ -791,13 +798,15 @@ export const applyRepoResult = internalMutation({
       sizeLabel: payload.size.label,
       sourceRepos,
       updatedAt: payload.timestamp,
-      payload: clean(payload),
+      payload: publicPayload,
       publishedAt: args.now,
       sourceRevision: parsed.repo.sha,
     };
-    if (existingEntry) await ctx.db.patch(existingEntry._id, catalogValue);
-    else await ctx.db.insert("catalogEntries", catalogValue);
-    await upsertNormalized(ctx, payload, parsed, source.role, args.now, previousRepoName);
+    if (publicChanged) {
+      if (existingEntry) await ctx.db.patch(existingEntry._id, catalogValue);
+      else await ctx.db.insert("catalogEntries", catalogValue);
+      await upsertNormalized(ctx, payload, parsed, source.role, args.now, previousRepoName);
+    }
 
     if (run.kind !== "audit") {
       const state = await ctx.db
@@ -806,20 +815,30 @@ export const applyRepoResult = internalMutation({
         .unique();
       const stateValue = {
         key: "public",
-        revision: `${parsed.repo.sha}:${args.now}`,
+        revision: publicChanged ? `${parsed.repo.sha}:${args.now}` : state?.revision ?? `${parsed.repo.sha}:${args.now}`,
         syncedAt: args.now,
         lastWebhookAt: args.eventId ? args.now : state?.lastWebhookAt,
         lastSuccessfulAuditAt: state?.lastSuccessfulAuditAt,
       };
-      if (state) await ctx.db.patch(state._id, clean(stateValue));
-      else await ctx.db.insert("catalogState", clean(stateValue));
+      const stateId = state
+        ? (await ctx.db.patch(state._id, clean(stateValue)), state._id)
+        : await ctx.db.insert("catalogState", clean(stateValue));
+      if (publicChanged) {
+        await scheduleCatalogSnapshotRefresh(
+          ctx,
+          stateId,
+          state?.snapshotRefreshScheduledAt,
+          args.now,
+          5_000,
+        );
+      }
       await ctx.db.patch(args.runId, {
-        changed: run.changed + 1,
+        changed: run.changed + (publicChanged ? 1 : 0),
         published: run.published + 1,
       });
     }
     if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
-    return { status: "published" as const, slug: payload.slug, resolution };
+    return { status: "published" as const, slug: payload.slug, resolution, changed: publicChanged };
   },
 });
 
@@ -909,10 +928,24 @@ export const removeRepository = internalMutation({
         .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", args.repoName))
         .collect();
       for (const artifact of artifacts) await ctx.db.patch(artifact._id, { available: false, lastSyncedAt: args.now });
-      const entries = await ctx.db.query("catalogEntries").collect();
-      for (const entry of entries.filter((candidate) => candidate.sourceRepos.includes(args.repoName))) {
+      const variants = await Promise.all(artifacts.map((artifact) => ctx.db.get(artifact.variantId)));
+      const sizeIds = [...new Set(variants.filter(Boolean).map((variant) => variant!.sizeId))];
+      const sizes = await Promise.all(sizeIds.map((sizeId) => ctx.db.get(sizeId)));
+      const affectedSlugs = [...new Set(sizes.filter(Boolean).map((size) => size!.slug))];
+      const entries = (await Promise.all(
+        affectedSlugs.map((slug) =>
+          ctx.db
+            .query("catalogEntries")
+            .withIndex("by_slug", (q) => q.eq("slug", slug))
+            .unique(),
+        ),
+      )).filter((entry) => entry !== null);
+      let catalogChanged = false;
+      for (const entry of entries) {
         const payload = entry.payload as PublishedCatalogEntry;
         const remaining = payload.artifacts.filter((artifact) => artifact.repo !== args.repoName);
+        if (remaining.length === payload.artifacts.length) continue;
+        catalogChanged = true;
         if (remaining.length === 0) {
           await ctx.db.delete(entry._id);
         } else {
@@ -929,6 +962,29 @@ export const removeRepository = internalMutation({
             sourceRevision: `removed:${args.repoName}:${args.now}`,
           });
         }
+      }
+      if (catalogChanged) {
+        const state = await ctx.db
+          .query("catalogState")
+          .withIndex("by_key", (q) => q.eq("key", "public"))
+          .unique();
+        const stateValue = {
+          key: "public",
+          revision: `removed:${args.repoName}:${args.now}`,
+          syncedAt: args.now,
+          lastWebhookAt: args.eventId ? args.now : state?.lastWebhookAt,
+          lastSuccessfulAuditAt: state?.lastSuccessfulAuditAt,
+        };
+        const stateId = state
+          ? (await ctx.db.patch(state._id, clean(stateValue)), state._id)
+          : await ctx.db.insert("catalogState", clean(stateValue));
+        await scheduleCatalogSnapshotRefresh(
+          ctx,
+          stateId,
+          state?.snapshotRefreshScheduledAt,
+          args.now,
+          5_000,
+        );
       }
     }
     if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
@@ -1170,8 +1226,16 @@ export const finishAuditSource = internalMutation({
         lastWebhookAt: state?.lastWebhookAt,
         lastSuccessfulAuditAt: failed === 0 ? args.now : state?.lastSuccessfulAuditAt,
       });
-      if (state) await ctx.db.patch(state._id, stateValue);
-      else await ctx.db.insert("catalogState", stateValue);
+      const stateId = state
+        ? (await ctx.db.patch(state._id, stateValue), state._id)
+        : await ctx.db.insert("catalogState", stateValue);
+      await scheduleCatalogSnapshotRefresh(
+        ctx,
+        stateId,
+        state?.snapshotRefreshScheduledAt,
+        args.now,
+        5_000,
+      );
     }
     return {
       nextOwner: complete ? null : run.sourceOwners?.[completedSources] ?? null,
@@ -1234,9 +1298,12 @@ export const auditSource = internalAction({
             runId: args.runId,
             now: Date.now(),
           });
-          if (outcome.status === "published") published += 1;
-          else skipped += 1;
-          changed += 1;
+          if (outcome.status === "published") {
+            published += 1;
+            if (outcome.changed) changed += 1;
+          } else {
+            skipped += 1;
+          }
         }
       }
       await ctx.runMutation(internal.sync.markAuditMissing, {

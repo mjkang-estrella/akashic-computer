@@ -1375,8 +1375,58 @@ export const FAMILIES: Family[] = [
     id: "minimax",
     name: "MiniMax",
     vendor: "MiniMax",
-    tags: "agentic, multimodal, long context",
+    tags: "agentic, multimodal, long context, video generation, music generation",
     releases: [
+      {
+        id: "music3",
+        name: "MiniMax Music3",
+        date: "Aug 7 2026",
+        ctx: "N/A",
+        license: "MiniMax Music3 Community",
+        category: "audio-speech",
+        capabilities: ["music"],
+        sizes: [
+          officialSize("11B", 11, {
+            Generator: [
+              {
+                repo: "MiniMaxAI/MiniMax-Music3",
+                runtimes: ["SGLang Omni", "Diffusers"],
+                minVramGb: 61,
+                recVramGb: 70,
+              },
+            ],
+          }),
+        ],
+      },
+      {
+        id: "h3",
+        name: "MiniMax H3",
+        date: "Aug 2 2026",
+        ctx: "N/A",
+        license: "MiniMax H3 Community",
+        category: "video-generation",
+        capabilities: ["video-generation"],
+        sizes: [
+          officialSize("33B", 33.122992896, {
+            FL2VA: [
+              {
+                repo: "MiniMaxAI/MiniMax-H3",
+                runtimes: ["Diffusers", "SGLang", "ComfyUI"],
+                minVramGb: 152,
+                recVramGb: 175,
+              },
+            ],
+            Ref2VA: [
+              {
+                repo: "MiniMaxAI/MiniMax-H3",
+                runtimes: ["Diffusers", "SGLang", "ComfyUI"],
+                minVramGb: 152,
+                recVramGb: 175,
+              },
+            ],
+          }),
+        ],
+      },
       {
         id: "m3",
         name: "MiniMax M3",

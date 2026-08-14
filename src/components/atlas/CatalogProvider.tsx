@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { ConvexProvider, ConvexReactClient, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { FAMILIES } from "@/lib/atlas/catalog";
@@ -62,6 +62,7 @@ function absoluteHttpUrl(value: string | undefined): string | null {
 
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   const result = useQuery(api.catalog.listPublished);
+  const [loadedAt] = useState(() => Date.now());
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
     const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogEntry[]);
@@ -71,12 +72,14 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
       revision: result.revision,
       syncedAt: result.syncedAt,
       health: {
-        catalogStale: result.catalogStale,
+        catalogStale:
+          result.syncedAt === null ||
+          loadedAt - result.syncedAt > 26 * 60 * 60 * 1000,
       },
       loading: false,
       source: "convex",
     };
-  }, [result]);
+  }, [loadedAt, result]);
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
 }
 

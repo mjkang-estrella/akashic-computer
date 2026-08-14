@@ -1,6 +1,7 @@
 import { action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
 
 function secureEqual(actual: string, expected: string): boolean {
   if (actual.length !== expected.length) return false;
@@ -25,8 +26,46 @@ export const touchCatalogState = internalMutation({
       .query("catalogState")
       .withIndex("by_key", (q) => q.eq("key", "public"))
       .unique();
-    if (state) await ctx.db.patch(state._id, { revision: args.revision, syncedAt: args.now });
-    else await ctx.db.insert("catalogState", { key: "public", revision: args.revision, syncedAt: args.now });
+    const stateId = state
+      ? (await ctx.db.patch(state._id, { revision: args.revision, syncedAt: args.now }), state._id)
+      : await ctx.db.insert("catalogState", { key: "public", revision: args.revision, syncedAt: args.now });
+    await scheduleCatalogSnapshotRefresh(
+      ctx,
+      stateId,
+      state?.snapshotRefreshScheduledAt,
+      args.now,
+      0,
+    );
+  },
+});
+
+export const requestCatalogSnapshotRefresh = internalMutation({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    const state = await ctx.db
+      .query("catalogState")
+      .withIndex("by_key", (q) => q.eq("key", "public"))
+      .unique();
+    if (!state) throw new Error("Catalog state is not initialized");
+    const scheduled = await scheduleCatalogSnapshotRefresh(
+      ctx,
+      state._id,
+      state.snapshotRefreshScheduledAt,
+      args.now,
+      0,
+    );
+    return { scheduled };
+  },
+});
+
+/** Rebuild the client-facing catalog snapshot without reseeding model data. */
+export const refreshCatalogSnapshot = action({
+  args: { secret: v.string() },
+  handler: async (ctx, args): Promise<{ scheduled: boolean }> => {
+    assertAdminSecret(args.secret);
+    return await ctx.runMutation(internal.admin.requestCatalogSnapshotRefresh, {
+      now: Date.now(),
+    });
   },
 });
 

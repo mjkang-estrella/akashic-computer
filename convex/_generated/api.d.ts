@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as catalog from "../catalog.js";
+import type * as catalogSnapshot from "../catalogSnapshot.js";
 import type * as crons from "../crons.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
@@ -27,6 +28,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   catalog: typeof catalog;
+  catalogSnapshot: typeof catalogSnapshot;
   crons: typeof crons;
   health: typeof health;
   http: typeof http;
