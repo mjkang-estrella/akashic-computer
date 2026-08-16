@@ -9,6 +9,7 @@ import { CURRENT_MONITORED_SOURCES } from "./sourceConfig";
 import { normalizeOwnerKey } from "../src/lib/atlas/huggingface";
 import type { Trust } from "../src/lib/atlas/types";
 import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
+import { upsertMaterialChange } from "./intelligence";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -209,11 +210,17 @@ export const seedFamily = internalMutation({
           }
         }
 
-        const payload = publishableEntry(entry);
         const existingEntry = await ctx.db
           .query("catalogEntries")
           .withIndex("by_slug", (q) => q.eq("slug", entry.slug))
           .unique();
+        const existingPayload = existingEntry?.payload as Partial<ReturnType<typeof publishableEntry>> | undefined;
+        const payload = {
+          ...publishableEntry(entry),
+          recipeReferences: existingPayload?.recipeReferences ?? [],
+          materialChanges: existingPayload?.materialChanges ?? [],
+          runReports: existingPayload?.runReports ?? [],
+        };
         const sourceRepos = entry.artifacts.map((artifact) => artifact.repo);
         const catalogValue = {
           slug: entry.slug,
@@ -228,6 +235,19 @@ export const seedFamily = internalMutation({
         };
         if (existingEntry) await ctx.db.patch(existingEntry._id, clean(catalogValue));
         else await ctx.db.insert("catalogEntries", clean(catalogValue));
+
+        await upsertMaterialChange(ctx, {
+          dedupeKey: `${entry.slug}:model_published:seed:${entry.effectiveDate}`,
+          modelSlug: entry.slug,
+          modelName: entry.name,
+          type: "model_published",
+          occurredAt: entry.timestamp,
+          title: "Model weights published",
+          summary: `${entry.artifacts[0]?.repo ?? entry.name} is represented in the curated Akashic catalog.`,
+          sourceLabel: "Hugging Face",
+          sourceUrls: entry.artifacts[0] ? [`https://huggingface.co/${entry.artifacts[0].repo}`] : [],
+          reviewStatus: "reviewed",
+        }, args.now);
 
         for (const artifact of entry.artifacts) {
           const existingSource = await ctx.db

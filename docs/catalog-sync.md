@@ -5,6 +5,10 @@ audit for recovery. Public reads come from the denormalized `catalogEntries`
 table. Normalized family, release, size, variant, artifact, benchmark, source,
 event, and run tables retain provenance and diagnostics.
 
+Official vLLM Recipes are synchronized separately at 04:15 UTC. Akashic stores
+compact, versioned references to those recipes; it does not copy or regenerate
+their launch commands.
+
 ## Production Setup
 
 1. Deploy the Convex functions.
@@ -99,6 +103,60 @@ Quantizations retain their own weight update timestamps, but they do not
 advance the base model's date, even when the model creator publishes them. The
 daily audit gradually backfills legacy creator records that predate weight-level
 provenance, with a per-source cap to avoid another expensive baseline pass.
+
+## Deployment Recipes And Run Reports
+
+`recipeSync:syncVllmRecipes` reads the official model index, per-model JSON,
+hardware taxonomy, and current `vllm-project/recipes` revision. Catalog entries
+are linked only by exact Hugging Face artifact IDs. A recipe's semantic hash
+excludes unrelated repository commits, so unchanged recipes generate no writes
+when another recipe changes.
+
+Evidence labels have narrow meanings:
+
+- **Official vLLM recipe** means the official vLLM Recipes project publishes it.
+- **Verified on hardware** appears only when upstream marks that profile
+  `verified`.
+- No recipe match means unverified, not unsupported.
+- **Akashic run report** is a separate measurement tied to an exact artifact,
+  runtime version, hardware profile, and optional recipe revision.
+
+Run an immediate recipe refresh with:
+
+```bash
+npx convex run --prod admin:syncVllmRecipes '{"secret":"<operator-secret>"}'
+```
+
+Publish a measured report only after preserving its evidence artifact:
+
+```bash
+npx convex run --prod admin:publishRunReport '{
+  "secret":"<operator-secret>",
+  "reportId":"dgx-spark-example-2026-08-15",
+  "modelSlug":"<catalog-slug>",
+  "artifactRepo":"<org/repo>",
+  "hardwareProfile":"DGX Spark (GB10)",
+  "runtime":"vLLM",
+  "runtimeVersion":"<version>",
+  "verificationStatus":"measured",
+  "testedAt":1786752000000,
+  "notes":"<workload semantics and result notes>",
+  "evidenceUrl":"<durable-evidence-url>",
+  "published":true
+}'
+```
+
+Setting `published` to `false` retracts the report from the public payload while
+retaining its operator record. Recipe synchronization never creates a run
+report or infers performance.
+
+## Material Changes
+
+`materialChanges` records model publication, weight-manifest updates, new
+artifacts, expanded runtime metadata, access changes, and official recipe
+changes. Dedupe keys make webhook replays idempotent. Documentation-only
+commits are excluded because public dates and weight changes use the recognized
+weight manifest rather than repository `lastModified`.
 
 ## Validation
 

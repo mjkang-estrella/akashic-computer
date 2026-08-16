@@ -14,6 +14,8 @@ import type * as catalogSnapshot from "../catalogSnapshot.js";
 import type * as crons from "../crons.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
+import type * as intelligence from "../intelligence.js";
+import type * as recipeSync from "../recipeSync.js";
 import type * as seed from "../seed.js";
 import type * as sourceConfig from "../sourceConfig.js";
 import type * as sync from "../sync.js";
@@ -32,6 +34,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   health: typeof health;
   http: typeof http;
+  intelligence: typeof intelligence;
+  recipeSync: typeof recipeSync;
   seed: typeof seed;
   sourceConfig: typeof sourceConfig;
   sync: typeof sync;

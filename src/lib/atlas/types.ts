@@ -139,6 +139,81 @@ export interface RigProfile {
 
 export type FitLevel = "runs" | "tight" | "no";
 
+export type MaterialChangeType =
+  | "model_published"
+  | "weights_updated"
+  | "artifact_published"
+  | "recipe_published"
+  | "recipe_updated"
+  | "runtime_support_added"
+  | "license_or_access_changed";
+
+export interface MaterialChange {
+  id: string;
+  modelSlug: string;
+  modelName: string;
+  type: MaterialChangeType;
+  occurredAt: number;
+  dateLabel: string;
+  title: string;
+  summary: string;
+  sourceLabel: string;
+  sourceUrls: string[];
+  reviewStatus: "automatic" | "reviewed";
+}
+
+export interface RecipeHardware {
+  id: string;
+  label: string;
+}
+
+export interface RecipeVariant {
+  key: string;
+  modelId: string;
+  precision: string;
+  minimumVramGb?: number;
+  minimumVllmVersion?: string;
+  description?: string;
+}
+
+export interface RecipeReference {
+  provider: "vllm";
+  upstreamId: string;
+  title: string;
+  publisher: string;
+  description: string;
+  recipeUrl: string;
+  sourceUrl: string;
+  sourceSha: string;
+  upstreamUpdatedAt?: number;
+  minimumVllmVersion?: string;
+  difficulty?: "beginner" | "intermediate" | "advanced";
+  tasks: string[];
+  features: string[];
+  verifiedHardware: RecipeHardware[];
+  variants: RecipeVariant[];
+  artifactRepos: string[];
+}
+
+export interface RunReport {
+  id: string;
+  modelSlug: string;
+  artifactRepo: string;
+  recipeUpstreamId?: string;
+  recipeSourceSha?: string;
+  hardwareProfile: string;
+  runtime: string;
+  runtimeVersion: string;
+  testedContextTokens?: number;
+  concurrency?: number;
+  peakMemoryGb?: number;
+  throughputTokensPerSecond?: number;
+  verificationStatus: "measured" | "reproduced";
+  testedAt: number;
+  notes: string;
+  evidenceUrl?: string;
+}
+
 export interface FitVerdict {
   level: FitLevel;
   text: string;

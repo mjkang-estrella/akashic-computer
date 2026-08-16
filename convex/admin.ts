@@ -130,3 +130,79 @@ export const checkHealth = action({
     return await ctx.runAction(internal.health.checkCatalogHealth, {});
   },
 });
+
+/** Refresh official vLLM recipe references without copying upstream commands. */
+export const syncVllmRecipes = action({
+  args: { secret: v.string(), force: v.optional(v.boolean()) },
+  returns: v.object({
+    status: v.union(v.literal("unchanged"), v.literal("synchronized")),
+    sourceRevision: v.string(),
+    recipes: v.number(),
+    inserted: v.number(),
+    updated: v.number(),
+    removed: v.number(),
+    matchedEntries: v.number(),
+    changedEntries: v.number(),
+  }),
+  handler: async (ctx, args): Promise<{
+    status: "unchanged" | "synchronized";
+    sourceRevision: string;
+    recipes: number;
+    inserted: number;
+    updated: number;
+    removed: number;
+    matchedEntries: number;
+    changedEntries: number;
+  }> => {
+    assertAdminSecret(args.secret);
+    return await ctx.runAction(internal.recipeSync.syncVllmRecipes, { force: args.force });
+  },
+});
+
+/** Publish or retract a provenance-bound Akashic run report. */
+export const publishRunReport = action({
+  args: {
+    secret: v.string(),
+    reportId: v.string(),
+    modelSlug: v.string(),
+    artifactRepo: v.string(),
+    recipeUpstreamId: v.optional(v.string()),
+    recipeSourceSha: v.optional(v.string()),
+    hardwareProfile: v.string(),
+    runtime: v.string(),
+    runtimeVersion: v.string(),
+    testedContextTokens: v.optional(v.number()),
+    concurrency: v.optional(v.number()),
+    peakMemoryGb: v.optional(v.number()),
+    throughputTokensPerSecond: v.optional(v.number()),
+    verificationStatus: v.union(v.literal("measured"), v.literal("reproduced")),
+    testedAt: v.number(),
+    notes: v.string(),
+    evidenceUrl: v.optional(v.string()),
+    published: v.boolean(),
+  },
+  returns: v.object({ reportId: v.string(), changed: v.boolean() }),
+  handler: async (ctx, args): Promise<{ reportId: string; changed: boolean }> => {
+    assertAdminSecret(args.secret);
+    return await ctx.runMutation(internal.intelligence.upsertRunReport, {
+      reportId: args.reportId,
+      modelSlug: args.modelSlug,
+      artifactRepo: args.artifactRepo,
+      recipeUpstreamId: args.recipeUpstreamId,
+      recipeSourceSha: args.recipeSourceSha,
+      hardwareProfile: args.hardwareProfile,
+      runtime: args.runtime,
+      runtimeVersion: args.runtimeVersion,
+      testedContextTokens: args.testedContextTokens,
+      concurrency: args.concurrency,
+      peakMemoryGb: args.peakMemoryGb,
+      throughputTokensPerSecond: args.throughputTokensPerSecond,
+      verificationStatus: args.verificationStatus,
+      testedAt: args.testedAt,
+      notes: args.notes,
+      evidenceUrl: args.evidenceUrl,
+      published: args.published,
+      now: Date.now(),
+    });
+  },
+});

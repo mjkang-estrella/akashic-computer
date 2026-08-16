@@ -2,7 +2,15 @@ import { FAMILIES } from "./catalog";
 import { artifactsFor } from "./fit";
 import { activeParamsLabel, modelDisplayName, sizeDisplay, uploaderDisplay } from "./naming";
 import { taxonomyFor, type ModelCapabilityId, type ModelCategoryId } from "./taxonomy";
-import type { Artifact, Family, Release, SizeNode } from "./types";
+import type {
+  Artifact,
+  Family,
+  MaterialChange,
+  RecipeReference,
+  Release,
+  RunReport,
+  SizeNode,
+} from "./types";
 
 const MONTHS: Record<string, number> = {
   Jan: 0,
@@ -21,6 +29,9 @@ const MONTHS: Record<string, number> = {
 
 export interface ModelArtifact extends Artifact {
   variant: string;
+  gated?: boolean;
+  vramEstimated?: boolean;
+  lastUpdatedAt?: number;
 }
 
 export interface ModelEntry {
@@ -41,6 +52,9 @@ export interface ModelEntry {
   category: ModelCategoryId;
   capabilities: ModelCapabilityId[];
   benchmarkRefs: NonNullable<SizeNode["benchmarkRefs"]>;
+  recipeReferences: RecipeReference[];
+  materialChanges: MaterialChange[];
+  runReports: RunReport[];
 }
 
 function dateTimestamp(value: string): number {
@@ -112,6 +126,9 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
           ...(release.benchmarkRefs ?? []),
           ...(size.benchmarkRefs ?? []),
         ],
+        recipeReferences: [],
+        materialChanges: [],
+        runReports: [],
         ...taxonomy,
       } satisfies ModelEntry;
     }),

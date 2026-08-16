@@ -10,6 +10,13 @@ crons.daily(
   {},
 );
 
+crons.daily(
+  "synchronize official vLLM recipes",
+  { hourUTC: 4, minuteUTC: 15 },
+  internal.recipeSync.syncVllmRecipes,
+  {},
+);
+
 crons.hourly(
   "check catalog synchronization health",
   { minuteUTC: 10 },

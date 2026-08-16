@@ -15,7 +15,7 @@ import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
 import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
 import type { ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
-import type { RigProfile } from "@/lib/atlas/types";
+import type { MaterialChange, RigProfile } from "@/lib/atlas/types";
 import { FamilyLogo } from "./FamilyLogo";
 
 const FEATURED_BENCHMARK_IDS = [
@@ -248,6 +248,7 @@ function HomeLoadingRows() {
 
 export function HomeView({
   entries,
+  materialChanges,
   syncedAt,
   loading,
   source,
@@ -261,6 +262,7 @@ export function HomeView({
   onViewDocs,
 }: {
   entries: ModelEntry[];
+  materialChanges: MaterialChange[];
   syncedAt: number | null;
   loading: boolean;
   source: "convex" | "snapshot";
@@ -302,8 +304,15 @@ export function HomeView({
     () =>
       previousVisit == null
         ? null
-        : entries.filter((entry) => entry.timestamp > previousVisit).length,
-    [entries, previousVisit],
+        : materialChanges.filter((change) => change.occurredAt > previousVisit).length,
+    [materialChanges, previousVisit],
+  );
+  const visibleChanges = useMemo(
+    () => materialChanges.flatMap((change) => {
+      const entry = entries.find((candidate) => candidate.slug === change.modelSlug);
+      return entry ? [{ change, entry }] : [];
+    }).slice(0, 5),
+    [entries, materialChanges],
   );
   const runnableEntries = useMemo(
     () =>
@@ -433,6 +442,56 @@ export function HomeView({
           </button>
         ))}
       </nav>
+
+      {visibleChanges.length > 0 ? (
+        <section className="border-b border-line py-7" aria-labelledby="material-changes-title">
+          <header className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 id="material-changes-title" className="font-display text-[22px] font-semibold">
+                Material changes
+              </h3>
+              <p className="mt-0.5 max-w-[68ch] text-[12px] text-muted">
+                Weight, artifact, runtime, and official recipe changes. Documentation-only commits are excluded.
+              </p>
+            </div>
+            <span className="font-mono text-[10.5px] text-faint">Evidence-linked</span>
+          </header>
+          <div className="mt-4 divide-y divide-linesoft border-y border-line">
+            {visibleChanges.map(({ change, entry }, index) => (
+              <div
+                key={change.id}
+                className={`${index >= 3 ? "hidden sm:grid" : "grid"} gap-2 py-3.5 sm:grid-cols-[108px_minmax(180px,0.7fr)_minmax(260px,1.3fr)_auto] sm:items-center sm:gap-5`}
+              >
+                <span className="font-mono text-[11px] text-faint">{change.dateLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenModel(entry)}
+                  className="truncate text-left text-[12.5px] font-semibold hover:text-meta hover:underline hover:underline-offset-3"
+                >
+                  {change.modelName}
+                </button>
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-semibold">{change.title}</span>
+                  <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">{change.summary}</span>
+                </span>
+                {change.sourceUrls[0] ? (
+                  <a
+                    href={change.sourceUrls[0]}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink"
+                  >
+                    {change.sourceLabel}
+                    <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
+                  </a>
+                ) : (
+                  <span className="text-[11px] text-faint">{change.sourceLabel}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-8 pt-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.85fr)] xl:gap-12">
         <section aria-labelledby="recent-models-title" className="min-w-0">

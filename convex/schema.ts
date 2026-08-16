@@ -136,6 +136,109 @@ export default defineSchema({
     .index("by_variant_benchmark", ["variantId", "benchmarkName"])
     .index("by_benchmark", ["benchmarkName"]),
 
+  recipeReferences: defineTable({
+    provider: v.literal("vllm"),
+    upstreamId: v.string(),
+    title: v.string(),
+    publisher: v.string(),
+    description: v.string(),
+    recipeUrl: v.string(),
+    sourceUrl: v.string(),
+    sourceSha: v.string(),
+    contentHash: v.string(),
+    upstreamUpdatedAt: v.optional(v.number()),
+    minimumVllmVersion: v.optional(v.string()),
+    difficulty: v.optional(v.union(
+      v.literal("beginner"),
+      v.literal("intermediate"),
+      v.literal("advanced"),
+    )),
+    tasks: v.array(v.string()),
+    features: v.array(v.string()),
+    verifiedHardware: v.array(v.object({ id: v.string(), label: v.string() })),
+    variants: v.array(v.object({
+      key: v.string(),
+      modelId: v.string(),
+      precision: v.string(),
+      minimumVramGb: v.optional(v.number()),
+      minimumVllmVersion: v.optional(v.string()),
+      description: v.optional(v.string()),
+    })),
+    artifactRepos: v.array(v.string()),
+    available: v.boolean(),
+    lastSyncedAt: v.number(),
+  })
+    .index("by_upstream_id", ["upstreamId"])
+    .index("by_available", ["available"]),
+
+  recipeSyncState: defineTable({
+    key: v.string(),
+    sourceRevision: v.optional(v.string()),
+    recipeIds: v.array(v.string()),
+    status: v.union(
+      v.literal("running"),
+      v.literal("success"),
+      v.literal("failed"),
+    ),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    inserted: v.number(),
+    updated: v.number(),
+    removed: v.number(),
+    matchedEntries: v.number(),
+  }).index("by_key", ["key"]),
+
+  materialChanges: defineTable({
+    dedupeKey: v.string(),
+    modelSlug: v.string(),
+    modelName: v.string(),
+    type: v.union(
+      v.literal("model_published"),
+      v.literal("weights_updated"),
+      v.literal("artifact_published"),
+      v.literal("recipe_published"),
+      v.literal("recipe_updated"),
+      v.literal("runtime_support_added"),
+      v.literal("license_or_access_changed"),
+    ),
+    occurredAt: v.number(),
+    title: v.string(),
+    summary: v.string(),
+    sourceLabel: v.string(),
+    sourceUrls: v.array(v.string()),
+    reviewStatus: v.union(v.literal("automatic"), v.literal("reviewed")),
+    createdAt: v.number(),
+  })
+    .index("by_dedupe_key", ["dedupeKey"])
+    .index("by_occurred_at", ["occurredAt"])
+    .index("by_model_and_occurred_at", ["modelSlug", "occurredAt"]),
+
+  runReports: defineTable({
+    reportId: v.string(),
+    modelSlug: v.string(),
+    artifactRepo: v.string(),
+    recipeUpstreamId: v.optional(v.string()),
+    recipeSourceSha: v.optional(v.string()),
+    hardwareProfile: v.string(),
+    runtime: v.string(),
+    runtimeVersion: v.string(),
+    testedContextTokens: v.optional(v.number()),
+    concurrency: v.optional(v.number()),
+    peakMemoryGb: v.optional(v.number()),
+    throughputTokensPerSecond: v.optional(v.number()),
+    verificationStatus: v.union(v.literal("measured"), v.literal("reproduced")),
+    testedAt: v.number(),
+    notes: v.string(),
+    evidenceUrl: v.optional(v.string()),
+    published: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_report_id", ["reportId"])
+    .index("by_model_and_published", ["modelSlug", "published"])
+    .index("by_artifact_repo", ["artifactRepo"]),
+
   monitoredSources: defineTable({
     owner: v.string(),
     ownerKey: v.optional(v.string()),

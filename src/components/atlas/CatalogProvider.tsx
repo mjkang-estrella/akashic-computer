@@ -10,12 +10,13 @@ import {
   hydratePublishedEntries,
   type PublishedCatalogEntry,
 } from "@/lib/atlas/published";
-import type { CompareModel, Family } from "@/lib/atlas/types";
+import type { CompareModel, Family, MaterialChange } from "@/lib/atlas/types";
 
 interface CatalogContextValue {
   entries: ModelEntry[];
   families: Family[];
   compareModels: CompareModel[];
+  materialChanges: MaterialChange[];
   revision: string;
   syncedAt: number | null;
   health: {
@@ -29,6 +30,7 @@ const snapshot: CatalogContextValue = {
   entries: MODEL_ENTRIES,
   families: FAMILIES,
   compareModels: compareModelsForEntries(MODEL_ENTRIES),
+  materialChanges: [],
   revision: "migration-snapshot",
   syncedAt: null,
   health: null,
@@ -40,6 +42,7 @@ const loadingCatalog: CatalogContextValue = {
   entries: [],
   families: [],
   compareModels: [],
+  materialChanges: [],
   revision: "loading",
   syncedAt: null,
   health: null,
@@ -62,6 +65,7 @@ function absoluteHttpUrl(value: string | undefined): string | null {
 
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   const result = useQuery(api.catalog.listPublished);
+  const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 });
   const [loadedAt] = useState(() => Date.now());
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
@@ -69,6 +73,10 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
     return {
       ...hydrated,
       compareModels: compareModelsForEntries(hydrated.entries),
+      materialChanges: recentChanges ?? hydrated.entries
+        .flatMap((entry) => entry.materialChanges)
+        .sort((left, right) => right.occurredAt - left.occurredAt)
+        .slice(0, 10),
       revision: result.revision,
       syncedAt: result.syncedAt,
       health: {
@@ -79,7 +87,7 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
       loading: false,
       source: "convex",
     };
-  }, [loadedAt, result]);
+  }, [loadedAt, recentChanges, result]);
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
 }
 

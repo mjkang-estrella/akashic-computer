@@ -46,6 +46,7 @@ export function AtlasApp() {
     loading,
     source,
     revision,
+    materialChanges,
   } = useCatalog();
   const [tab, setTab] = useState<Tab>("home");
   const [query, setQuery] = useState("");
@@ -366,6 +367,7 @@ export function AtlasApp() {
         ) : tab === "home" ? (
           <HomeView
             entries={entries}
+            materialChanges={materialChanges}
             syncedAt={syncedAt}
             loading={loading}
             source={source}

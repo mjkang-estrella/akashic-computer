@@ -82,7 +82,7 @@ describe("published catalog snapshots", () => {
     })).toMatchObject({ rebuilt: true, chunks: 1, changedChunks: 1 });
     const refreshed = await t.query(api.catalog.listPublished, {});
     expect(refreshed.revision).toBe("revision-2");
-    expect(refreshed.entries.some((entry) => entry.name === "Changed behind snapshot")).toBe(true);
+    expect(refreshed.entries.some((entry: { name: string }) => entry.name === "Changed behind snapshot")).toBe(true);
   });
 
   it("ignores a superseded snapshot job", async () => {

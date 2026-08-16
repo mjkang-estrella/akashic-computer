@@ -94,6 +94,9 @@ export function hydratePublishedEntries(payloads: PublishedCatalogEntry[]): {
       release,
       size,
       artifacts: payload.artifacts,
+      recipeReferences: payload.recipeReferences ?? [],
+      materialChanges: payload.materialChanges ?? [],
+      runReports: payload.runReports ?? [],
     };
   });
 

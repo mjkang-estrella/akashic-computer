@@ -23,6 +23,7 @@ import type { PublishedCatalogEntry, PublishedArtifact } from "../src/lib/atlas/
 import { uploaderDisplay } from "../src/lib/atlas/naming";
 import type { BenchKey } from "../src/lib/atlas/types";
 import { convexValuesEqual, scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
+import { upsertMaterialChange } from "./intelligence";
 
 const NULL_DELTAS: Record<BenchKey, null> = {
   mmlu: null,
@@ -438,6 +439,9 @@ function newPayload(
     category: parsed.category,
     capabilities: parsed.capabilities,
     benchmarkRefs,
+    recipeReferences: [],
+    materialChanges: [],
+    runReports: [],
   };
 }
 
@@ -483,6 +487,9 @@ function mergeParsedIntoPayload(
     dateLabel: dateLabel(modelUpdatedAt),
     updated: true,
     timestamp: modelUpdatedAt,
+    release: updatesCanonicalWeights && parsed.repo.license
+      ? { ...original.release, license: parsed.repo.license }
+      : original.release,
     size: {
       ...original.size,
       label: canonicalSizeLabel,
@@ -806,6 +813,94 @@ export const applyRepoResult = internalMutation({
       if (existingEntry) await ctx.db.patch(existingEntry._id, catalogValue);
       else await ctx.db.insert("catalogEntries", catalogValue);
       await upsertNormalized(ctx, payload, parsed, source.role, args.now, previousRepoName);
+
+      const previousPayload = existingEntry?.payload as PublishedCatalogEntry | undefined;
+      const previousArtifact = previousPayload?.artifacts.find(
+        (artifact) => artifact.repo === parsed.repo.id || artifact.repo === previousRepoName,
+      );
+      const nextArtifact = payload.artifacts.find((artifact) => artifact.repo === parsed.repo.id);
+      const sourceUrl = `https://huggingface.co/${parsed.repo.id}`;
+      if (!existingEntry) {
+        await upsertMaterialChange(ctx, {
+          dedupeKey: `${payload.slug}:model_published:${parsed.repo.id}:${parsed.repo.sha}`,
+          modelSlug: payload.slug,
+          modelName: payload.name,
+          type: "model_published",
+          occurredAt: significantTimestamp(parsed.repo),
+          title: "Model weights published",
+          summary: `${parsed.repo.id} entered the catalog from structured Hugging Face metadata.`,
+          sourceLabel: "Hugging Face",
+          sourceUrls: [sourceUrl],
+        }, args.now);
+      } else if (!previousArtifact) {
+        await upsertMaterialChange(ctx, {
+          dedupeKey: `${payload.slug}:artifact_published:${parsed.repo.id}:${parsed.repo.sha}`,
+          modelSlug: payload.slug,
+          modelName: payload.name,
+          type: "artifact_published",
+          occurredAt: significantTimestamp(parsed.repo),
+          title: `${parsed.format} artifact added`,
+          summary: `${parsed.repo.id} is now linked as a ${parsed.format} artifact.`,
+          sourceLabel: "Hugging Face",
+          sourceUrls: [sourceUrl],
+        }, args.now);
+      } else if (
+        priorByName?.weightManifestHash &&
+        parsed.repo.weightManifestHash &&
+        priorByName.weightManifestHash !== parsed.repo.weightManifestHash
+      ) {
+        await upsertMaterialChange(ctx, {
+          dedupeKey: `${payload.slug}:weights_updated:${parsed.repo.id}:${parsed.repo.weightManifestHash}`,
+          modelSlug: payload.slug,
+          modelName: payload.name,
+          type: "weights_updated",
+          occurredAt: significantTimestamp(parsed.repo),
+          title: "Model weights changed",
+          summary: `${parsed.repo.id} published a new recognized weight manifest.`,
+          sourceLabel: "Hugging Face",
+          sourceUrls: [sourceUrl],
+        }, args.now);
+      }
+      const addedRuntimes = nextArtifact && previousArtifact
+        ? nextArtifact.runtimes.filter((runtime) => !previousArtifact.runtimes.includes(runtime))
+        : [];
+      if (addedRuntimes.length > 0) {
+        await upsertMaterialChange(ctx, {
+          dedupeKey: `${payload.slug}:runtime_support_added:${parsed.repo.id}:${addedRuntimes.sort().join(",")}`,
+          modelSlug: payload.slug,
+          modelName: payload.name,
+          type: "runtime_support_added",
+          occurredAt: args.now,
+          title: "Runtime support expanded",
+          summary: `${addedRuntimes.join(", ")} support is now recorded for ${parsed.repo.id}.`,
+          sourceLabel: "Hugging Face metadata",
+          sourceUrls: [sourceUrl],
+        }, args.now);
+      }
+      if (
+        priorByName &&
+        (priorByName.license !== parsed.repo.license || priorByName.gated !== parsed.repo.gated)
+      ) {
+        const changes = [
+          priorByName.license !== parsed.repo.license
+            ? `license ${priorByName.license ?? "unknown"} to ${parsed.repo.license ?? "unknown"}`
+            : null,
+          priorByName.gated !== parsed.repo.gated
+            ? `${parsed.repo.gated ? "gated" : "public"} access`
+            : null,
+        ].filter((value): value is string => Boolean(value));
+        await upsertMaterialChange(ctx, {
+          dedupeKey: `${payload.slug}:license_or_access_changed:${parsed.repo.id}:${parsed.repo.sha}`,
+          modelSlug: payload.slug,
+          modelName: payload.name,
+          type: "license_or_access_changed",
+          occurredAt: args.now,
+          title: "License or access changed",
+          summary: `${parsed.repo.id} changed ${changes.join(" and ")}.`,
+          sourceLabel: "Hugging Face metadata",
+          sourceUrls: [sourceUrl],
+        }, args.now);
+      }
     }
 
     if (run.kind !== "audit") {
