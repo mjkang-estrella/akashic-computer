@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { materialChangeId, parseVllmRecipe } from "./intelligence";
+import {
+  materialChangeId,
+  parseVllmRecipe,
+  vllmRecipeRevisionFromAtom,
+} from "./intelligence";
 
 const index = {
   hf_id: "Example/Model-32B",
@@ -75,5 +79,17 @@ describe("vLLM recipe intelligence", () => {
     expect(materialChangeId("example-32b", "recipe_updated", "abc123")).not.toBe(
       materialChangeId("example-32b", "recipe_updated", "def456"),
     );
+  });
+
+  it("reads the latest immutable revision from GitHub's public commit feed", () => {
+    expect(vllmRecipeRevisionFromAtom(`
+      <feed>
+        <id>tag:github.com,2008:/vllm-project/recipes/commits/main</id>
+        <entry>
+          <id>tag:github.com,2008:Grit::Commit/8959cf64189c71d36e11c6a30335f923f261b1f7</id>
+        </entry>
+      </feed>
+    `)).toBe("8959cf64189c71d36e11c6a30335f923f261b1f7");
+    expect(vllmRecipeRevisionFromAtom("<feed />")).toBeNull();
   });
 });

@@ -174,3 +174,7 @@ export function materialChangeId(
 export function changeDateLabel(occurredAt: number): string {
   return new Date(occurredAt).toISOString().slice(0, 10);
 }
+
+export function vllmRecipeRevisionFromAtom(feed: string): string | null {
+  return feed.match(/Grit::Commit\/([0-9a-f]{40})/i)?.[1] ?? null;
+}

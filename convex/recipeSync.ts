@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
-import { parseVllmRecipe, stableHash, type ParsedRecipeReference, type VllmRecipeIndexItem } from "../src/lib/atlas/intelligence";
+import {
+  parseVllmRecipe,
+  stableHash,
+  vllmRecipeRevisionFromAtom,
+  type ParsedRecipeReference,
+  type VllmRecipeIndexItem,
+} from "../src/lib/atlas/intelligence";
 import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
 import { upsertMaterialChange } from "./intelligence";
 import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
@@ -51,6 +57,25 @@ async function fetchJson(url: string, attempts = 3): Promise<unknown> {
       });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       return await response.json();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (2 ** attempt)));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`Failed to fetch ${url}`);
+}
+
+async function fetchText(url: string, attempts = 3): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Akashic catalog synchronizer" },
+      });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      return await response.text();
     } catch (error) {
       lastError = error;
       if (attempt < attempts - 1) {
@@ -329,8 +354,8 @@ export const syncVllmRecipes = internalAction({
   handler: async (ctx, args): Promise<RecipeSyncResult> => {
     let sourceRevision: string | undefined;
     try {
-      const commit = await fetchJson(`https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main`) as UnknownRecord;
-      sourceRevision = typeof commit.sha === "string" ? commit.sha : undefined;
+      const commitFeed = await fetchText(`https://github.com/${GITHUB_REPOSITORY}/commits/main.atom`);
+      sourceRevision = vllmRecipeRevisionFromAtom(commitFeed) ?? undefined;
       if (!sourceRevision) throw new Error("GitHub did not return the vLLM Recipes revision");
       const state: {
         status: "running" | "success" | "failed";
