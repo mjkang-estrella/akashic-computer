@@ -160,7 +160,7 @@ function CatalogField({ entries }: { entries: ModelEntry[] }) {
             ? "bg-caution"
             : "bg-ink";
       return {
-        id: entry.id,
+        id: entry.slug,
         height: 24 + normalized * 76,
         tone,
       };
@@ -354,7 +354,7 @@ export function HomeView({
     return {
       featured,
       benchmarkCount: comparable.length,
-      modelCount: new Set(comparable.flatMap((benchmark) => benchmark.results.map((result) => result.entry.id))).size,
+      modelCount: new Set(comparable.flatMap((benchmark) => benchmark.results.map((result) => result.entry.slug))).size,
     };
   }, [entries]);
   const featuredBenchmarks = benchmarkCoverage.featured;
@@ -540,7 +540,7 @@ export function HomeView({
                       entry.quantizations.length - visibleQuantizations.length;
                     return (
                       <button
-                        key={entry.id}
+                        key={entry.slug}
                         type="button"
                         onClick={() => onOpenModel(entry)}
                         aria-label={`Open ${entry.name}`}

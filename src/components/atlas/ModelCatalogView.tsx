@@ -18,7 +18,7 @@ import {
   TextIcon,
   Video01Icon,
 } from "@hugeicons/core-free-icons";
-import type { ModelEntry } from "@/lib/atlas/models";
+import { compareModelEntriesByRecency, type ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterDetailLabel, parameterTotalLabel } from "@/lib/atlas/naming";
 import {
   MODEL_CAPABILITIES,
@@ -481,14 +481,19 @@ export function ModelCatalogView({
     return counts;
   }, [categoryEntries]);
 
-  const entries = categoryEntries.filter(
-    (entry) =>
-      (capabilities.size === 0 || entry.capabilities.some((item) => capabilities.has(item))) &&
-      (familyId === "all" || entry.family.id === familyId) &&
-      inSizeBand(entry, sizeBand) &&
-      (variant === "all" || entry.size.variants.includes(variant)) &&
-      (quant === "all" || entry.quantizations.includes(quant)) &&
-      (provider === "all" || entry.providers.includes(provider)),
+  const entries = useMemo(
+    () => categoryEntries
+      .filter(
+        (entry) =>
+          (capabilities.size === 0 || entry.capabilities.some((item) => capabilities.has(item))) &&
+          (familyId === "all" || entry.family.id === familyId) &&
+          inSizeBand(entry, sizeBand) &&
+          (variant === "all" || entry.size.variants.includes(variant)) &&
+          (quant === "all" || entry.quantizations.includes(quant)) &&
+          (provider === "all" || entry.providers.includes(provider)),
+      )
+      .sort(compareModelEntriesByRecency),
+    [capabilities, categoryEntries, familyId, provider, quant, sizeBand, variant],
   );
   const filterCount =
     (category !== "all" ? 1 : 0) +
@@ -661,7 +666,7 @@ export function ModelCatalogView({
               <div className="divide-y divide-linesoft">
                 {entries.map((entry) => (
                   <button
-                    key={entry.id}
+                    key={entry.slug}
                     type="button"
                     onClick={() => onOpen(entry)}
                     aria-label={`Open ${entry.name}`}

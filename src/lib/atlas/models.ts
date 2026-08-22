@@ -57,6 +57,13 @@ export interface ModelEntry {
   runReports: RunReport[];
 }
 
+export function compareModelEntriesByRecency(left: ModelEntry, right: ModelEntry): number {
+  return right.timestamp - left.timestamp ||
+    left.name.localeCompare(right.name) ||
+    right.size.paramsB - left.size.paramsB ||
+    left.slug.localeCompare(right.slug);
+}
+
 function dateTimestamp(value: string): number {
   const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoDate) {
@@ -107,9 +114,10 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
         })),
       );
       const taxonomy = taxonomyFor(family, release, size);
+      const slug = `${family.id}-${release.id}-${slugPart(size.label)}`;
       return {
-        id: `${family.id}:${release.id}:${size.label}`,
-        slug: `${family.id}-${release.id}-${slugPart(size.label)}`,
+        id: slug,
+        slug,
         family,
         release,
         size,
@@ -133,12 +141,7 @@ export const MODEL_ENTRIES: ModelEntry[] = FAMILIES.flatMap((family) =>
       } satisfies ModelEntry;
     }),
   ),
-).sort(
-  (a, b) =>
-    b.timestamp - a.timestamp ||
-    a.name.localeCompare(b.name) ||
-    b.size.paramsB - a.size.paramsB,
-);
+).sort(compareModelEntriesByRecency);
 
 export function modelEntryForSlug(slug: string | null): ModelEntry | null {
   return findModelEntryForSlug(MODEL_ENTRIES, slug);

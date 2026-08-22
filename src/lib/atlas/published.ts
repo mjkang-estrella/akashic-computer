@@ -90,6 +90,7 @@ export function hydratePublishedEntries(payloads: PublishedCatalogEntry[]): {
     const size = release.sizes.find((candidate) => candidate.label === payload.size.label)!;
     return {
       ...payload,
+      id: payload.slug,
       family,
       release,
       size,

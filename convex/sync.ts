@@ -401,9 +401,10 @@ function newPayload(
   const context = contextMetadata(parsed.repo.config);
   const artifact = artifactFor(parsed, "creator", parsed.variant);
   const benchmarkRefs = parsed.benchmarkRows.map((row) => ({ ...row }));
+  const slug = `${family.id}-${releaseId}-${slugPart(parsed.sizeLabel)}`;
   return {
-    id: `${family.id}:${releaseId}:${parsed.sizeLabel}`,
-    slug: `${family.id}-${releaseId}-${slugPart(parsed.sizeLabel)}`,
+    id: slug,
+    slug,
     family,
     release: {
       id: releaseId,
@@ -479,9 +480,7 @@ function mergeParsedIntoPayload(
   }
   return {
     ...original,
-    id: updatesCanonicalWeights
-      ? `${original.family.id}:${original.release.id}:${canonicalSizeLabel}`
-      : original.id,
+    id: original.slug,
     name: updatesCanonicalWeights ? `${original.release.name} ${canonicalSizeLabel}` : original.name,
     effectiveDate: dateLabel(modelUpdatedAt),
     dateLabel: dateLabel(modelUpdatedAt),
