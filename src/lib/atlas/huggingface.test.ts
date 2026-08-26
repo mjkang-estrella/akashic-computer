@@ -40,7 +40,7 @@ describe("Hugging Face repository classification", () => {
     });
     expect(standard).toMatchObject({
       minVramGb: 18,
-      recVramGb: 27,
+      recVramGb: 22,
       details: {
         weightGb: 18,
         kvCacheGb: 5,
@@ -64,9 +64,10 @@ describe("Hugging Face repository classification", () => {
       },
     });
     expect(mla).toMatchObject({
-      minVramGb: 322,
-      recVramGb: 385,
+      minVramGb: 306,
+      recVramGb: 318,
       details: {
+        weightGb: 306,
         kvCacheGb: 12,
         contextTokens: 1_048_576,
         concurrency: 1,

@@ -469,7 +469,7 @@ export function ModelDetailView({
                     <span className="font-mono text-[13px] font-semibold">{artifact.recVramGb} GB</span>
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
                       {artifact.vramEstimate
-                        ? `${artifact.vramEstimate.kvCacheGb} GB BF16 KV · ${artifact.vramEstimate.contextTokens.toLocaleString()} ctx · c1`
+                        ? `${artifact.vramEstimate.weightGb} GB weights + ${artifact.vramEstimate.kvCacheGb} GB BF16 KV · ${artifact.vramEstimate.contextTokens.toLocaleString()} ctx · c1`
                         : artifact.vramEstimated ? "Estimated · weight based" : "Curated"}
                     </span>
                   </div>
@@ -498,7 +498,7 @@ export function ModelDetailView({
           </div>
         </div>
         <p className="mt-2.5 text-[11.5px] text-muted">
-          Green meets the recommended VRAM estimate for your profile. When architecture metadata is available, recommended VRAM includes BF16 KV cache at maximum context, concurrency 1, plus runtime headroom.
+          Green meets the default VRAM estimate for your profile. When architecture metadata is available, it equals checkpoint weights plus BF16 KV cache at maximum context and concurrency 1; runtime headroom is not included.
         </p>
       </section>
 

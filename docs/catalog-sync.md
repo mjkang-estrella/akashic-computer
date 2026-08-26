@@ -106,9 +106,10 @@ provenance, with a per-source cap to avoid another expensive baseline pass.
 
 ## Recommended VRAM Semantics
 
-When structured architecture metadata is available, recommended VRAM is the
-estimated weight footprint plus a BF16 KV cache at the model's maximum context
-length and concurrency 1, followed by runtime headroom. Standard attention uses
+When structured architecture metadata is available, default VRAM is the
+checkpoint weight footprint plus a BF16 KV cache at the model's maximum context
+length and concurrency 1. Runtime headroom is intentionally excluded. Standard
+attention uses
 layer count, KV heads, and head dimension. MLA checkpoints use their latent KV
 width and only layers whose cache grows with context. The artifact retains the
 weight-only minimum separately. Repositories without sufficient architecture

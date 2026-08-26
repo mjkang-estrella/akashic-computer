@@ -384,7 +384,7 @@ export function estimateVram(
 } {
   const profile = formatProfile(format);
   const checkpointGb = checkpointBytes && format !== "GGUF" ? checkpointBytes / 1_000_000_000 : null;
-  const minVramGb = Math.max(2, Math.ceil(checkpointGb ? checkpointGb * 1.05 : paramsB * profile.factor));
+  const rawWeightGb = checkpointGb ?? paramsB * profile.factor;
   const config = Object.keys(asRecord(rawConfig.text_config)).length > 0
     ? asRecord(rawConfig.text_config)
     : rawConfig;
@@ -420,9 +420,10 @@ export function estimateVram(
       cacheMethod = "standard";
     }
   }
+  const weightGb = Math.max(2, checkpointGb ? Math.round(checkpointGb) : Math.ceil(rawWeightGb));
   const details = contextTokens && cacheMethod
     ? {
-        weightGb: minVramGb,
+        weightGb,
         kvCacheGb: Math.ceil(kvCacheGb),
         kvCacheDtype: "BF16" as const,
         contextTokens,
@@ -430,12 +431,15 @@ export function estimateVram(
         cacheMethod,
       }
     : null;
+  const minVramGb = details
+    ? weightGb
+    : Math.max(2, Math.ceil(checkpointGb ? checkpointGb * 1.05 : rawWeightGb));
   return {
     minVramGb,
     recVramGb: Math.max(
       3,
       details
-        ? Math.ceil((minVramGb + details.kvCacheGb) * 1.15)
+        ? Math.round(rawWeightGb + kvCacheGb)
         : Math.round(minVramGb * 1.15),
     ),
     kinds: profile.kinds,
