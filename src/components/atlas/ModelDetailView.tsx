@@ -12,6 +12,7 @@ import {
   ComputerCheckIcon,
   Rocket01Icon,
   SourceCodeIcon,
+  StarIcon,
 } from "@hugeicons/core-free-icons";
 import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
@@ -77,6 +78,21 @@ export function ModelDetailView({
       ]),
     ).values(),
   ], [entry]);
+  const recipeCheckpointByRepo = useMemo(() => {
+    const checkpoints = new Map<
+      string,
+      { recipe: (typeof displayRecipes)[number]; variant: (typeof displayRecipes)[number]["variants"][number] }
+    >();
+    for (const recipe of displayRecipes) {
+      for (const recipeVariant of recipe.variants) {
+        checkpoints.set(recipeVariant.modelId.toLowerCase(), {
+          recipe,
+          variant: recipeVariant,
+        });
+      }
+    }
+    return checkpoints;
+  }, [displayRecipes]);
 
   return (
     <article className="pt-5" aria-labelledby="model-detail-title">
@@ -180,181 +196,6 @@ export function ModelDetailView({
         </dl>
       </header>
 
-      <section className="border-b border-line py-5" aria-labelledby="deployment-reference-title">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h3 id="deployment-reference-title" className="font-display text-[19px] font-semibold">
-              Run with vLLM
-            </h3>
-            <p className="mt-1 max-w-[72ch] text-[12.5px] leading-relaxed text-muted">
-              Akashic links to versioned upstream recipes. Launch commands remain owned and maintained by the official vLLM Recipes project.
-            </p>
-          </div>
-          <HugeiconsIcon icon={Rocket01Icon} size={19} strokeWidth={1.7} aria-hidden="true" className="text-faint" />
-        </div>
-
-        {displayRecipes.length > 0 ? (
-          <div className="mt-4 divide-y divide-linesoft border-y border-line">
-            {displayRecipes.map((recipe) => (
-              <article key={recipe.upstreamId} className="py-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-display text-[16px] font-semibold">{recipe.title}</h4>
-                      <span className="rounded-[4px] bg-panel2 px-1.5 py-0.5 font-mono text-[10.5px] text-muted">
-                        Official vLLM recipe
-                      </span>
-                    </div>
-                    <p className="mt-1 max-w-[72ch] text-[12px] leading-relaxed text-muted">{recipe.description}</p>
-                  </div>
-                  <a
-                    href={recipe.recipeUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-[7px] border border-line px-3 text-[12px] font-semibold hover:border-ink"
-                  >
-                    Open recipe
-                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
-                  </a>
-                </div>
-
-                <dl className="mt-4 grid gap-3 border-y border-linesoft py-3 sm:grid-cols-3">
-                  <div>
-                    <dt className="text-[10.5px] text-faint">Minimum vLLM</dt>
-                    <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.minimumVllmVersion ?? "See recipe"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10.5px] text-faint">Recipe revision</dt>
-                    <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.sourceSha.slice(0, 9)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[10.5px] text-faint">Maintainer</dt>
-                    <dd className="mt-0.5 text-[12px] font-semibold">{recipe.publisher}</dd>
-                  </div>
-                </dl>
-
-                {recipe.variants.length > 0 ? (
-                  <div className="mt-4">
-                    <div className="divide-y divide-linesoft border-y border-linesoft sm:hidden">
-                      {recipe.variants.map((item) => (
-                        <dl key={`${item.key}-${item.modelId}`} className="grid grid-cols-2 gap-x-3 gap-y-2 py-3">
-                          <div>
-                            <dt className="text-[10px] text-faint">Precision</dt>
-                            <dd className="mt-0.5 font-mono text-[12px] font-semibold">{item.precision}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-[10px] text-faint">Minimum VRAM</dt>
-                            <dd className="mt-0.5 font-mono text-[11.5px]">{item.minimumVramGb ? `${item.minimumVramGb} GB` : "Not stated"}</dd>
-                          </div>
-                          <div className="col-span-2 min-w-0">
-                            <dt className="text-[10px] text-faint">Artifact</dt>
-                            <dd className="mt-0.5 break-all font-mono text-[10.5px] text-muted">{item.modelId}</dd>
-                          </div>
-                        </dl>
-                      ))}
-                    </div>
-                    <table className="hidden w-full border-collapse text-left sm:table">
-                      <thead>
-                        <tr className="font-mono text-[10px] text-faint">
-                          <th className="border-b border-linesoft py-2 pr-4 font-semibold">Precision</th>
-                          <th className="border-b border-linesoft py-2 pr-4 font-semibold">Artifact</th>
-                          <th className="border-b border-linesoft py-2 pr-4 font-semibold">Minimum VRAM</th>
-                          <th className="border-b border-linesoft py-2 font-semibold">Minimum vLLM</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-linesoft">
-                        {recipe.variants.map((item) => (
-                          <tr key={`${item.key}-${item.modelId}`}>
-                            <td className="py-2.5 pr-4 font-mono text-[12px] font-semibold">{item.precision}</td>
-                            <td className="break-all py-2.5 pr-4 font-mono text-[10.5px] text-muted">{item.modelId}</td>
-                            <td className="py-2.5 pr-4 font-mono text-[11.5px]">{item.minimumVramGb ? `${item.minimumVramGb} GB` : "Not stated"}</td>
-                            <td className="py-2.5 font-mono text-[11.5px]">{item.minimumVllmVersion ?? recipe.minimumVllmVersion ?? "See recipe"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
-                      <HugeiconsIcon icon={ComputerCheckIcon} size={15} strokeWidth={1.8} aria-hidden="true" />
-                      Upstream verified hardware
-                    </p>
-                    {recipe.verifiedHardware.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {recipe.verifiedHardware.map((hardware) => (
-                          <span key={hardware.id} className="rounded-[5px] bg-verifysoft px-2 py-1 text-[11px] font-semibold text-verify">
-                            Verified on {hardware.label}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-[11.5px] text-muted">No hardware is marked verified upstream. This does not mean unsupported.</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
-                      <HugeiconsIcon icon={SourceCodeIcon} size={15} strokeWidth={1.8} aria-hidden="true" />
-                      Recipe capabilities
-                    </p>
-                    <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-                      {[...recipe.tasks, ...recipe.features].join(" · ") || "See the upstream recipe for supported features."}
-                    </p>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4 border-y border-line py-5">
-            <p className="text-[12.5px] font-semibold">No exact official vLLM recipe match</p>
-            <p className="mt-1 max-w-[72ch] text-[12px] leading-relaxed text-muted">
-              Akashic only attaches recipes when an upstream artifact ID exactly matches this catalog entry. Absence is not evidence that vLLM cannot run the model.
-            </p>
-            <a
-              href="https://docs.vllm.ai/en/latest/models/supported_models.html"
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex min-h-9 items-center gap-1 text-[12px] font-semibold text-meta hover:text-ink"
-            >
-              Check vLLM model support
-              <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
-            </a>
-          </div>
-        )}
-
-        <div className="mt-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h4 className="flex items-center gap-2 font-display text-[16px] font-semibold">
-              <HugeiconsIcon icon={Activity01Icon} size={17} strokeWidth={1.8} aria-hidden="true" className="text-faint" />
-              Akashic run reports
-            </h4>
-            <span className="text-[10.5px] text-faint">Measurements are never inferred from a recipe</span>
-          </div>
-          {entry.runReports.length > 0 ? (
-            <div className="mt-3 divide-y divide-linesoft border-y border-linesoft">
-              {entry.runReports.map((report) => (
-                <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
-                  <span>
-                    <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
-                    <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
-                  </span>
-                  <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
-                  <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
-                  <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 border-l border-line pl-4 text-[11.5px] leading-relaxed text-muted">
-              No Akashic measurement is published for this model yet. Upstream recipe verification and Akashic performance testing are separate evidence layers.
-            </p>
-          )}
-        </div>
-      </section>
-
       {entry.benchmarkRefs.length > 0 ? (
         <section className="border-b border-line py-5" aria-labelledby="benchmark-evidence-title">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -391,7 +232,7 @@ export function ModelDetailView({
               Available artifacts
             </h3>
             <p className="mt-1 text-[12.5px] text-muted">
-              Original and quantized weights from every provider remain grouped under this model.
+              Original checkpoints, quantized weights, and their official vLLM deployment references.
             </p>
           </div>
           {entry.size.variants.length > 1 ? (
@@ -419,6 +260,119 @@ export function ModelDetailView({
           )}
         </div>
 
+        {displayRecipes.length > 0 ? (
+          <div className="mt-4 divide-y divide-linesoft border-y border-line">
+            {displayRecipes.map((recipe) => (
+              <details key={recipe.recipeUrl} className="group/recipe">
+                <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
+                  <HugeiconsIcon icon={Rocket01Icon} size={17} strokeWidth={1.8} aria-hidden="true" className="flex-none text-meta" />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-[12.5px] font-semibold">Official vLLM recipe · {recipe.title}</span>
+                      <span className="rounded-[4px] bg-metasoft px-1.5 py-0.5 font-mono text-[10px] text-meta">
+                        vLLM {recipe.minimumVllmVersion ?? "version in recipe"}+
+                      </span>
+                    </span>
+                    <span className="mt-0.5 block max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
+                      {recipe.description}
+                    </span>
+                  </span>
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                    className="flex-none text-faint transition-transform group-open/recipe:rotate-180"
+                  />
+                </summary>
+                <div className="border-t border-linesoft pb-4 pt-3">
+                  <dl className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <dt className="text-[10.5px] text-faint">Minimum vLLM</dt>
+                      <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.minimumVllmVersion ?? "See recipe"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10.5px] text-faint">Recipe revision</dt>
+                      <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.sourceSha.slice(0, 9)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10.5px] text-faint">Maintainer</dt>
+                      <dd className="mt-0.5 text-[12px] font-semibold">{recipe.publisher}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+                        <HugeiconsIcon icon={ComputerCheckIcon} size={15} strokeWidth={1.8} aria-hidden="true" />
+                        Upstream verified hardware
+                      </p>
+                      {recipe.verifiedHardware.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {recipe.verifiedHardware.map((hardware) => (
+                            <span key={hardware.id} className="rounded-[5px] bg-verifysoft px-2 py-1 text-[11px] font-semibold text-verify">
+                              Verified on {hardware.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[11.5px] text-muted">No hardware is marked verified upstream. This does not mean unsupported.</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+                        <HugeiconsIcon icon={SourceCodeIcon} size={15} strokeWidth={1.8} aria-hidden="true" />
+                        Recipe capabilities
+                      </p>
+                      <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
+                        {[...recipe.tasks, ...recipe.features].join(" · ") || "See the upstream recipe for supported features."}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={recipe.recipeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex min-h-9 items-center gap-1.5 text-[11.5px] font-semibold text-meta hover:text-ink"
+                  >
+                    Open official recipe
+                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
+                  </a>
+                </div>
+              </details>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 border-y border-linesoft py-3">
+            <p className="text-[12px] font-semibold">No exact official vLLM recipe match</p>
+            <p className="mt-0.5 max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
+              Absence means unverified, not unsupported. Akashic only attaches recipes through exact artifact IDs.
+            </p>
+          </div>
+        )}
+
+        {entry.runReports.length > 0 ? (
+          <details className="group/reports mt-3 border-y border-linesoft">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 marker:hidden">
+              <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="text-faint" />
+              <span className="flex-1 text-[12px] font-semibold">Akashic run reports · {entry.runReports.length}</span>
+              <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.8} aria-hidden="true" className="text-faint transition-transform group-open/reports:rotate-180" />
+            </summary>
+            <div className="divide-y divide-linesoft border-t border-linesoft">
+              {entry.runReports.map((report) => (
+                <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
+                  <span>
+                    <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
+                    <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
+                  </span>
+                  <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
+                  <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
+                  <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
+
         <div className="mt-4 overflow-hidden rounded-[8px] border border-line bg-panel">
           <div className="hidden grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid">
             <span aria-hidden="true"><span className="sr-only">Compare</span></span>
@@ -433,6 +387,7 @@ export function ModelDetailView({
               const fits = rig.gb >= artifact.recVramGb;
               const selected = checked.has(artifact.repo);
               const disabled = !selected && compareLimitReached;
+              const recipeCheckpoint = recipeCheckpointByRepo.get(artifact.repo.toLowerCase());
               return (
                 <div
                   key={`${artifact.variant}-${artifact.repo}`}
@@ -451,7 +406,18 @@ export function ModelDetailView({
                     />
                   </label>
                   <div className="min-w-0 pl-11 md:pl-0">
-                    <span className="font-mono text-[13px] font-semibold">{artifact.format}</span>
+                    <span className="flex flex-wrap items-center gap-1.5 font-mono text-[13px] font-semibold">
+                      {artifact.format}
+                      {recipeCheckpoint ? (
+                        <span
+                          title={`Official checkpoint in ${recipeCheckpoint.recipe.title}`}
+                          className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[10px] font-semibold text-meta"
+                        >
+                          <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" />
+                          Recipe checkpoint
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       {artifact.runtimes.map((runtime) => (
                         <span key={runtime} className="rounded-[4px] bg-panel/70 px-1.5 py-px font-mono text-[10.5px] text-muted">
@@ -472,6 +438,11 @@ export function ModelDetailView({
                         ? `${artifact.vramEstimate.weightGb} GB weights + ${artifact.vramEstimate.kvCacheGb} GB BF16 KV · ${artifact.vramEstimate.contextTokens.toLocaleString()} ctx · c1`
                         : artifact.vramEstimated ? "Estimated · weight based" : "Curated"}
                     </span>
+                    {recipeCheckpoint?.variant.minimumVramGb ? (
+                      <span className="mt-0.5 block text-[10px] font-semibold text-meta">
+                        vLLM recipe minimum · {recipeCheckpoint.variant.minimumVramGb} GB
+                      </span>
+                    ) : null}
                   </div>
                   <div className={`flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${fits ? "text-verify" : "text-alert"}`}>
                     <HugeiconsIcon
@@ -499,6 +470,10 @@ export function ModelDetailView({
         </div>
         <p className="mt-2.5 text-[11.5px] text-muted">
           Green meets the default VRAM estimate for your profile. When architecture metadata is available, it equals checkpoint weights plus BF16 KV cache at maximum context and concurrency 1; runtime headroom is not included.
+        </p>
+        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
+          <HugeiconsIcon icon={StarIcon} size={13} strokeWidth={1.9} aria-hidden="true" className="text-meta" />
+          A star marks an exact checkpoint referenced by an official vLLM recipe.
         </p>
       </section>
 
