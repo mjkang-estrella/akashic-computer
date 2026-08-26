@@ -217,6 +217,7 @@ export const seedFamily = internalMutation({
         const existingPayload = existingEntry?.payload as Partial<ReturnType<typeof publishableEntry>> | undefined;
         const payload = {
           ...publishableEntry(entry),
+          introduction: existingPayload?.introduction,
           recipeReferences: existingPayload?.recipeReferences ?? [],
           materialChanges: existingPayload?.materialChanges ?? [],
           runReports: existingPayload?.runReports ?? [],

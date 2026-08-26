@@ -140,4 +140,36 @@ describe("catalog intelligence", () => {
     const changes = await t.query(api.intelligence.listRecentChanges, { limit: 2 });
     expect(changes.map((change) => change.occurredAt)).toEqual([30, 20]);
   });
+
+  it("publishes a protected model-card introduction without changing model recency", async () => {
+    const { t, entry } = await catalogFixture();
+    const result = await t.mutation(internal.admin.upsertModelIntroduction, {
+      slug: entry.slug,
+      heading: `About ${entry.name}`,
+      summary: "Architecture and deployment context from the official model card.",
+      paragraphs: ["This is a source-attributed, paraphrased introduction."],
+      highlights: [{ label: "Architecture", value: "Mixture of experts" }],
+      sourceLabel: "Official Hugging Face model card",
+      sourceUrl: `https://huggingface.co/${entry.artifacts[0].repo}/blob/abc123/README.md`,
+      sourceSha: "abc123",
+      now: 200,
+    });
+    expect(result).toEqual({ slug: entry.slug, changed: true });
+
+    const payload = await t.query(api.catalog.getBySlug, { slug: entry.slug });
+    expect(payload.introduction).toMatchObject({
+      heading: `About ${entry.name}`,
+      sourceSha: "abc123",
+    });
+    const storedEntry = await t.run(async (ctx) => await ctx.db
+      .query("catalogEntries")
+      .withIndex("by_slug", (q) => q.eq("slug", entry.slug))
+      .unique());
+    expect(storedEntry?.updatedAt).toBe(entry.timestamp);
+    const override = await t.run(async (ctx) => await ctx.db
+      .query("catalogOverrides")
+      .withIndex("by_entity", (q) => q.eq("entityType", "catalog_entry").eq("entityKey", entry.slug))
+      .unique());
+    expect(override?.patch).toMatchObject({ introduction: { sourceSha: "abc123" } });
+  });
 });

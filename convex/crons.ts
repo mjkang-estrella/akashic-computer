@@ -10,9 +10,9 @@ crons.daily(
   {},
 );
 
-crons.daily(
+crons.hourly(
   "synchronize official vLLM recipes",
-  { hourUTC: 4, minuteUTC: 15 },
+  { minuteUTC: 15 },
   internal.recipeSync.syncVllmRecipes,
   {},
 );

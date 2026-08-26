@@ -2,6 +2,7 @@ import type {
   HardwareKind,
   ModelCapabilityId,
   ModelCategoryId,
+  VramEstimateDetails,
 } from "./types";
 
 export type MonitoredSourceRole = "creator" | "artifact_provider" | "creator_provider";
@@ -58,6 +59,7 @@ export interface ParsedHuggingFaceRepo {
   capabilities: ModelCapabilityId[];
   minVramGb: number | null;
   recVramGb: number | null;
+  vramEstimate: VramEstimateDetails | null;
   kinds: HardwareKind[];
   runtimes: string[];
   benchmarkRows: StructuredBenchmarkRow[];
@@ -372,15 +374,73 @@ export function estimateVram(
   paramsB: number,
   format: string,
   checkpointBytes?: number | null,
-): { minVramGb: number; recVramGb: number; kinds: HardwareKind[]; runtimes: string[] } {
+  rawConfig: Record<string, unknown> = {},
+): {
+  minVramGb: number;
+  recVramGb: number;
+  kinds: HardwareKind[];
+  runtimes: string[];
+  details: VramEstimateDetails | null;
+} {
   const profile = formatProfile(format);
   const checkpointGb = checkpointBytes && format !== "GGUF" ? checkpointBytes / 1_000_000_000 : null;
   const minVramGb = Math.max(2, Math.ceil(checkpointGb ? checkpointGb * 1.05 : paramsB * profile.factor));
+  const config = Object.keys(asRecord(rawConfig.text_config)).length > 0
+    ? asRecord(rawConfig.text_config)
+    : rawConfig;
+  const positive = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  const nonNegative = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+  const contextTokens = positive(
+    config.max_position_embeddings ?? config.max_sequence_length ?? config.seq_length,
+  );
+  const layers = positive(config.num_hidden_layers ?? config.n_layer ?? config.num_layers);
+  const kvLoraRank = positive(config.kv_lora_rank);
+  const ropeHeadDim = nonNegative(config.qk_rope_head_dim) ?? 0;
+  const layerTypes = Array.isArray(config.layer_types)
+    ? config.layer_types.filter((value): value is string => typeof value === "string")
+    : [];
+  let kvCacheGb = 0;
+  let cacheMethod: VramEstimateDetails["cacheMethod"] | null = null;
+  if (contextTokens && layers && kvLoraRank) {
+    const contextGrowingLayers = layerTypes.length > 0
+      ? layerTypes.filter((value) => !value.toLowerCase().includes("linear_attention")).length
+      : layers;
+    kvCacheGb = contextGrowingLayers * (kvLoraRank + ropeHeadDim) * 2 * contextTokens / 1_000_000_000;
+    cacheMethod = "mla";
+  } else if (contextTokens && layers) {
+    const attentionHeads = positive(config.num_attention_heads ?? config.n_head);
+    const kvHeads = positive(config.num_key_value_heads) ?? attentionHeads;
+    const hiddenSize = positive(config.hidden_size ?? config.n_embd);
+    const explicitHeadDim = positive(config.head_dim);
+    const headDim = explicitHeadDim ?? (hiddenSize && attentionHeads ? hiddenSize / attentionHeads : null);
+    if (kvHeads && headDim) {
+      kvCacheGb = layers * kvHeads * headDim * 2 * 2 * contextTokens / 1_000_000_000;
+      cacheMethod = "standard";
+    }
+  }
+  const details = contextTokens && cacheMethod
+    ? {
+        weightGb: minVramGb,
+        kvCacheGb: Math.ceil(kvCacheGb),
+        kvCacheDtype: "BF16" as const,
+        contextTokens,
+        concurrency: 1 as const,
+        cacheMethod,
+      }
+    : null;
   return {
     minVramGb,
-    recVramGb: Math.max(3, Math.round(minVramGb * 1.15)),
+    recVramGb: Math.max(
+      3,
+      details
+        ? Math.ceil((minVramGb + details.kvCacheGb) * 1.15)
+        : Math.round(minVramGb * 1.15),
+    ),
     kinds: profile.kinds,
     runtimes: profile.runtimes,
+    details,
   };
 }
 
@@ -530,7 +590,9 @@ export function classifyHuggingFaceRepo(
   if (!category && repo.baseModels.length === 0) {
     return { status: "skipped", reason: "pipeline category is not recognized", repo };
   }
-  const vram = parameters.paramsB ? estimateVram(parameters.paramsB, format, repo.weightBytes) : null;
+  const vram = parameters.paramsB
+    ? estimateVram(parameters.paramsB, format, repo.weightBytes, repo.config)
+    : null;
   const approved = APPROVED_REPO_METADATA[repo.id.toLowerCase()];
   return {
     status: "publishable",
@@ -544,6 +606,7 @@ export function classifyHuggingFaceRepo(
       capabilities: capabilitiesFor(repo, category),
       minVramGb: vram?.minVramGb ?? null,
       recVramGb: vram?.recVramGb ?? null,
+      vramEstimate: vram?.details ?? null,
       kinds: vram?.kinds ?? [],
       runtimes: approved?.runtimes ?? vram?.runtimes ?? [],
       benchmarkRows: structuredBenchmarks(repo),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   acceptedWebhookEvent,
   classifyHuggingFaceRepo,
+  estimateVram,
   normalizeHuggingFaceRepo,
   weightMetadataFromTree,
   webhookDedupeKey,
@@ -29,6 +30,51 @@ function repo(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Hugging Face repository classification", () => {
+  it("includes a max-context BF16 KV cache at concurrency one in recommended VRAM", () => {
+    const standard = estimateVram(8, "BF16", null, {
+      num_hidden_layers: 32,
+      num_attention_heads: 32,
+      num_key_value_heads: 8,
+      hidden_size: 4096,
+      max_position_embeddings: 32_768,
+    });
+    expect(standard).toMatchObject({
+      minVramGb: 18,
+      recVramGb: 27,
+      details: {
+        weightGb: 18,
+        kvCacheGb: 5,
+        kvCacheDtype: "BF16",
+        contextTokens: 32_768,
+        concurrency: 1,
+        cacheMethod: "standard",
+      },
+    });
+
+    const mla = estimateVram(321, "FP8", 306_000_000_000, {
+      text_config: {
+        num_hidden_layers: 45,
+        kv_lora_rank: 512,
+        qk_rope_head_dim: 0,
+        max_position_embeddings: 1_048_576,
+        layer_types: [
+          ...Array.from({ length: 34 }, () => "linear_attention"),
+          ...Array.from({ length: 11 }, () => "deepseek_sparse_attention"),
+        ],
+      },
+    });
+    expect(mla).toMatchObject({
+      minVramGb: 322,
+      recVramGb: 385,
+      details: {
+        kvCacheGb: 12,
+        contextTokens: 1_048_576,
+        concurrency: 1,
+        cacheMethod: "mla",
+      },
+    });
+  });
+
   it("publishes a structured canonical model", () => {
     const result = classifyHuggingFaceRepo(repo(), creator);
     expect(result.status).toBe("publishable");

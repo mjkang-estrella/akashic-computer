@@ -21,6 +21,15 @@ export type Trust = "official" | "vendor" | "community";
 export type Confidence = "verified" | "inferred" | "needs_review";
 export type HardwareKind = "mac" | "cpu" | "cuda" | "dgx";
 
+export interface VramEstimateDetails {
+  weightGb: number;
+  kvCacheGb: number;
+  kvCacheDtype: "BF16";
+  contextTokens: number;
+  concurrency: 1;
+  cacheMethod: "standard" | "mla";
+}
+
 export type ModelCategoryId =
   | "language"
   | "vision-documents"
@@ -74,6 +83,7 @@ export interface Artifact {
   runtimes: string[];
   minVramGb: number;
   recVramGb: number;
+  vramEstimate?: VramEstimateDetails;
   /** Benchmark delta vs the BF16 reference; null = no data. */
   deltas: Record<BenchKey, number | null>;
   /** True when deltas come from a measured source, false when estimated. */
@@ -193,6 +203,16 @@ export interface RecipeReference {
   verifiedHardware: RecipeHardware[];
   variants: RecipeVariant[];
   artifactRepos: string[];
+}
+
+export interface ModelIntroduction {
+  heading: string;
+  summary: string;
+  paragraphs: string[];
+  highlights: Array<{ label: string; value: string }>;
+  sourceLabel: string;
+  sourceUrl: string;
+  sourceSha?: string;
 }
 
 export interface RunReport {

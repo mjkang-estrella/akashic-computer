@@ -85,7 +85,10 @@ function dateLabel(value: number): string {
 }
 
 function contextMetadata(config: AnyRecord): { label: string; tokens: number | null } {
-  const candidate = config.max_position_embeddings ?? config.max_sequence_length ?? config.seq_length;
+  const textConfig = config.text_config && typeof config.text_config === "object" && !Array.isArray(config.text_config)
+    ? config.text_config as AnyRecord
+    : config;
+  const candidate = textConfig.max_position_embeddings ?? textConfig.max_sequence_length ?? textConfig.seq_length;
   if (typeof candidate !== "number" || !Number.isFinite(candidate) || candidate <= 0) {
     return { label: "N/A", tokens: null };
   }
@@ -119,7 +122,7 @@ function artifactFor(
   const estimate = parsed.paramsB
     ? null
     : fallbackParamsB
-      ? estimateVram(fallbackParamsB, parsed.format)
+      ? estimateVram(fallbackParamsB, parsed.format, undefined, parsed.repo.config)
       : null;
   return {
     variant,
@@ -131,6 +134,7 @@ function artifactFor(
     runtimes: estimate?.runtimes ?? parsed.runtimes,
     minVramGb: estimate?.minVramGb ?? parsed.minVramGb ?? 0,
     recVramGb: estimate?.recVramGb ?? parsed.recVramGb ?? 0,
+    vramEstimate: estimate?.details ?? parsed.vramEstimate ?? undefined,
     deltas: NULL_DELTAS,
     measured: false,
     qualityRank: 99,
@@ -180,7 +184,14 @@ async function fetchRepo(repoName: string): Promise<{ status: number; data?: unk
     { headers: hfHeaders() },
   );
   if (!response.ok) return { status: response.status };
-  return { status: response.status, data: await response.json() };
+  const data = await response.json() as AnyRecord;
+  const revision = typeof data.sha === "string" && data.sha ? data.sha : "main";
+  const configResponse = await fetch(
+    `https://huggingface.co/${encoded}/raw/${encodeURIComponent(revision)}/config.json`,
+    { headers: hfHeaders() },
+  );
+  if (configResponse.ok) data.config = await configResponse.json();
+  return { status: response.status, data };
 }
 
 async function fetchWeightMetadata(repoName: string, revision: string) {
@@ -472,6 +483,10 @@ function mergeParsedIntoPayload(
   const modelUpdatedAt = updatesCanonicalWeights ? updatedAt : original.timestamp;
   const canonicalParamsB = updatesCanonicalWeights ? parsed.paramsB ?? original.size.paramsB : original.size.paramsB;
   const canonicalSizeLabel = updatesCanonicalWeights ? parsed.sizeLabel ?? original.size.label : original.size.label;
+  const parsedContext = contextMetadata(parsed.repo.config);
+  const canonicalContext = updatesCanonicalWeights && parsedContext.tokens
+    ? parsedContext.label
+    : original.context;
   const benchmarkRefs = [...original.benchmarkRefs];
   for (const row of parsed.benchmarkRows) {
     if (!benchmarkRefs.some((existingRow) => existingRow.name === row.name && existingRow.sourceUrl === row.sourceUrl)) {
@@ -486,14 +501,20 @@ function mergeParsedIntoPayload(
     dateLabel: dateLabel(modelUpdatedAt),
     updated: true,
     timestamp: modelUpdatedAt,
-    release: updatesCanonicalWeights && parsed.repo.license
-      ? { ...original.release, license: parsed.repo.license }
+    context: canonicalContext,
+    release: updatesCanonicalWeights
+      ? {
+          ...original.release,
+          ...(parsed.repo.license ? { license: parsed.repo.license } : {}),
+          ...(parsedContext.tokens ? { ctx: parsedContext.label } : {}),
+        }
       : original.release,
     size: {
       ...original.size,
       label: canonicalSizeLabel,
       paramsB: canonicalParamsB,
       updated: updatesCanonicalWeights ? dateLabel(modelUpdatedAt) : original.size.updated,
+      context: canonicalContext,
       activeParamsB: parsed.activeParamsB ?? original.size.activeParamsB,
       isMoe: parsed.isMoe || original.size.isMoe || undefined,
     },

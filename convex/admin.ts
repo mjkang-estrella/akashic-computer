@@ -1,7 +1,19 @@
 import { action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
+import { convexValuesEqual, scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
+import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
+
+const modelIntroductionArgs = {
+  slug: v.string(),
+  heading: v.string(),
+  summary: v.string(),
+  paragraphs: v.array(v.string()),
+  highlights: v.array(v.object({ label: v.string(), value: v.string() })),
+  sourceLabel: v.string(),
+  sourceUrl: v.string(),
+  sourceSha: v.optional(v.string()),
+};
 
 function secureEqual(actual: string, expected: string): boolean {
   if (actual.length !== expected.length) return false;
@@ -55,6 +67,74 @@ export const requestCatalogSnapshotRefresh = internalMutation({
       0,
     );
     return { scheduled };
+  },
+});
+
+export const upsertModelIntroduction = internalMutation({
+  args: { ...modelIntroductionArgs, now: v.number() },
+  returns: v.object({ slug: v.string(), changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    if (args.heading.length > 120 || args.summary.length > 360) {
+      throw new Error("Model introduction heading or summary is too long");
+    }
+    if (args.paragraphs.length < 1 || args.paragraphs.length > 8) {
+      throw new Error("Model introduction requires 1 to 8 paragraphs");
+    }
+    if (args.paragraphs.some((paragraph) => paragraph.length > 1_200)) {
+      throw new Error("Model introduction paragraph is too long");
+    }
+    if (args.highlights.length > 12) {
+      throw new Error("Model introduction has too many highlights");
+    }
+    const document = await ctx.db
+      .query("catalogEntries")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
+    if (!document) throw new Error(`Unknown catalog model ${args.slug}`);
+    const introduction = {
+      heading: args.heading,
+      summary: args.summary,
+      paragraphs: args.paragraphs,
+      highlights: args.highlights,
+      sourceLabel: args.sourceLabel,
+      sourceUrl: args.sourceUrl,
+      ...(args.sourceSha ? { sourceSha: args.sourceSha } : {}),
+    };
+    const payload = document.payload as PublishedCatalogEntry;
+    const changed = !convexValuesEqual(payload.introduction, introduction);
+    const existingOverride = await ctx.db
+      .query("catalogOverrides")
+      .withIndex("by_entity", (q) => q.eq("entityType", "catalog_entry").eq("entityKey", args.slug))
+      .unique();
+    const existingPatch = existingOverride?.patch && typeof existingOverride.patch === "object"
+      ? existingOverride.patch as Record<string, unknown>
+      : {};
+    const overrideValue = {
+      entityType: "catalog_entry" as const,
+      entityKey: args.slug,
+      patch: { ...existingPatch, introduction },
+      reason: "Curated, source-attributed model-card introduction",
+      updatedAt: args.now,
+    };
+    if (existingOverride) await ctx.db.patch(existingOverride._id, overrideValue);
+    else await ctx.db.insert("catalogOverrides", overrideValue);
+    if (!changed) return { slug: args.slug, changed: false };
+
+    await ctx.db.patch(document._id, { payload: { ...payload, introduction } });
+    const state = await ctx.db
+      .query("catalogState")
+      .withIndex("by_key", (q) => q.eq("key", "public"))
+      .unique();
+    if (!state) throw new Error("Catalog state is not initialized");
+    await ctx.db.patch(state._id, { revision: `introduction:${args.slug}:${args.now}` });
+    await scheduleCatalogSnapshotRefresh(
+      ctx,
+      state._id,
+      state.snapshotRefreshScheduledAt,
+      args.now,
+      0,
+    );
+    return { slug: args.slug, changed: true };
   },
 });
 
@@ -156,6 +236,26 @@ export const syncVllmRecipes = action({
   }> => {
     assertAdminSecret(args.secret);
     return await ctx.runAction(internal.recipeSync.syncVllmRecipes, { force: args.force });
+  },
+});
+
+/** Publish a protected, source-attributed introduction for one catalog entry. */
+export const setModelIntroduction = action({
+  args: { secret: v.string(), ...modelIntroductionArgs },
+  returns: v.object({ slug: v.string(), changed: v.boolean() }),
+  handler: async (ctx, args): Promise<{ slug: string; changed: boolean }> => {
+    assertAdminSecret(args.secret);
+    return await ctx.runMutation(internal.admin.upsertModelIntroduction, {
+      slug: args.slug,
+      heading: args.heading,
+      summary: args.summary,
+      paragraphs: args.paragraphs,
+      highlights: args.highlights,
+      sourceLabel: args.sourceLabel,
+      sourceUrl: args.sourceUrl,
+      ...(args.sourceSha ? { sourceSha: args.sourceSha } : {}),
+      now: Date.now(),
+    });
   },
 });
 

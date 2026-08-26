@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Activity01Icon,
+  ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowUpRight01Icon,
   CheckmarkCircle02Icon,
@@ -68,6 +69,14 @@ export function ModelDetailView({
     }
     return [...grouped.values()];
   }, [entry]);
+  const displayMaterialChanges = useMemo(() => [
+    ...new Map(
+      entry.materialChanges.map((change) => [
+        `${change.type}:${change.title}:${change.sourceUrls[0] ?? ""}`,
+        change,
+      ]),
+    ).values(),
+  ], [entry]);
 
   return (
     <article className="pt-5" aria-labelledby="model-detail-title">
@@ -100,6 +109,52 @@ export function ModelDetailView({
         <p className="mt-5 max-w-[72ch] text-[13px] leading-6 text-muted">
           {modelDescription(entry)}
         </p>
+
+        {entry.introduction ? (
+          <details className="group/introduction mt-5 border-y border-linesoft">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-[15px] font-semibold">
+                  {entry.introduction.heading}
+                </span>
+                <span className="mt-0.5 block max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
+                  {entry.introduction.summary}
+                </span>
+              </span>
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                size={16}
+                strokeWidth={1.8}
+                aria-hidden="true"
+                className="flex-none text-faint transition-transform group-open/introduction:rotate-180"
+              />
+            </summary>
+            <div className="border-t border-linesoft pb-5 pt-4">
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                {entry.introduction.highlights.map((highlight) => (
+                  <div key={`${highlight.label}-${highlight.value}`} className="min-w-0">
+                    <dt className="text-[10.5px] text-faint">{highlight.label}</dt>
+                    <dd className="mt-0.5 text-[12.5px] font-semibold leading-relaxed">{highlight.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-5 max-w-[76ch] space-y-3 text-[13px] leading-6 text-muted">
+                {entry.introduction.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+              <a
+                href={entry.introduction.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex min-h-9 items-center gap-1.5 text-[11.5px] font-semibold text-meta hover:text-ink"
+              >
+                {entry.introduction.sourceLabel}
+                <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
+              </a>
+            </div>
+          </details>
+        ) : null}
 
         <dl className={`mt-5 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-linesoft pt-4 ${entry.context === "N/A" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
           <div>
@@ -412,7 +467,11 @@ export function ModelDetailView({
                   <div className="pl-11 md:pl-0">
                     <span className="text-[11px] text-muted md:hidden">VRAM · </span>
                     <span className="font-mono text-[13px] font-semibold">{artifact.recVramGb} GB</span>
-                    <span className="mt-0.5 block text-[10px] text-muted">{artifact.vramEstimated ? "Estimated" : "Curated"}</span>
+                    <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
+                      {artifact.vramEstimate
+                        ? `${artifact.vramEstimate.kvCacheGb} GB BF16 KV · ${artifact.vramEstimate.contextTokens.toLocaleString()} ctx · c1`
+                        : artifact.vramEstimated ? "Estimated · weight based" : "Curated"}
+                    </span>
                   </div>
                   <div className={`flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${fits ? "text-verify" : "text-alert"}`}>
                     <HugeiconsIcon
@@ -439,18 +498,18 @@ export function ModelDetailView({
           </div>
         </div>
         <p className="mt-2.5 text-[11.5px] text-muted">
-          Green meets the recommended VRAM estimate for your profile. Red requires more memory.
+          Green meets the recommended VRAM estimate for your profile. When architecture metadata is available, recommended VRAM includes BF16 KV cache at maximum context, concurrency 1, plus runtime headroom.
         </p>
       </section>
 
-      {entry.materialChanges.length > 0 ? (
+      {displayMaterialChanges.length > 0 ? (
         <section className="border-t border-line py-5" aria-labelledby="model-history-title">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 id="model-history-title" className="font-display text-[18px] font-semibold">Material history</h3>
             <span className="text-[10.5px] text-faint">Description-only commits excluded</span>
           </div>
           <ol className="mt-3 divide-y divide-linesoft border-y border-linesoft">
-            {entry.materialChanges.map((change) => (
+            {displayMaterialChanges.map((change) => (
               <li key={change.id} className="grid gap-1 py-3 sm:grid-cols-[105px_minmax(180px,0.55fr)_minmax(260px,1fr)_auto] sm:items-center sm:gap-4">
                 <time className="font-mono text-[10.5px] text-faint">{change.dateLabel}</time>
                 <span className="text-[12px] font-semibold">{change.title}</span>

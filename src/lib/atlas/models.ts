@@ -6,6 +6,7 @@ import type {
   Artifact,
   Family,
   MaterialChange,
+  ModelIntroduction,
   RecipeReference,
   Release,
   RunReport,
@@ -52,6 +53,7 @@ export interface ModelEntry {
   category: ModelCategoryId;
   capabilities: ModelCapabilityId[];
   benchmarkRefs: NonNullable<SizeNode["benchmarkRefs"]>;
+  introduction?: ModelIntroduction;
   recipeReferences: RecipeReference[];
   materialChanges: MaterialChange[];
   runReports: RunReport[];

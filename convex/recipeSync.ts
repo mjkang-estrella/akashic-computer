@@ -252,7 +252,7 @@ export const finalizeSync = internalMutation({
           const type = prior ? "recipe_updated" as const : "recipe_published" as const;
           if (prior && prior.sourceSha === recipe.sourceSha) continue;
           await upsertMaterialChange(ctx, {
-            dedupeKey: `${entry.slug}:${type}:${recipe.upstreamId}:${recipe.sourceSha}`,
+            dedupeKey: `${entry.slug}:${type}:${recipe.recipeUrl}:${recipe.sourceSha}`,
             modelSlug: entry.slug,
             modelName: payload.name,
             type,

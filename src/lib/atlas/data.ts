@@ -39,9 +39,10 @@ export const RIG_PRESETS: RigPreset[] = [
   { id: "vram80", label: "80 GB", gb: 80, kind: "cuda" },
   { id: "vram128", label: "128 GB", gb: 128, kind: "cuda" },
   { id: "vram256", label: "256 GB", gb: 256, kind: "cuda" },
+  { id: "vram384", label: "384 GB", gb: 384, kind: "cuda" },
 ];
 
-export const DEFAULT_PRESET_ID = "vram256";
+export const DEFAULT_PRESET_ID = "vram384";
 
 /** Every size+variant with sourced reference scores appears in the Compare tab. */
 export const COMPARE_MODELS: CompareModel[] = FAMILIES.flatMap((family) =>

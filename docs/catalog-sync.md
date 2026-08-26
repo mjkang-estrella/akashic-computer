@@ -5,9 +5,9 @@ audit for recovery. Public reads come from the denormalized `catalogEntries`
 table. Normalized family, release, size, variant, artifact, benchmark, source,
 event, and run tables retain provenance and diagnostics.
 
-Official vLLM Recipes are synchronized separately at 04:15 UTC. Akashic stores
-compact, versioned references to those recipes; it does not copy or regenerate
-their launch commands.
+Official vLLM Recipes are checked hourly at minute 15. A revision comparison
+makes unchanged checks read-only; changed revisions synchronize compact,
+versioned references without copying or regenerating launch commands.
 
 ## Production Setup
 
@@ -104,6 +104,16 @@ advance the base model's date, even when the model creator publishes them. The
 daily audit gradually backfills legacy creator records that predate weight-level
 provenance, with a per-source cap to avoid another expensive baseline pass.
 
+## Recommended VRAM Semantics
+
+When structured architecture metadata is available, recommended VRAM is the
+estimated weight footprint plus a BF16 KV cache at the model's maximum context
+length and concurrency 1, followed by runtime headroom. Standard attention uses
+layer count, KV heads, and head dimension. MLA checkpoints use their latent KV
+width and only layers whose cache grows with context. The artifact retains the
+weight-only minimum separately. Repositories without sufficient architecture
+metadata keep the prior weight-based estimate and are labeled accordingly.
+
 ## Deployment Recipes And Run Reports
 
 `recipeSync:syncVllmRecipes` reads the official model index, per-model JSON,
@@ -157,6 +167,14 @@ artifacts, expanded runtime metadata, access changes, and official recipe
 changes. Dedupe keys make webhook replays idempotent. Documentation-only
 commits are excluded because public dates and weight changes use the recognized
 weight manifest rather than repository `lastModified`.
+
+## Protected Model Introductions
+
+Detailed model-card introductions are stored as protected catalog-entry
+overrides. Each introduction contains a short disclosure summary, structured
+highlights, paraphrased explanatory paragraphs, and an immutable source URL/SHA.
+The override survives subsequent Hugging Face ingestion and is projected into
+the public catalog snapshot without fetching a README in the browser.
 
 ## Validation
 
