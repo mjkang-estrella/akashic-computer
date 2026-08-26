@@ -434,9 +434,7 @@ export function ModelDetailView({
                     <span className="text-[11px] text-muted md:hidden">VRAM · </span>
                     <span className="font-mono text-[13px] font-semibold">{artifact.recVramGb} GB</span>
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
-                      {artifact.vramEstimate
-                        ? `${artifact.vramEstimate.weightGb} GB weights + ${artifact.vramEstimate.kvCacheGb} GB BF16 KV · ${artifact.vramEstimate.contextTokens.toLocaleString()} ctx · c1`
-                        : artifact.vramEstimated ? "Estimated · weight based" : "Curated"}
+                      {artifact.vramEstimated ? "Estimated" : "Curated"}
                     </span>
                     {recipeCheckpoint?.variant.minimumVramGb ? (
                       <span className="mt-0.5 block text-[10px] font-semibold text-meta">
@@ -469,7 +467,7 @@ export function ModelDetailView({
           </div>
         </div>
         <p className="mt-2.5 text-[11.5px] text-muted">
-          Green meets the default VRAM estimate for your profile. When architecture metadata is available, it equals checkpoint weights plus BF16 KV cache at maximum context and concurrency 1; runtime headroom is not included.
+          Green fits the selected profile; red exceeds it. Estimates exclude runtime headroom.
         </p>
         <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
           <HugeiconsIcon icon={StarIcon} size={13} strokeWidth={1.9} aria-hidden="true" className="text-meta" />
