@@ -16,6 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
+import { modelTransitionName } from "@/lib/atlas/motion";
 import type { RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
 import { FamilyLogo } from "./FamilyLogo";
@@ -107,7 +108,10 @@ export function ModelDetailView({
 
       <header className="border-b border-line pb-5 pt-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3.5">
+          <div
+            className="flex min-w-0 items-center gap-3.5"
+            style={{ viewTransitionName: modelTransitionName(entry.slug) }}
+          >
             <FamilyLogo familyId={entry.family.id} familyName={entry.family.name} size={42} />
             <div className="min-w-0">
               <h2 id="model-detail-title" className="text-wrap-balance font-display text-[25px] font-semibold leading-tight">
@@ -127,7 +131,7 @@ export function ModelDetailView({
         </p>
 
         {entry.introduction ? (
-          <details className="group/introduction mt-5 border-y border-linesoft">
+          <details className="motion-disclosure group/introduction mt-5 border-y border-linesoft">
             <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
               <span className="min-w-0 flex-1">
                 <span className="block font-display text-[15px] font-semibold">
@@ -145,7 +149,9 @@ export function ModelDetailView({
                 className="flex-none text-faint transition-transform group-open/introduction:rotate-180"
               />
             </summary>
-            <div className="border-t border-linesoft pb-5 pt-4">
+            <div className="disclosure-body">
+              <div className="disclosure-content">
+                <div className="border-t border-linesoft pb-5 pt-4">
               <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                 {entry.introduction.highlights.map((highlight) => (
                   <div key={`${highlight.label}-${highlight.value}`} className="min-w-0">
@@ -158,6 +164,7 @@ export function ModelDetailView({
                 {entry.introduction.paragraphs.map((paragraph) => (
                   <p key={paragraph}>{paragraph}</p>
                 ))}
+                </div>
               </div>
               <a
                 href={entry.introduction.sourceUrl}
@@ -168,6 +175,7 @@ export function ModelDetailView({
                 {entry.introduction.sourceLabel}
                 <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
               </a>
+              </div>
             </div>
           </details>
         ) : null}
@@ -263,7 +271,7 @@ export function ModelDetailView({
         {displayRecipes.length > 0 ? (
           <div className="mt-4 divide-y divide-linesoft border-y border-line">
             {displayRecipes.map((recipe) => (
-              <details key={recipe.recipeUrl} className="group/recipe">
+              <details key={recipe.recipeUrl} className="motion-disclosure group/recipe">
                 <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
                   <HugeiconsIcon icon={Rocket01Icon} size={17} strokeWidth={1.8} aria-hidden="true" className="flex-none text-meta" />
                   <span className="min-w-0 flex-1">
@@ -285,7 +293,9 @@ export function ModelDetailView({
                     className="flex-none text-faint transition-transform group-open/recipe:rotate-180"
                   />
                 </summary>
-                <div className="border-t border-linesoft pb-4 pt-3">
+                <div className="disclosure-body">
+                  <div className="disclosure-content">
+                    <div className="border-t border-linesoft pb-4 pt-3">
                   <dl className="grid gap-3 sm:grid-cols-3">
                     <div>
                       <dt className="text-[10.5px] text-faint">Minimum vLLM</dt>
@@ -327,6 +337,7 @@ export function ModelDetailView({
                         {[...recipe.tasks, ...recipe.features].join(" · ") || "See the upstream recipe for supported features."}
                       </p>
                     </div>
+                    </div>
                   </div>
                   <a
                     href={recipe.recipeUrl}
@@ -337,6 +348,7 @@ export function ModelDetailView({
                     Open official recipe
                     <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
                   </a>
+                  </div>
                 </div>
               </details>
             ))}
@@ -351,24 +363,28 @@ export function ModelDetailView({
         )}
 
         {entry.runReports.length > 0 ? (
-          <details className="group/reports mt-3 border-y border-linesoft">
+          <details className="motion-disclosure group/reports mt-3 border-y border-linesoft">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 marker:hidden">
               <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="text-faint" />
               <span className="flex-1 text-[12px] font-semibold">Akashic run reports · {entry.runReports.length}</span>
               <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.8} aria-hidden="true" className="text-faint transition-transform group-open/reports:rotate-180" />
             </summary>
-            <div className="divide-y divide-linesoft border-t border-linesoft">
-              {entry.runReports.map((report) => (
-                <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
-                  <span>
-                    <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
-                    <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
-                  </span>
-                  <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
-                  <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
-                  <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
+            <div className="disclosure-body">
+              <div className="disclosure-content">
+                <div className="divide-y divide-linesoft border-t border-linesoft">
+                {entry.runReports.map((report) => (
+                  <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
+                    <span>
+                      <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
+                      <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
+                    </span>
+                    <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
+                    <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
+                    <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
+                  </div>
+                ))}
                 </div>
-              ))}
+              </div>
             </div>
           </details>
         ) : null}
@@ -391,7 +407,7 @@ export function ModelDetailView({
               return (
                 <div
                   key={`${artifact.variant}-${artifact.repo}`}
-                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] md:items-center ${
+                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] md:items-center ${
                     fits ? "bg-verifysoft" : "bg-alertsoft"
                   }`}
                 >
@@ -413,7 +429,7 @@ export function ModelDetailView({
                           title={`Official checkpoint in ${recipeCheckpoint.recipe.title}`}
                           className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[10px] font-semibold text-meta"
                         >
-                          <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" />
+                          <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" className="recipe-star" />
                           Recipe checkpoint
                         </span>
                       ) : null}
@@ -442,7 +458,10 @@ export function ModelDetailView({
                       </span>
                     ) : null}
                   </div>
-                  <div className={`flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${fits ? "text-verify" : "text-alert"}`}>
+                  <div
+                    key={`${artifact.repo}-${rig.gb}-${fits ? "fits" : "no"}`}
+                    className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${fits ? "text-verify" : "text-alert"}`}
+                  >
                     <HugeiconsIcon
                       icon={fits ? CheckmarkCircle02Icon : CancelCircleIcon}
                       size={17}

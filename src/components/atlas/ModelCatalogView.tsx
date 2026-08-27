@@ -19,6 +19,7 @@ import {
   Video01Icon,
 } from "@hugeicons/core-free-icons";
 import { compareModelEntriesByRecency, type ModelEntry } from "@/lib/atlas/models";
+import { modelTransitionName, runViewTransition } from "@/lib/atlas/motion";
 import { modelReleaseName, parameterDetailLabel, parameterTotalLabel } from "@/lib/atlas/naming";
 import {
   MODEL_CAPABILITIES,
@@ -505,7 +506,13 @@ export function ModelCatalogView({
     (provider !== "all" ? 1 : 0);
   const filtered = filterCount > 0;
 
-  const resetFilters = () => {
+  const updateCategory = (value: CategoryFilter) => runViewTransition(() => setCategory(value));
+  const updateFamily = (value: string) => runViewTransition(() => setFamilyId(value));
+  const updateSizeBand = (value: SizeBand) => runViewTransition(() => setSizeBand(value));
+  const updateVariant = (value: string) => runViewTransition(() => setVariant(value));
+  const updateQuant = (value: string) => runViewTransition(() => setQuant(value));
+  const updateProvider = (value: string) => runViewTransition(() => setProvider(value));
+  const resetFilters = () => runViewTransition(() => {
     setCategory("all");
     setCapabilities(new Set());
     setFamilyId("all");
@@ -513,13 +520,15 @@ export function ModelCatalogView({
     setVariant("all");
     setQuant("all");
     setProvider("all");
-  };
+  });
   const toggleCapability = (item: ModelCapabilityId) => {
-    setCapabilities((current) => {
-      const next = new Set(current);
-      if (next.has(item)) next.delete(item);
-      else next.add(item);
-      return next;
+    runViewTransition(() => {
+      setCapabilities((current) => {
+        const next = new Set(current);
+        if (next.has(item)) next.delete(item);
+        else next.add(item);
+        return next;
+      });
     });
   };
   const filterPanelProps: FilterPanelProps = {
@@ -538,20 +547,20 @@ export function ModelCatalogView({
     quantizations,
     providers,
     filtered,
-    onCategory: setCategory,
+    onCategory: updateCategory,
     onCapability: toggleCapability,
-    onFamily: setFamilyId,
-    onSizeBand: setSizeBand,
-    onVariant: setVariant,
-    onQuant: setQuant,
-    onProvider: setProvider,
+    onFamily: updateFamily,
+    onSizeBand: updateSizeBand,
+    onVariant: updateVariant,
+    onQuant: updateQuant,
+    onProvider: updateProvider,
     onReset: resetFilters,
   };
   const activeChips = [
     category !== "all" && {
       key: "category",
       label: MODEL_CATEGORIES.find((item) => item.id === category)?.label ?? category,
-      clear: () => setCategory("all"),
+      clear: () => updateCategory("all"),
     },
     ...[...capabilities].map((item) => ({
       key: `capability-${item}`,
@@ -561,16 +570,16 @@ export function ModelCatalogView({
     familyId !== "all" && {
       key: "family",
       label: families.find((family) => family.id === familyId)?.vendor ?? familyId,
-      clear: () => setFamilyId("all"),
+      clear: () => updateFamily("all"),
     },
     sizeBand !== "all" && {
       key: "size",
       label: SIZE_BANDS.find((band) => band.id === sizeBand)?.label ?? sizeBand,
-      clear: () => setSizeBand("all"),
+      clear: () => updateSizeBand("all"),
     },
-    variant !== "all" && { key: "variant", label: variant, clear: () => setVariant("all") },
-    quant !== "all" && { key: "quant", label: quant, clear: () => setQuant("all") },
-    provider !== "all" && { key: "provider", label: provider, clear: () => setProvider("all") },
+    variant !== "all" && { key: "variant", label: variant, clear: () => updateVariant("all") },
+    quant !== "all" && { key: "quant", label: quant, clear: () => updateQuant("all") },
+    provider !== "all" && { key: "provider", label: provider, clear: () => updateProvider("all") },
   ].filter((item): item is { key: string; label: string; clear: () => void } => Boolean(item));
   const populatedCategories = MODEL_CATEGORIES.filter((item) => (categoryCounts.get(item.id) ?? 0) > 0);
 
@@ -589,7 +598,7 @@ export function ModelCatalogView({
       <nav className="-mx-5 flex gap-2 overflow-x-auto border-b border-line px-5 py-3 xl:hidden" aria-label="Model categories">
         <button
           type="button"
-          onClick={() => setCategory("all")}
+          onClick={() => updateCategory("all")}
           aria-pressed={category === "all"}
           className={`flex min-h-9 flex-none items-center gap-1.5 rounded-[7px] border px-3 text-[12.5px] font-semibold ${category === "all" ? "border-ink bg-ink text-paper" : "border-line bg-panel text-muted"}`}
         >
@@ -600,7 +609,7 @@ export function ModelCatalogView({
           <button
             key={item.id}
             type="button"
-            onClick={() => setCategory(item.id)}
+            onClick={() => updateCategory(item.id)}
             aria-pressed={category === item.id}
             className={`flex min-h-9 flex-none items-center gap-1.5 rounded-[7px] border px-3 text-[12.5px] font-semibold ${category === item.id ? "border-ink bg-ink text-paper" : "border-line bg-panel text-muted"}`}
           >
@@ -664,7 +673,7 @@ export function ModelCatalogView({
                 <span className="sr-only col-start-7">Open</span>
               </div>
               <div className="divide-y divide-linesoft">
-                {entries.map((entry) => (
+                {entries.map((entry, index) => (
                   <button
                     key={entry.slug}
                     type="button"
@@ -672,7 +681,10 @@ export function ModelCatalogView({
                     aria-label={`Open ${entry.name}`}
                     className="group grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2"
                   >
-                    <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="flex min-w-0 items-center gap-3"
+                      style={index < 60 ? { viewTransitionName: modelTransitionName(entry.slug) } : undefined}
+                    >
                       <FamilyLogo familyId={entry.family.id} familyName={entry.family.name} />
                       <span className="min-w-0">
                         <span className="block font-display text-[15px] font-semibold leading-tight group-hover:underline group-hover:underline-offset-4">
@@ -711,8 +723,8 @@ export function ModelCatalogView({
 
       {filtersOpen && (
         <div className="fixed inset-0 z-50 xl:hidden">
-          <button type="button" onClick={() => setFiltersOpen(false)} className="absolute inset-0 bg-ink/20" aria-label="Close filters" />
-          <aside role="dialog" aria-modal="true" aria-labelledby="mobile-filter-title" className="absolute inset-y-0 right-0 w-[min(88vw,360px)] overflow-y-auto border-l border-line bg-paper px-5 pb-8 shadow-xl">
+          <button type="button" onClick={() => setFiltersOpen(false)} className="filter-backdrop absolute inset-0 bg-ink/20" aria-label="Close filters" />
+          <aside role="dialog" aria-modal="true" aria-labelledby="mobile-filter-title" className="filter-sheet absolute inset-y-0 right-0 w-[min(88vw,360px)] overflow-y-auto border-l border-line bg-paper px-5 pb-8 shadow-xl">
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-paper py-4">
               <h2 id="mobile-filter-title" className="font-display text-[19px] font-semibold">Filters</h2>
               <button type="button" onClick={() => setFiltersOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-[7px] text-muted hover:bg-panel2 hover:text-ink" aria-label="Close filters">

@@ -199,7 +199,7 @@ function CatalogField({ entries }: { entries: ModelEntry[] }) {
             className={`catalog-field-bar min-w-1 flex-1 rounded-t-[2px] ${bar.tone}`}
             style={{
               height: `${bar.height}%`,
-              animationDelay: `${index * 110}ms`,
+              animationDelay: `${index * 12}ms`,
             }}
           />
         ))}

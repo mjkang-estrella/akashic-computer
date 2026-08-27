@@ -30,7 +30,7 @@ export function FitBar({
           aria-hidden="true"
         />
       </summary>
-      <div className="absolute right-0 top-full z-30 mt-2 w-[min(360px,calc(100vw-40px))] rounded-[10px] border border-ink bg-panel p-3.5">
+      <div className="profile-popover absolute right-0 top-full z-30 mt-2 w-[min(360px,calc(100vw-40px))] rounded-[10px] border border-ink bg-panel p-3.5">
         <div className="mb-3 flex items-baseline justify-between gap-3 border-b border-linesoft pb-2.5">
           <span className="text-[13px] font-semibold">VRAM profile</span>
           <span className="font-mono text-[13px] text-muted">{selectedGb} GB</span>

@@ -24,7 +24,7 @@ export function CompareDrawer({
     <div
       role="region"
       aria-label="Artifact comparison"
-      className="fixed inset-x-0 bottom-0 z-40 max-h-[62vh] overflow-y-auto border-t-2 border-ink bg-panel shadow-[0_-8px_28px_rgba(0,0,0,0.14)] md:max-h-[46vh]"
+      className="compare-drawer fixed inset-x-0 bottom-0 z-40 max-h-[62vh] overflow-y-auto border-t-2 border-ink bg-panel shadow-[0_-8px_28px_rgba(0,0,0,0.14)] md:max-h-[46vh]"
     >
       <div className="mx-auto max-w-[1240px] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         <div className="flex items-start justify-between gap-3">

@@ -19,6 +19,7 @@ import {
   findModelEntryForTarget,
   type ModelEntry,
 } from "@/lib/atlas/models";
+import { runViewTransition } from "@/lib/atlas/motion";
 import { BenchmarkView } from "./BenchmarkView";
 import { CompareDrawer } from "./CompareDrawer";
 import { useCatalog } from "./CatalogProvider";
@@ -97,34 +98,38 @@ export function AtlasApp() {
   }, []);
 
   const switchTab = (t: Tab) => {
-    setTab(t);
-    setQuery("");
-    setModelSlug(null);
-    setPreferredVariant(null);
-    setDocSlug(null);
-    const url = new URL(window.location.href);
-    if (t === "home") url.searchParams.delete("tab");
-    else url.searchParams.set("tab", t);
-    url.searchParams.delete("model");
-    url.searchParams.delete("variant");
-    url.searchParams.delete("doc");
-    url.hash = "";
-    window.history.pushState(null, "", url);
-    window.scrollTo({ top: 0, behavior: "auto" });
+    runViewTransition(() => {
+      setTab(t);
+      setQuery("");
+      setModelSlug(null);
+      setPreferredVariant(null);
+      setDocSlug(null);
+      const url = new URL(window.location.href);
+      if (t === "home") url.searchParams.delete("tab");
+      else url.searchParams.set("tab", t);
+      url.searchParams.delete("model");
+      url.searchParams.delete("variant");
+      url.searchParams.delete("doc");
+      url.hash = "";
+      window.history.pushState(null, "", url);
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
   };
 
   const goHome = () => {
-    setTab("home");
-    setQuery("");
-    setModelSlug(null);
-    setCatalogFamilyId(null);
-    setPreferredVariant(null);
-    setDocSlug(null);
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.hash = "";
-    window.history.pushState(null, "", url);
-    window.scrollTo({ top: 0, behavior: "auto" });
+    runViewTransition(() => {
+      setTab("home");
+      setQuery("");
+      setModelSlug(null);
+      setCatalogFamilyId(null);
+      setPreferredVariant(null);
+      setDocSlug(null);
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      window.history.pushState(null, "", url);
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
   };
 
   const rig = resolveProfile(RIG_PRESETS, presetId, manualGb);
@@ -139,40 +144,46 @@ export function AtlasApp() {
   }, [checked, entries]);
 
   const toggleChecked = (repo: string, on: boolean) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (on) {
-        if (next.size < 4) next.add(repo);
-      } else {
-        next.delete(repo);
-      }
-      return next;
+    runViewTransition(() => {
+      setChecked((prev) => {
+        const next = new Set(prev);
+        if (on) {
+          if (next.size < 4) next.add(repo);
+        } else {
+          next.delete(repo);
+        }
+        return next;
+      });
     });
   };
 
   const openModel = (entry: ModelEntry, variant?: string | null) => {
-    setTab("model");
-    setQuery("");
-    setModelSlug(entry.slug);
-    setCatalogFamilyId(null);
-    setPreferredVariant(variant ?? null);
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", "model");
-    url.searchParams.set("model", entry.slug);
-    url.searchParams.delete("doc");
-    if (variant) url.searchParams.set("variant", variant);
-    else url.searchParams.delete("variant");
-    url.hash = "";
-    window.history.pushState(null, "", url);
+    runViewTransition(() => {
+      setTab("model");
+      setQuery("");
+      setModelSlug(entry.slug);
+      setCatalogFamilyId(null);
+      setPreferredVariant(variant ?? null);
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "model");
+      url.searchParams.set("model", entry.slug);
+      url.searchParams.delete("doc");
+      if (variant) url.searchParams.set("variant", variant);
+      else url.searchParams.delete("variant");
+      url.hash = "";
+      window.history.pushState(null, "", url);
+    });
   };
 
   const closeModel = () => {
-    setModelSlug(null);
-    setPreferredVariant(null);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("model");
-    url.searchParams.delete("variant");
-    window.history.pushState(null, "", url);
+    runViewTransition(() => {
+      setModelSlug(null);
+      setPreferredVariant(null);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("model");
+      url.searchParams.delete("variant");
+      window.history.pushState(null, "", url);
+    });
   };
 
   const selectSearchResult = (target: SearchTarget) => {
@@ -263,10 +274,12 @@ export function AtlasApp() {
       presetId={presetId}
       manualGb={manualGb}
       onPreset={(id) => {
-        setPresetId(id);
-        setManualGb(null);
+        runViewTransition(() => {
+          setPresetId(id);
+          setManualGb(null);
+        });
       }}
-      onManualGb={setManualGb}
+      onManualGb={(gb) => runViewTransition(() => setManualGb(gb))}
     />
   );
   const selectedModel = findModelEntryForSlug(entries, modelSlug);
@@ -416,7 +429,7 @@ export function AtlasApp() {
             artifacts={checkedArtifacts}
             rig={rig}
             onRemove={(repo) => toggleChecked(repo, false)}
-            onClear={() => setChecked(new Set())}
+            onClear={() => runViewTransition(() => setChecked(new Set()))}
           />
         )}
       </main>
