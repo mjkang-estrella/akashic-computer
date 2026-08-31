@@ -202,9 +202,27 @@ export const cancelAudit = action({
 /** Evaluate freshness immediately instead of waiting for the hourly watchdog. */
 export const checkHealth = action({
   args: { secret: v.string() },
+  returns: v.object({
+    activated: v.array(v.object({
+      kind: v.union(
+        v.literal("webhook_stale"),
+        v.literal("catalog_degraded"),
+        v.literal("catalog_stale"),
+      ),
+      message: v.string(),
+    })),
+    resolved: v.array(v.object({
+      kind: v.union(
+        v.literal("webhook_stale"),
+        v.literal("catalog_degraded"),
+        v.literal("catalog_stale"),
+      ),
+      message: v.string(),
+    })),
+  }),
   handler: async (ctx, args): Promise<{
-    activated: Array<{ kind: "webhook_stale" | "catalog_stale"; message: string }>;
-    resolved: Array<{ kind: "webhook_stale" | "catalog_stale"; message: string }>;
+    activated: Array<{ kind: "webhook_stale" | "catalog_degraded" | "catalog_stale"; message: string }>;
+    resolved: Array<{ kind: "webhook_stale" | "catalog_degraded" | "catalog_stale"; message: string }>;
   }> => {
     assertAdminSecret(args.secret);
     return await ctx.runAction(internal.health.checkCatalogHealth, {});

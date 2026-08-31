@@ -2,18 +2,29 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 
-const alertKind = v.union(v.literal("webhook_stale"), v.literal("catalog_stale"));
-type HealthTransition = { kind: "webhook_stale" | "catalog_stale"; message: string };
+const alertKind = v.union(
+  v.literal("webhook_stale"),
+  v.literal("catalog_degraded"),
+  v.literal("catalog_stale"),
+);
+type HealthKind = "webhook_stale" | "catalog_degraded" | "catalog_stale";
+type HealthTransition = { kind: HealthKind; message: string };
 type HealthResult = { activated: HealthTransition[]; resolved: HealthTransition[] };
+const healthTransition = v.object({ kind: alertKind, message: v.string() });
+const healthResult = v.object({
+  activated: v.array(healthTransition),
+  resolved: v.array(healthTransition),
+});
 
 export const recordHealth = internalMutation({
   args: {
     checks: v.array(v.object({ kind: alertKind, stale: v.boolean(), message: v.string() })),
     now: v.number(),
   },
+  returns: healthResult,
   handler: async (ctx, args) => {
-    const activated: Array<{ kind: "webhook_stale" | "catalog_stale"; message: string }> = [];
-    const resolved: Array<{ kind: "webhook_stale" | "catalog_stale"; message: string }> = [];
+    const activated: HealthTransition[] = [];
+    const resolved: HealthTransition[] = [];
     for (const check of args.checks) {
       const existing = await ctx.db
         .query("catalogHealthAlerts")
@@ -70,9 +81,10 @@ async function sendAlert(message: string): Promise<void> {
 
 export const checkCatalogHealth = internalAction({
   args: {},
+  returns: healthResult,
   handler: async (ctx): Promise<HealthResult> => {
-    const status = await ctx.runQuery(api.catalog.status, {});
     const now = Date.now();
+    const status = await ctx.runQuery(api.catalog.healthSummary, { now });
     const result: HealthResult = await ctx.runMutation(internal.health.recordHealth, {
       now,
       checks: [
@@ -84,11 +96,18 @@ export const checkCatalogHealth = internalAction({
             : "Akashic catalog webhook processing is healthy.",
         },
         {
+          kind: "catalog_degraded",
+          stale: status.level === "degraded",
+          message: status.level === "degraded"
+            ? `Akashic catalog is current for ${status.freshSourceCount} of ${status.sourceTotal} sources; ${status.staleSourceCount} source refreshes are delayed.`
+            : "Akashic catalog has no delayed source refreshes.",
+        },
+        {
           kind: "catalog_stale",
-          stale: status.catalogStale,
-          message: status.catalogStale
-            ? "Akashic catalog has no successful reconciliation within the last 26 hours."
-            : "Akashic catalog reconciliation is healthy.",
+          stale: status.level === "stale",
+          message: status.level === "stale"
+            ? "Akashic catalog has no current Hugging Face sources."
+            : "Akashic catalog has current Hugging Face source data.",
         },
       ],
     });

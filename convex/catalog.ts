@@ -1,11 +1,87 @@
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { convexValuesEqual } from "./catalogSnapshot";
+import {
+  SOURCE_FRESHNESS_MS,
+  summarizeSourceHealth,
+  WEBHOOK_FRESHNESS_MS,
+} from "../src/lib/atlas/catalogHealth";
 
 const STATE_KEY = "public";
 const SNAPSHOT_CHUNK_SIZE = 24;
 const MAX_CATALOG_ENTRIES = 2_000;
 const MAX_SNAPSHOT_CHUNKS = Math.ceil(MAX_CATALOG_ENTRIES / SNAPSHOT_CHUNK_SIZE) + 1;
+const healthLevel = v.union(v.literal("healthy"), v.literal("degraded"), v.literal("stale"));
+
+const healthSummaryValue = v.object({
+  level: healthLevel,
+  sourceTotal: v.number(),
+  freshSourceCount: v.number(),
+  staleSourceCount: v.number(),
+  failingSourceCount: v.number(),
+  retryingSourceCount: v.number(),
+  staleSources: v.array(v.string()),
+  failingSources: v.array(v.string()),
+  nextRetryAt: v.union(v.number(), v.null()),
+  pendingWebhookCount: v.number(),
+  failedWebhookCount: v.number(),
+  webhookStale: v.boolean(),
+  lastCompletedAuditAt: v.union(v.number(), v.null()),
+});
+
+const sourceHealthValue = v.object({
+  level: healthLevel,
+  total: v.number(),
+  fresh: v.number(),
+  stale: v.number(),
+  failing: v.number(),
+  retrying: v.number(),
+  staleSources: v.array(v.string()),
+  failingSources: v.array(v.string()),
+  nextRetryAt: v.union(v.number(), v.null()),
+});
+
+const statusValue = v.object({
+  revision: v.string(),
+  syncedAt: v.union(v.number(), v.null()),
+  lastWebhookAt: v.union(v.number(), v.null()),
+  lastSuccessfulAuditAt: v.union(v.number(), v.null()),
+  lastCompletedAuditAt: v.union(v.number(), v.null()),
+  latestAudit: v.union(v.null(), v.object({
+    status: v.union(
+      v.literal("running"),
+      v.literal("success"),
+      v.literal("degraded"),
+      v.literal("failed"),
+    ),
+    startedAt: v.number(),
+    completedAt: v.union(v.number(), v.null()),
+    message: v.union(v.string(), v.null()),
+    expectedSources: v.union(v.number(), v.null()),
+    completedSources: v.union(v.number(), v.null()),
+    discovered: v.number(),
+    changed: v.number(),
+    published: v.number(),
+    skipped: v.number(),
+    failed: v.number(),
+    retries: v.number(),
+  })),
+  pendingWebhookCount: v.number(),
+  failedWebhookCount: v.number(),
+  activeAlerts: v.array(v.object({
+    kind: v.union(
+      v.literal("webhook_stale"),
+      v.literal("catalog_degraded"),
+      v.literal("catalog_stale"),
+    ),
+    message: v.string(),
+    firstDetectedAt: v.number(),
+  })),
+  sourceHealth: sourceHealthValue,
+  webhookStale: v.boolean(),
+  catalogDegraded: v.boolean(),
+  catalogStale: v.boolean(),
+});
 
 function assertCatalogBound<T>(documents: T[]): T[] {
   if (documents.length > MAX_CATALOG_ENTRIES) {
@@ -134,11 +210,57 @@ export const getBySlug = query({
   },
 });
 
+export const healthSummary = query({
+  args: { now: v.number() },
+  returns: healthSummaryValue,
+  handler: async (ctx, args) => {
+    const [sources, pendingWebhooks, failedWebhooks, latestAudit] = await Promise.all([
+      ctx.db
+        .query("monitoredSources")
+        .withIndex("by_enabled", (q) => q.eq("enabled", true))
+        .take(100),
+      ctx.db
+        .query("webhookEvents")
+        .withIndex("by_status_and_received", (q) => q.eq("status", "pending"))
+        .order("asc")
+        .take(100),
+      ctx.db
+        .query("webhookEvents")
+        .withIndex("by_status_and_received", (q) =>
+          q.eq("status", "failed").gte("receivedAt", args.now - SOURCE_FRESHNESS_MS))
+        .order("desc")
+        .take(100),
+      ctx.db
+        .query("syncRuns")
+        .withIndex("by_kind_started", (q) => q.eq("kind", "audit"))
+        .order("desc")
+        .first(),
+    ]);
+    const sourceHealth = summarizeSourceHealth(sources, args.now);
+    const oldestPendingAt = pendingWebhooks[0]?.receivedAt ?? null;
+    return {
+      level: sourceHealth.level,
+      sourceTotal: sourceHealth.total,
+      freshSourceCount: sourceHealth.fresh,
+      staleSourceCount: sourceHealth.stale,
+      failingSourceCount: sourceHealth.failing,
+      retryingSourceCount: sourceHealth.retrying,
+      staleSources: sourceHealth.staleSources,
+      failingSources: sourceHealth.failingSources,
+      nextRetryAt: sourceHealth.nextRetryAt,
+      pendingWebhookCount: pendingWebhooks.length,
+      failedWebhookCount: failedWebhooks.length,
+      webhookStale: oldestPendingAt !== null && args.now - oldestPendingAt > WEBHOOK_FRESHNESS_MS,
+      lastCompletedAuditAt: latestAudit?.completedAt ?? null,
+    };
+  },
+});
+
 export const status = query({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
-    const [state, latestAudit, pendingWebhooks, failedWebhooks, activeAlerts] = await Promise.all([
+  args: { now: v.number() },
+  returns: statusValue,
+  handler: async (ctx, args) => {
+    const [state, latestAudit, pendingWebhooks, failedWebhooks, activeAlerts, sources] = await Promise.all([
       ctx.db
         .query("catalogState")
         .withIndex("by_key", (q) => q.eq("key", STATE_KEY))
@@ -150,19 +272,25 @@ export const status = query({
         .first(),
       ctx.db
         .query("webhookEvents")
-        .withIndex("by_received")
-        .filter((q) => q.eq(q.field("status"), "pending"))
-        .collect(),
+        .withIndex("by_status_and_received", (q) => q.eq("status", "pending"))
+        .order("asc")
+        .take(100),
       ctx.db
         .query("webhookEvents")
-        .withIndex("by_received")
-        .filter((q) => q.eq(q.field("status"), "failed"))
+        .withIndex("by_status_and_received", (q) =>
+          q.eq("status", "failed").gte("receivedAt", args.now - SOURCE_FRESHNESS_MS))
+        .order("desc")
         .take(100),
       ctx.db
         .query("catalogHealthAlerts")
-        .filter((q) => q.eq(q.field("active"), true))
-        .collect(),
+        .withIndex("by_active", (q) => q.eq("active", true))
+        .take(10),
+      ctx.db
+        .query("monitoredSources")
+        .withIndex("by_enabled", (q) => q.eq("enabled", true))
+        .take(100),
     ]);
+    const sourceHealth = summarizeSourceHealth(sources, args.now);
     const oldestPending = pendingWebhooks.reduce<number | null>(
       (oldest, event) => (oldest === null || event.receivedAt < oldest ? event.receivedAt : oldest),
       null,
@@ -172,6 +300,7 @@ export const status = query({
       syncedAt: state?.syncedAt ?? null,
       lastWebhookAt: state?.lastWebhookAt ?? null,
       lastSuccessfulAuditAt: state?.lastSuccessfulAuditAt ?? null,
+      lastCompletedAuditAt: state?.lastCompletedAuditAt ?? latestAudit?.completedAt ?? null,
       latestAudit: latestAudit
         ? {
             status: latestAudit.status,
@@ -195,9 +324,10 @@ export const status = query({
         message: alert.message,
         firstDetectedAt: alert.firstDetectedAt,
       })),
-      webhookStale: oldestPending !== null && now - oldestPending > 10 * 60 * 1000,
-      catalogStale:
-        !state?.lastSuccessfulAuditAt || now - state.lastSuccessfulAuditAt > 26 * 60 * 60 * 1000,
+      sourceHealth,
+      webhookStale: oldestPending !== null && args.now - oldestPending > WEBHOOK_FRESHNESS_MS,
+      catalogDegraded: sourceHealth.level === "degraded",
+      catalogStale: sourceHealth.level === "stale",
     };
   },
 });

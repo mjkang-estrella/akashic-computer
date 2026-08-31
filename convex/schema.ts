@@ -255,9 +255,12 @@ export default defineSchema({
     lastAuditAt: v.optional(v.number()),
     lastSuccessAt: v.optional(v.number()),
     lastError: v.optional(v.string()),
+    consecutiveFailures: v.optional(v.number()),
+    nextRetryAt: v.optional(v.number()),
   })
     .index("by_owner", ["owner"])
-    .index("by_owner_key", ["ownerKey"]),
+    .index("by_owner_key", ["ownerKey"])
+    .index("by_enabled", ["enabled"]),
 
   sourceRepositories: defineTable({
     repoId: v.string(),
@@ -316,11 +319,13 @@ export default defineSchema({
     receivedAt: v.number(),
     processedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    nextRetryAt: v.optional(v.number()),
   })
     .index("by_dedupe_key", ["dedupeKey"])
     .index("by_repo_id_status", ["repoId", "status"])
     .index("by_repo_status", ["repoName", "status"])
-    .index("by_received", ["receivedAt"]),
+    .index("by_received", ["receivedAt"])
+    .index("by_status_and_received", ["status", "receivedAt"]),
 
   syncRuns: defineTable({
     kind: v.union(v.literal("webhook"), v.literal("audit"), v.literal("seed")),
@@ -346,7 +351,8 @@ export default defineSchema({
     message: v.optional(v.string()),
   })
     .index("by_kind_started", ["kind", "startedAt"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_status_and_kind", ["status", "kind"]),
 
   catalogOverrides: defineTable({
     entityType: v.union(
@@ -384,6 +390,8 @@ export default defineSchema({
     syncedAt: v.number(),
     lastWebhookAt: v.optional(v.number()),
     lastSuccessfulAuditAt: v.optional(v.number()),
+    lastCompletedAuditAt: v.optional(v.number()),
+    lastDegradedAuditAt: v.optional(v.number()),
     snapshotRefreshScheduledAt: v.optional(v.number()),
   }).index("by_key", ["key"]),
 
@@ -400,11 +408,17 @@ export default defineSchema({
   }).index("by_key", ["key"]),
 
   catalogHealthAlerts: defineTable({
-    kind: v.union(v.literal("webhook_stale"), v.literal("catalog_stale")),
+    kind: v.union(
+      v.literal("webhook_stale"),
+      v.literal("catalog_degraded"),
+      v.literal("catalog_stale"),
+    ),
     active: v.boolean(),
     message: v.string(),
     firstDetectedAt: v.number(),
     lastCheckedAt: v.number(),
     resolvedAt: v.optional(v.number()),
-  }).index("by_kind", ["kind"]),
+  })
+    .index("by_kind", ["kind"])
+    .index("by_active", ["active"]),
 });

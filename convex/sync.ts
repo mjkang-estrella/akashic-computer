@@ -24,6 +24,7 @@ import { uploaderDisplay } from "../src/lib/atlas/naming";
 import type { BenchKey } from "../src/lib/atlas/types";
 import { convexValuesEqual, scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
 import { upsertMaterialChange } from "./intelligence";
+import { hubRetryDelayMs } from "../src/lib/atlas/catalogHealth";
 
 const NULL_DELTAS: Record<BenchKey, null> = {
   mmlu: null,
@@ -39,6 +40,45 @@ const NULL_DELTAS: Record<BenchKey, null> = {
 const WEIGHT_DATE_POLICY_VERSION = 2;
 
 type AnyRecord = Record<string, unknown>;
+
+class HubRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs: number,
+    readonly serverDirected: boolean,
+  ) {
+    super(message);
+    this.name = "HubRequestError";
+  }
+}
+
+function hubRequestError(response: Response, context: string): HubRequestError {
+  const fallbackMs = response.status === 429 ? 5 * 60_000 : 60_000;
+  const retryAfter = response.headers.get("retry-after");
+  const rateLimitReset = response.headers.get("x-ratelimit-reset");
+  return new HubRequestError(
+    `${context}: ${response.status} ${response.statusText}`,
+    response.status,
+    hubRetryDelayMs(
+      retryAfter,
+      rateLimitReset,
+      Date.now(),
+      fallbackMs,
+      0,
+    ),
+    Boolean(retryAfter || rateLimitReset),
+  );
+}
+
+function retryDelayForError(error: unknown, attempt: number, fallbackMs: number): number {
+  if (error instanceof HubRequestError) {
+    return error.serverDirected
+      ? error.retryAfterMs
+      : Math.min(30 * 60_000, error.retryAfterMs * 2 ** Math.max(0, attempt));
+  }
+  return Math.min(30 * 60_000, Math.max(30_000, fallbackMs * 2 ** attempt));
+}
 
 function clean<T>(value: T): T {
   if (Array.isArray(value)) return value.map(clean) as T;
@@ -183,7 +223,10 @@ async function fetchRepo(repoName: string): Promise<{ status: number; data?: unk
     `https://huggingface.co/api/models/${encoded}?full=true&config=true&cardData=true`,
     { headers: hfHeaders() },
   );
-  if (!response.ok) return { status: response.status };
+  if (!response.ok) {
+    if (response.status === 404) return { status: response.status };
+    throw hubRequestError(response, `Hugging Face repo fetch failed for ${repoName}`);
+  }
   const data = await response.json() as AnyRecord;
   const revision = typeof data.sha === "string" && data.sha ? data.sha : "main";
   const configResponse = await fetch(
@@ -191,6 +234,9 @@ async function fetchRepo(repoName: string): Promise<{ status: number; data?: unk
     { headers: hfHeaders() },
   );
   if (configResponse.ok) data.config = await configResponse.json();
+  else if (configResponse.status === 429 || configResponse.status >= 500) {
+    throw hubRequestError(configResponse, `Hugging Face config fetch failed for ${repoName}`);
+  }
   return { status: response.status, data };
 }
 
@@ -202,7 +248,7 @@ async function fetchWeightMetadata(repoName: string, revision: string) {
   let pages = 0;
   while (url && pages < 100) {
     const response: Response = await fetch(url, { headers: hfHeaders() });
-    if (!response.ok) throw new Error(`Hugging Face weight tree failed for ${repoName}: ${response.status}`);
+    if (!response.ok) throw hubRequestError(response, `Hugging Face weight tree failed for ${repoName}`);
     const page = await response.json();
     if (!Array.isArray(page)) throw new Error(`Hugging Face weight tree returned a non-array for ${repoName}`);
     for (const entry of page) {
@@ -239,7 +285,7 @@ async function listRepos(owner: string): Promise<unknown[]> {
   let pages = 0;
   while (url && pages < 100) {
     const response: Response = await fetch(url, { headers: hfHeaders() });
-    if (!response.ok) throw new Error(`Hugging Face list failed for ${owner}: ${response.status}`);
+    if (!response.ok) throw hubRequestError(response, `Hugging Face list failed for ${owner}`);
     const page = await response.json();
     if (!Array.isArray(page)) throw new Error(`Hugging Face list returned a non-array for ${owner}`);
     results.push(...page);
@@ -769,7 +815,7 @@ export const applyRepoResult = internalMutation({
           changed: run.changed + 1,
         });
       }
-      if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
+      if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
       return { status: "skipped" as const, reason: classification.reason };
     }
 
@@ -804,7 +850,7 @@ export const applyRepoResult = internalMutation({
       if (run.kind !== "audit") {
         await ctx.db.patch(args.runId, { skipped: run.skipped + 1, changed: run.changed + 1 });
       }
-      if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
+      if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
       return { status: "skipped" as const, reason: "unresolved catalog identity" };
     }
 
@@ -952,7 +998,7 @@ export const applyRepoResult = internalMutation({
         published: run.published + 1,
       });
     }
-    if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
+    if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
     return { status: "published" as const, slug: payload.slug, resolution, changed: publicChanged };
   },
 });
@@ -974,7 +1020,7 @@ export const finishWebhookRun = internalMutation({
 export const completeUnchangedWebhook = internalMutation({
   args: { eventId: v.id("webhookEvents"), runId: v.id("syncRuns"), now: v.number() },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
+    await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
     await ctx.db.patch(args.runId, {
       status: "success",
       completedAt: args.now,
@@ -989,22 +1035,30 @@ export const scheduleWebhookRetry = internalMutation({
     runId: v.id("syncRuns"),
     attempt: v.number(),
     error: v.string(),
+    delayMs: v.number(),
+    now: v.number(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     if (run) await ctx.db.patch(args.runId, { retries: run.retries + 1, message: args.error });
+    await ctx.db.patch(args.eventId, {
+      error: args.error,
+      nextRetryAt: args.now + args.delayMs,
+    });
     await ctx.scheduler.runAfter(
-      30_000 * 2 ** args.attempt,
+      args.delayMs,
       internal.sync.processWebhook,
       { eventId: args.eventId, attempt: args.attempt + 1, runId: args.runId },
     );
+    return null;
   },
 });
 
 export const failWebhook = internalMutation({
   args: { eventId: v.id("webhookEvents"), runId: v.id("syncRuns"), error: v.string(), now: v.number() },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.eventId, { status: "failed", error: args.error, processedAt: args.now });
+    await ctx.db.patch(args.eventId, { status: "failed", error: args.error, processedAt: args.now, nextRetryAt: undefined });
     const run = await ctx.db.get(args.runId);
     if (run) {
       await ctx.db.patch(args.runId, {
@@ -1102,7 +1156,7 @@ export const removeRepository = internalMutation({
         );
       }
     }
-    if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now });
+    if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
     if (args.runId) {
       const run = await ctx.db.get(args.runId);
       if (run) await ctx.db.patch(args.runId, { changed: run.changed + 1 });
@@ -1172,11 +1226,14 @@ export const processWebhook = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (args.attempt < 2) {
+        const delayMs = retryDelayForError(error, args.attempt, 30_000);
         await ctx.runMutation(internal.sync.scheduleWebhookRetry, {
           eventId: args.eventId,
           runId,
           attempt: args.attempt,
           error: message,
+          delayMs,
+          now: Date.now(),
         });
       } else {
         await ctx.runMutation(internal.sync.failWebhook, {
@@ -1192,17 +1249,17 @@ export const processWebhook = internalAction({
 
 export const startDailyAudit = internalMutation({
   args: { paceMs: v.optional(v.number()) },
+  returns: v.object({ scheduled: v.boolean(), runId: v.id("syncRuns") }),
   handler: async (ctx, args) => {
     const runningAudit = await ctx.db
       .query("syncRuns")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .filter((q) => q.eq(q.field("kind"), "audit"))
+      .withIndex("by_status_and_kind", (q) => q.eq("status", "running").eq("kind", "audit"))
       .first();
     if (runningAudit) return { scheduled: false, runId: runningAudit._id };
     const sources = (await ctx.db
       .query("monitoredSources")
-      .filter((q) => q.eq(q.field("enabled"), true))
-      .collect()).sort((left, right) => left.owner.localeCompare(right.owner));
+      .withIndex("by_enabled", (q) => q.eq("enabled", true))
+      .take(100)).sort((left, right) => left.owner.localeCompare(right.owner));
     const now = Date.now();
     const paceMs = Math.max(5_000, Math.min(args.paceMs ?? 30_000, 60_000));
     const runId = await ctx.db.insert("syncRuns", {
@@ -1236,11 +1293,11 @@ export const startDailyAudit = internalMutation({
 
 export const cancelRunningAudit = internalMutation({
   args: { reason: v.string(), now: v.number() },
+  returns: v.object({ cancelled: v.boolean(), runId: v.union(v.id("syncRuns"), v.null()) }),
   handler: async (ctx, args) => {
     const runningAudit = await ctx.db
       .query("syncRuns")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .filter((q) => q.eq(q.field("kind"), "audit"))
+      .withIndex("by_status_and_kind", (q) => q.eq("status", "running").eq("kind", "audit"))
       .first();
     if (!runningAudit) return { cancelled: false, runId: null };
     await ctx.db.patch(runningAudit._id, {
@@ -1253,11 +1310,35 @@ export const cancelRunningAudit = internalMutation({
 });
 
 export const recordAuditRetry = internalMutation({
-  args: { runId: v.id("syncRuns"), message: v.string() },
+  args: {
+    runId: v.id("syncRuns"),
+    owner: v.string(),
+    message: v.string(),
+    nextRetryAt: v.number(),
+    now: v.number(),
+  },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
-    if (!run) return;
+    if (!run) return null;
     await ctx.db.patch(args.runId, { retries: run.retries + 1, message: args.message });
+    const sourceByKey = await ctx.db
+      .query("monitoredSources")
+      .withIndex("by_owner_key", (q) => q.eq("ownerKey", normalizeOwnerKey(args.owner)))
+      .first();
+    const source = sourceByKey ?? await ctx.db
+      .query("monitoredSources")
+      .withIndex("by_owner", (q) => q.eq("owner", args.owner))
+      .first();
+    if (source) {
+      await ctx.db.patch(source._id, {
+        lastAuditAt: args.now,
+        lastError: args.message,
+        consecutiveFailures: (source.consecutiveFailures ?? 0) + 1,
+        nextRetryAt: args.nextRetryAt,
+      });
+    }
+    return null;
   },
 });
 
@@ -1268,7 +1349,7 @@ export const markAuditMissing = internalMutation({
     const repos = await ctx.db
       .query("sourceRepositories")
       .withIndex("by_owner", (q) => q.eq("owner", args.owner))
-      .collect();
+      .take(2_000);
     for (const repo of repos) {
       if (seen.has(repo.repoName)) {
         if (repo.missingCount !== 0) await ctx.db.patch(repo._id, { missingCount: 0, lastSeenAt: args.now });
@@ -1294,8 +1375,13 @@ export const finishAuditSource = internalMutation({
     published: v.number(),
     skipped: v.number(),
     message: v.optional(v.string()),
+    nextRetryAt: v.optional(v.number()),
     now: v.number(),
   },
+  returns: v.union(v.null(), v.object({
+    nextOwner: v.union(v.string(), v.null()),
+    paceMs: v.number(),
+  })),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     const sourceByKey = await ctx.db
@@ -1306,11 +1392,13 @@ export const finishAuditSource = internalMutation({
       .query("monitoredSources")
       .withIndex("by_owner", (q) => q.eq("owner", args.owner))
       .first();
-    if (!run || !source) return;
+    if (!run || !source) return null;
     await ctx.db.patch(source._id, {
       lastAuditAt: args.now,
       lastSuccessAt: args.success ? args.now : source.lastSuccessAt,
       lastError: args.success ? undefined : args.message,
+      consecutiveFailures: args.success ? 0 : (source.consecutiveFailures ?? 0) + 1,
+      nextRetryAt: args.success ? undefined : args.nextRetryAt,
     });
     const completedSources = (run.completedSources ?? 0) + 1;
     const failed = run.failed + (args.success ? 0 : 1);
@@ -1340,6 +1428,8 @@ export const finishAuditSource = internalMutation({
         syncedAt: args.now,
         lastWebhookAt: state?.lastWebhookAt,
         lastSuccessfulAuditAt: failed === 0 ? args.now : state?.lastSuccessfulAuditAt,
+        lastCompletedAuditAt: args.now,
+        lastDegradedAuditAt: failed > 0 ? args.now : state?.lastDegradedAuditAt,
       });
       const stateId = state
         ? (await ctx.db.patch(state._id, stateValue), state._id)
@@ -1449,12 +1539,16 @@ export const auditSource = internalAction({
       const currentRun = await ctx.runQuery(internal.sync.syncRunById, { runId: args.runId });
       if (!currentRun || currentRun.status !== "running") return;
       if (args.attempt < 2) {
+        const delayMs = retryDelayForError(error, args.attempt, 60_000);
+        const now = Date.now();
         await ctx.runMutation(internal.sync.recordAuditRetry, {
           runId: args.runId,
+          owner: args.owner,
           message,
+          nextRetryAt: now + delayMs,
+          now,
         });
-        const retryBaseMs = message.includes("429") ? 5 * 60_000 : 60_000;
-        await ctx.scheduler.runAfter(retryBaseMs * 2 ** args.attempt, internal.sync.auditSource, {
+        await ctx.scheduler.runAfter(delayMs, internal.sync.auditSource, {
           ...args,
           attempt: args.attempt + 1,
         });

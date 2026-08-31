@@ -20,7 +20,19 @@ interface CatalogContextValue {
   revision: string;
   syncedAt: number | null;
   health: {
+    level: "healthy" | "degraded" | "stale";
     catalogStale: boolean;
+    catalogDegraded: boolean;
+    sourceTotal: number;
+    freshSourceCount: number;
+    staleSourceCount: number;
+    failingSourceCount: number;
+    retryingSourceCount: number;
+    staleSources: string[];
+    pendingWebhookCount: number;
+    failedWebhookCount: number;
+    webhookStale: boolean;
+    lastCompletedAuditAt: number | null;
   } | null;
   loading: boolean;
   source: "convex" | "snapshot";
@@ -64,9 +76,10 @@ function absoluteHttpUrl(value: string | undefined): string | null {
 }
 
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
+  const [loadedAt] = useState(() => Date.now());
   const result = useQuery(api.catalog.listPublished);
   const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 });
-  const [loadedAt] = useState(() => Date.now());
+  const sourceHealth = useQuery(api.catalog.healthSummary, { now: loadedAt });
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
     const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogEntry[]);
@@ -79,15 +92,25 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
         .slice(0, 10),
       revision: result.revision,
       syncedAt: result.syncedAt,
-      health: {
-        catalogStale:
-          result.syncedAt === null ||
-          loadedAt - result.syncedAt > 26 * 60 * 60 * 1000,
-      },
+      health: sourceHealth ? {
+        level: sourceHealth.level,
+        catalogStale: sourceHealth.level === "stale",
+        catalogDegraded: sourceHealth.level === "degraded",
+        sourceTotal: sourceHealth.sourceTotal,
+        freshSourceCount: sourceHealth.freshSourceCount,
+        staleSourceCount: sourceHealth.staleSourceCount,
+        failingSourceCount: sourceHealth.failingSourceCount,
+        retryingSourceCount: sourceHealth.retryingSourceCount,
+        staleSources: sourceHealth.staleSources,
+        pendingWebhookCount: sourceHealth.pendingWebhookCount,
+        failedWebhookCount: sourceHealth.failedWebhookCount,
+        webhookStale: sourceHealth.webhookStale,
+        lastCompletedAuditAt: sourceHealth.lastCompletedAuditAt,
+      } : null,
       loading: false,
       source: "convex",
     };
-  }, [loadedAt, recentChanges, result]);
+  }, [recentChanges, result, sourceHealth]);
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
 }
 
@@ -99,7 +122,24 @@ const invalidConvexUrl = Boolean(configuredConvexUrl && !convexUrl);
 export function CatalogProvider({ children }: { children: ReactNode }) {
   if (!convexClient) {
     const value = invalidConvexUrl
-      ? { ...snapshot, health: { catalogStale: true } }
+      ? {
+          ...snapshot,
+          health: {
+            level: "stale" as const,
+            catalogStale: true,
+            catalogDegraded: false,
+            sourceTotal: 0,
+            freshSourceCount: 0,
+            staleSourceCount: 0,
+            failingSourceCount: 0,
+            retryingSourceCount: 0,
+            staleSources: [],
+            pendingWebhookCount: 0,
+            failedWebhookCount: 0,
+            webhookStale: false,
+            lastCompletedAuditAt: null,
+          },
+        }
       : snapshot;
     return (
       <CatalogContext.Provider value={value}>

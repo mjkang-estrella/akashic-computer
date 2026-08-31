@@ -196,10 +196,21 @@ source is listed independently, changed SHAs are hydrated, and missing
 repositories require three audit misses before removal. A failed source marks
 the run degraded and leaves its existing public records intact.
 
+Freshness is calculated per enabled organization. A source is current for 26
+hours after its latest successful audit. The catalog is `degraded` when some
+sources are delayed but at least one source remains current. It is `stale` only
+when no enabled source is current. Failed sources keep their last known good
+entries.
+
+Hugging Face `429` and server errors use `Retry-After` or
+`X-RateLimit-Reset` when supplied. Other retries use bounded exponential delay.
+The source record stores its failure count and next retry time so the Convex
+dashboard and homepage status show what is actually waiting.
+
 Inspect freshness and failures with:
 
 ```bash
-npx convex run --prod catalog:status '{}'
+npx convex run --prod catalog:status "{\"now\":$(node -p 'Date.now()')}"
 ```
 
 Synchronize source configuration and start an immediate audit without reseeding

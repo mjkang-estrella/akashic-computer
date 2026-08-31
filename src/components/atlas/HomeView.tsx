@@ -31,7 +31,19 @@ const FEATURED_DOC_SLUGS = [
 ] as const;
 
 interface CatalogHealth {
+  level: "healthy" | "degraded" | "stale";
   catalogStale: boolean;
+  catalogDegraded: boolean;
+  sourceTotal: number;
+  freshSourceCount: number;
+  staleSourceCount: number;
+  failingSourceCount: number;
+  retryingSourceCount: number;
+  staleSources: string[];
+  pendingWebhookCount: number;
+  failedWebhookCount: number;
+  webhookStale: boolean;
+  lastCompletedAuditAt: number | null;
 }
 
 const LAST_VISIT_KEY = "akashic:last-catalog-visit";
@@ -99,11 +111,16 @@ function CatalogStatus({
   revision: string;
 }) {
   const delayed = health?.catalogStale;
+  const degraded = health?.catalogDegraded;
 
   let label = "Bundled catalog snapshot";
   if (loading) label = "Refreshing the live catalog";
-  else if (source === "convex" && syncedAt) {
-    label = `${delayed ? "Refresh delayed" : "Catalog synced"} · ${formatSyncTime(syncedAt)}`;
+  else if (source === "convex" && health?.sourceTotal) {
+    if (delayed) label = "Catalog refresh overdue";
+    else if (degraded) {
+      label = `Catalog partially current · ${health.freshSourceCount}/${health.sourceTotal} sources`;
+    } else if (syncedAt) label = `Catalog current · ${formatSyncTime(syncedAt)}`;
+    else label = "Live catalog connected";
   } else if (source === "convex") {
     label = "Live catalog connected";
   }
@@ -113,7 +130,7 @@ function CatalogStatus({
       <summary
         aria-live="polite"
         className={`flex min-h-9 cursor-pointer list-none items-center gap-2 font-mono marker:hidden ${
-          delayed ? "text-caution" : "text-faint"
+          delayed || degraded ? "text-caution" : "text-faint"
         }`}
       >
         <HugeiconsIcon
@@ -135,8 +152,17 @@ function CatalogStatus({
       <div className="grid gap-1 border-l border-line pl-5 pb-2 font-mono leading-relaxed sm:grid-cols-2 sm:gap-x-6">
         <span>Source · {source === "convex" ? "Live Convex catalog" : "Bundled snapshot"}</span>
         <span>Revision · {revision === "loading" ? "Resolving" : revision.slice(0, 12)}</span>
+        {health?.sourceTotal ? (
+          <>
+            <span>Hugging Face · {health.freshSourceCount}/{health.sourceTotal} sources current</span>
+            <span>Webhooks · {health.pendingWebhookCount} pending · {health.failedWebhookCount} failed</span>
+            {health.staleSources.length > 0 ? (
+              <span className="sm:col-span-2">Delayed · {health.staleSources.join(", ")}</span>
+            ) : null}
+          </>
+        ) : null}
         <span className="sm:col-span-2">
-          Freshness reflects the latest successful catalog sync. Delayed data stays visible rather than being replaced by a partial refresh.
+          Delayed sources keep their last known good entries while Akashic retries them independently.
         </span>
       </div>
     </details>

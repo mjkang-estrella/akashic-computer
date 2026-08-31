@@ -99,4 +99,58 @@ describe("published catalog snapshots", () => {
       scheduledAt: 10,
     })).toEqual({ rebuilt: false, chunks: 0, changedChunks: 0 });
   });
+
+  it("reports partial source failures as degraded without invalidating current sources", async () => {
+    const t = convexTest(schema, modules);
+    const now = 100 * 60 * 60 * 1000;
+    await t.run(async (ctx) => {
+      await ctx.db.insert("monitoredSources", {
+        owner: "current-org",
+        ownerKey: "current-org",
+        displayName: "Current org",
+        role: "creator",
+        enabled: true,
+        familyIds: [],
+        lastAuditAt: now - 60_000,
+        lastSuccessAt: now - 60_000,
+        consecutiveFailures: 0,
+      });
+      await ctx.db.insert("monitoredSources", {
+        owner: "limited-org",
+        ownerKey: "limited-org",
+        displayName: "Limited org",
+        role: "creator",
+        enabled: true,
+        familyIds: [],
+        lastAuditAt: now,
+        lastSuccessAt: now - 30 * 60 * 60 * 1000,
+        lastError: "429 Too Many Requests",
+        consecutiveFailures: 2,
+        nextRetryAt: now + 300_000,
+      });
+      await ctx.db.insert("syncRuns", {
+        kind: "audit",
+        status: "degraded",
+        startedAt: now - 120_000,
+        completedAt: now - 60_000,
+        discovered: 20,
+        changed: 1,
+        published: 18,
+        skipped: 1,
+        failed: 1,
+        retries: 2,
+      });
+    });
+
+    expect(await t.query(api.catalog.healthSummary, { now })).toMatchObject({
+      level: "degraded",
+      sourceTotal: 2,
+      freshSourceCount: 1,
+      staleSourceCount: 1,
+      failingSourceCount: 1,
+      retryingSourceCount: 1,
+      staleSources: ["Limited org"],
+      lastCompletedAuditAt: now - 60_000,
+    });
+  });
 });
