@@ -26,33 +26,12 @@ function secureEqual(actual: string, expected: string): boolean {
 
 function assertAdminSecret(secret: string): void {
   const expected = process.env.CATALOG_ADMIN_SECRET;
-  if (!expected || !secureEqual(secret, expected)) {
-    throw new Error("Invalid catalog admin secret");
-  }
+  if (!expected || !secureEqual(secret, expected)) throw new Error("Invalid catalog admin secret");
 }
-
-export const touchCatalogState = internalMutation({
-  args: { revision: v.string(), now: v.number() },
-  handler: async (ctx, args) => {
-    const state = await ctx.db
-      .query("catalogState")
-      .withIndex("by_key", (q) => q.eq("key", "public"))
-      .unique();
-    const stateId = state
-      ? (await ctx.db.patch(state._id, { revision: args.revision, syncedAt: args.now }), state._id)
-      : await ctx.db.insert("catalogState", { key: "public", revision: args.revision, syncedAt: args.now });
-    await scheduleCatalogSnapshotRefresh(
-      ctx,
-      stateId,
-      state?.snapshotRefreshScheduledAt,
-      args.now,
-      0,
-    );
-  },
-});
 
 export const requestCatalogSnapshotRefresh = internalMutation({
   args: { now: v.number() },
+  returns: v.object({ scheduled: v.boolean() }),
   handler: async (ctx, args) => {
     const state = await ctx.db
       .query("catalogState")
@@ -83,9 +62,7 @@ export const upsertModelIntroduction = internalMutation({
     if (args.paragraphs.some((paragraph) => paragraph.length > 1_200)) {
       throw new Error("Model introduction paragraph is too long");
     }
-    if (args.highlights.length > 12) {
-      throw new Error("Model introduction has too many highlights");
-    }
+    if (args.highlights.length > 12) throw new Error("Model introduction has too many highlights");
     const document = await ctx.db
       .query("catalogEntries")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
@@ -102,22 +79,13 @@ export const upsertModelIntroduction = internalMutation({
     };
     const payload = document.payload as PublishedCatalogEntry;
     const changed = !convexValuesEqual(payload.introduction, introduction);
-    const existingOverride = await ctx.db
-      .query("catalogOverrides")
-      .withIndex("by_entity", (q) => q.eq("entityType", "catalog_entry").eq("entityKey", args.slug))
+    const existing = await ctx.db
+      .query("modelIntroductions")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
-    const existingPatch = existingOverride?.patch && typeof existingOverride.patch === "object"
-      ? existingOverride.patch as Record<string, unknown>
-      : {};
-    const overrideValue = {
-      entityType: "catalog_entry" as const,
-      entityKey: args.slug,
-      patch: { ...existingPatch, introduction },
-      reason: "Curated, source-attributed model-card introduction",
-      updatedAt: args.now,
-    };
-    if (existingOverride) await ctx.db.patch(existingOverride._id, overrideValue);
-    else await ctx.db.insert("catalogOverrides", overrideValue);
+    const value = { slug: args.slug, ...introduction, updatedAt: args.now };
+    if (existing) await ctx.db.patch(existing._id, value);
+    else await ctx.db.insert("modelIntroductions", value);
     if (!changed) return { slug: args.slug, changed: false };
 
     await ctx.db.patch(document._id, { payload: { ...payload, introduction } });
@@ -127,58 +95,32 @@ export const upsertModelIntroduction = internalMutation({
       .unique();
     if (!state) throw new Error("Catalog state is not initialized");
     await ctx.db.patch(state._id, { revision: `introduction:${args.slug}:${args.now}` });
-    await scheduleCatalogSnapshotRefresh(
-      ctx,
-      state._id,
-      state.snapshotRefreshScheduledAt,
-      args.now,
-      0,
-    );
+    await scheduleCatalogSnapshotRefresh(ctx, state._id, state.snapshotRefreshScheduledAt, args.now, 0);
     return { slug: args.slug, changed: true };
   },
 });
 
-/** Rebuild the client-facing catalog snapshot without reseeding model data. */
 export const refreshCatalogSnapshot = action({
   args: { secret: v.string() },
+  returns: v.object({ scheduled: v.boolean() }),
   handler: async (ctx, args): Promise<{ scheduled: boolean }> => {
     assertAdminSecret(args.secret);
-    return await ctx.runMutation(internal.admin.requestCatalogSnapshotRefresh, {
-      now: Date.now(),
-    });
+    return await ctx.runMutation(internal.admin.requestCatalogSnapshotRefresh, { now: Date.now() });
   },
 });
 
-/** Synchronize the code-owned source allowlist without reseeding catalog data. */
 export const syncSourceConfig = action({
   args: { secret: v.string() },
-  handler: async (ctx, args): Promise<{
-    inserted: number;
-    updated: number;
-    disabled: number;
-    configured: number;
-  }> => {
+  returns: v.object({ inserted: v.number(), updated: v.number(), disabled: v.number(), configured: v.number() }),
+  handler: async (ctx, args): Promise<{ inserted: number; updated: number; disabled: number; configured: number }> => {
     assertAdminSecret(args.secret);
-    return await ctx.runMutation(internal.seed.seedSources, {});
+    return await ctx.runMutation(internal.sourceConfigSync.syncSources, {});
   },
 });
 
-/** Seed one curated family without replacing or reprocessing the wider catalog. */
-export const seedFamily = action({
-  args: { secret: v.string(), familyId: v.string() },
-  handler: async (ctx, args): Promise<{ familyId: string; revision: string }> => {
-    assertAdminSecret(args.secret);
-    const now = Date.now();
-    await ctx.runMutation(internal.seed.seedFamily, { familyId: args.familyId, now });
-    const revision = `family:${args.familyId}:${now}`;
-    await ctx.runMutation(internal.admin.touchCatalogState, { revision, now });
-    return { familyId: args.familyId, revision };
-  },
-});
-
-/** Start a reconciliation unless one is already active. */
 export const runAudit = action({
   args: { secret: v.string() },
+  returns: v.object({ scheduled: v.boolean(), runId: v.string() }),
   handler: async (ctx, args): Promise<{ scheduled: boolean; runId: string }> => {
     assertAdminSecret(args.secret);
     const result = await ctx.runMutation(internal.sync.startDailyAudit, { paceMs: 30_000 });
@@ -186,9 +128,9 @@ export const runAudit = action({
   },
 });
 
-/** Stop a stuck or obsolete audit. Already scheduled source actions become no-ops. */
 export const cancelAudit = action({
   args: { secret: v.string(), reason: v.optional(v.string()) },
+  returns: v.object({ cancelled: v.boolean(), runId: v.union(v.string(), v.null()) }),
   handler: async (ctx, args): Promise<{ cancelled: boolean; runId: string | null }> => {
     assertAdminSecret(args.secret);
     const result = await ctx.runMutation(internal.sync.cancelRunningAudit, {
@@ -199,27 +141,14 @@ export const cancelAudit = action({
   },
 });
 
-/** Evaluate freshness immediately instead of waiting for the hourly watchdog. */
+const healthTransitionValue = v.object({
+  kind: v.union(v.literal("webhook_stale"), v.literal("catalog_degraded"), v.literal("catalog_stale")),
+  message: v.string(),
+});
+
 export const checkHealth = action({
   args: { secret: v.string() },
-  returns: v.object({
-    activated: v.array(v.object({
-      kind: v.union(
-        v.literal("webhook_stale"),
-        v.literal("catalog_degraded"),
-        v.literal("catalog_stale"),
-      ),
-      message: v.string(),
-    })),
-    resolved: v.array(v.object({
-      kind: v.union(
-        v.literal("webhook_stale"),
-        v.literal("catalog_degraded"),
-        v.literal("catalog_stale"),
-      ),
-      message: v.string(),
-    })),
-  }),
+  returns: v.object({ activated: v.array(healthTransitionValue), resolved: v.array(healthTransitionValue) }),
   handler: async (ctx, args): Promise<{
     activated: Array<{ kind: "webhook_stale" | "catalog_degraded" | "catalog_stale"; message: string }>;
     resolved: Array<{ kind: "webhook_stale" | "catalog_degraded" | "catalog_stale"; message: string }>;
@@ -229,19 +158,20 @@ export const checkHealth = action({
   },
 });
 
-/** Refresh official vLLM recipe references without copying upstream commands. */
+const recipeSyncResultValue = v.object({
+  status: v.union(v.literal("unchanged"), v.literal("synchronized")),
+  sourceRevision: v.string(),
+  recipes: v.number(),
+  inserted: v.number(),
+  updated: v.number(),
+  removed: v.number(),
+  matchedEntries: v.number(),
+  changedEntries: v.number(),
+});
+
 export const syncVllmRecipes = action({
   args: { secret: v.string(), force: v.optional(v.boolean()) },
-  returns: v.object({
-    status: v.union(v.literal("unchanged"), v.literal("synchronized")),
-    sourceRevision: v.string(),
-    recipes: v.number(),
-    inserted: v.number(),
-    updated: v.number(),
-    removed: v.number(),
-    matchedEntries: v.number(),
-    changedEntries: v.number(),
-  }),
+  returns: recipeSyncResultValue,
   handler: async (ctx, args): Promise<{
     status: "unchanged" | "synchronized";
     sourceRevision: string;
@@ -257,7 +187,6 @@ export const syncVllmRecipes = action({
   },
 });
 
-/** Publish a protected, source-attributed introduction for one catalog entry. */
 export const setModelIntroduction = action({
   args: { secret: v.string(), ...modelIntroductionArgs },
   returns: v.object({ slug: v.string(), changed: v.boolean() }),
@@ -271,13 +200,12 @@ export const setModelIntroduction = action({
       highlights: args.highlights,
       sourceLabel: args.sourceLabel,
       sourceUrl: args.sourceUrl,
-      ...(args.sourceSha ? { sourceSha: args.sourceSha } : {}),
+      sourceSha: args.sourceSha,
       now: Date.now(),
     });
   },
 });
 
-/** Publish or retract a provenance-bound Akashic run report. */
 export const publishRunReport = action({
   args: {
     secret: v.string(),

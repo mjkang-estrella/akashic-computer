@@ -2,6 +2,14 @@ import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { convexValuesEqual } from "./catalogSnapshot";
 import {
+  publishedCatalogEntryValue,
+  publishedCatalogListValue,
+} from "./catalogValues";
+import {
+  catalogSummary,
+  type PublishedCatalogEntry,
+} from "../src/lib/atlas/published";
+import {
   SOURCE_FRESHNESS_MS,
   summarizeSourceHealth,
   WEBHOOK_FRESHNESS_MS,
@@ -92,6 +100,7 @@ function assertCatalogBound<T>(documents: T[]): T[] {
 
 export const listPublished = query({
   args: {},
+  returns: publishedCatalogListValue,
   handler: async (ctx) => {
     const [chunks, snapshotState] = await Promise.all([
       ctx.db
@@ -104,37 +113,18 @@ export const listPublished = query({
         .withIndex("by_key", (q) => q.eq("key", STATE_KEY))
         .unique(),
     ]);
-    if (snapshotState) {
-      return {
-        entries: chunks.flatMap((chunk) => chunk.entries),
-        syncedAt: snapshotState.syncedAt,
-        revision: snapshotState.revision,
-        catalogStale: false,
-      };
-    }
-
-    // Migration fallback. Once the first snapshot is built, clients no longer
-    // subscribe to every individual catalog entry.
-    const [documents, state] = await Promise.all([
-      ctx.db.query("catalogEntries").take(MAX_CATALOG_ENTRIES + 1),
-      ctx.db
-        .query("catalogState")
-        .withIndex("by_key", (q) => q.eq("key", STATE_KEY))
-        .unique(),
-    ]);
+    if (!snapshotState) throw new Error("Published catalog snapshot is not initialized");
     return {
-      entries: assertCatalogBound(documents)
-        .sort((a, b) => b.updatedAt - a.updatedAt || a.slug.localeCompare(b.slug))
-        .map((document) => document.payload),
-      syncedAt: state?.syncedAt ?? null,
-      revision: state?.revision ?? "unseeded",
-      catalogStale: state?.syncedAt === undefined,
+      entries: assertCatalogBound(chunks.flatMap((chunk) => chunk.entries)),
+      syncedAt: snapshotState.syncedAt,
+      revision: snapshotState.revision,
     };
   },
 });
 
 export const rebuildPublishedSnapshot = internalMutation({
   args: { scheduledAt: v.number() },
+  returns: v.object({ rebuilt: v.boolean(), chunks: v.number(), changedChunks: v.number() }),
   handler: async (ctx, args) => {
     const catalogState = await ctx.db
       .query("catalogState")
@@ -149,7 +139,7 @@ export const rebuildPublishedSnapshot = internalMutation({
     );
     const entries = documents
       .sort((a, b) => b.updatedAt - a.updatedAt || a.slug.localeCompare(b.slug))
-      .map((document) => document.payload);
+      .map((document) => catalogSummary(document.payload as PublishedCatalogEntry));
     const nextChunks = Array.from(
       { length: Math.ceil(entries.length / SNAPSHOT_CHUNK_SIZE) },
       (_, index) => entries.slice(index * SNAPSHOT_CHUNK_SIZE, (index + 1) * SNAPSHOT_CHUNK_SIZE),
@@ -201,6 +191,7 @@ export const rebuildPublishedSnapshot = internalMutation({
 
 export const getBySlug = query({
   args: { slug: v.string() },
+  returns: v.union(publishedCatalogEntryValue, v.null()),
   handler: async (ctx, args) => {
     const document = await ctx.db
       .query("catalogEntries")

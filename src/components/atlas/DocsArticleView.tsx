@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import {
   type DocArticle,
   type DocInteractive,
@@ -36,7 +37,7 @@ function BackToDocs({ onBack }: { onBack: () => void }) {
       onClick={onBack}
       className="inline-flex min-h-11 items-center gap-2 text-[12.5px] font-semibold text-muted hover:text-ink"
     >
-      <ArrowLeft size={15} aria-hidden="true" />
+      <HugeiconsIcon icon={ArrowLeft01Icon} size={15} strokeWidth={1.8} aria-hidden="true" />
       All Docs
     </button>
   );
@@ -151,8 +152,10 @@ export function DocsArticleView({
                     <span className="sr-only"> (opens in a new tab)</span>
                   </span>
                   <span className="font-mono text-[11px] text-meta">{source.publisher}</span>
-                  <ArrowUpRight
+                  <HugeiconsIcon
+                    icon={ArrowUpRight01Icon}
                     size={15}
+                    strokeWidth={1.8}
                     aria-hidden="true"
                     className="hidden text-faint sm:block"
                   />

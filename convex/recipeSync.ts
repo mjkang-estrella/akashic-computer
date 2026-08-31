@@ -11,6 +11,7 @@ import {
 import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
 import { upsertMaterialChange } from "./intelligence";
 import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
+import { parsedRecipeReferenceValue } from "./catalogValues";
 
 const RECIPE_STATE_KEY = "vllm";
 const GITHUB_REPOSITORY = "vllm-project/recipes";
@@ -147,7 +148,7 @@ export const beginSync = internalMutation({
 });
 
 export const upsertRecipeBatch = internalMutation({
-  args: { recipes: v.array(v.any()), now: v.number() },
+  args: { recipes: v.array(parsedRecipeReferenceValue), now: v.number() },
   returns: v.object({ inserted: v.number(), updated: v.number() }),
   handler: async (ctx, args) => {
     let inserted = 0;

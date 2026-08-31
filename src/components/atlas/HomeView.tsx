@@ -100,29 +100,25 @@ function SectionLink({
 function CatalogStatus({
   syncedAt,
   loading,
-  source,
   health,
   revision,
 }: {
   syncedAt: number | null;
   loading: boolean;
-  source: "convex" | "snapshot";
   health: CatalogHealth | null;
   revision: string;
 }) {
   const delayed = health?.catalogStale;
   const degraded = health?.catalogDegraded;
 
-  let label = "Bundled catalog snapshot";
+  let label = "Live catalog connected";
   if (loading) label = "Refreshing the live catalog";
-  else if (source === "convex" && health?.sourceTotal) {
+  else if (health?.sourceTotal) {
     if (delayed) label = "Catalog refresh overdue";
     else if (degraded) {
       label = `Catalog partially current · ${health.freshSourceCount}/${health.sourceTotal} sources`;
     } else if (syncedAt) label = `Catalog current · ${formatSyncTime(syncedAt)}`;
     else label = "Live catalog connected";
-  } else if (source === "convex") {
-    label = "Live catalog connected";
   }
 
   return (
@@ -150,7 +146,7 @@ function CatalogStatus({
         />
       </summary>
       <div className="grid gap-1 border-l border-line pl-5 pb-2 font-mono leading-relaxed sm:grid-cols-2 sm:gap-x-6">
-        <span>Source · {source === "convex" ? "Live Convex catalog" : "Bundled snapshot"}</span>
+        <span>Source · Live Convex catalog</span>
         <span>Revision · {revision === "loading" ? "Resolving" : revision.slice(0, 12)}</span>
         {health?.sourceTotal ? (
           <>
@@ -277,7 +273,6 @@ export function HomeView({
   materialChanges,
   syncedAt,
   loading,
-  source,
   health,
   revision,
   rig,
@@ -291,7 +286,6 @@ export function HomeView({
   materialChanges: MaterialChange[];
   syncedAt: number | null;
   loading: boolean;
-  source: "convex" | "snapshot";
   health: CatalogHealth | null;
   revision: string;
   rig: RigProfile;
@@ -408,7 +402,6 @@ export function HomeView({
             <CatalogStatus
               syncedAt={syncedAt}
               loading={loading}
-              source={source}
               health={health}
               revision={revision}
             />

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import {
   BENCHMARK_CATEGORIES,
   resolveOfficialBenchmarks,
@@ -242,7 +243,7 @@ function BenchmarkBarChart({
                     aria-label={`Open ${result.sourceLabel} for ${displayName}`}
                     className="mt-auto flex h-4 w-4 items-center justify-center text-faint hover:text-ink"
                   >
-                    <ArrowUpRight size={10} aria-hidden="true" />
+                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={10} strokeWidth={1.8} aria-hidden="true" />
                   </a>
                 </div>
               </li>

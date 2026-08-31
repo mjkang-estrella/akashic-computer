@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { ArrowUpRight, SearchX } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowUpRight01Icon, SearchRemoveIcon } from "@hugeicons/core-free-icons";
 import type { ModelEntry } from "@/lib/atlas/models";
 import { uploaderDisplay } from "@/lib/atlas/naming";
 import type { Family } from "@/lib/atlas/types";
@@ -107,7 +108,7 @@ export function SearchView({
 
       {groups.length === 0 ? (
         <div className="py-16 text-center">
-          <SearchX className="mx-auto text-faint" size={24} aria-hidden="true" />
+          <HugeiconsIcon icon={SearchRemoveIcon} className="mx-auto text-faint" size={24} strokeWidth={1.8} aria-hidden="true" />
           <h3 className="mt-3 font-display text-[19px] font-semibold">No matching model</h3>
           <p className="mx-auto mt-1 max-w-[52ch] text-[13px] text-muted">
             Search by family, release, parameter size, quantization, runtime, or repository.
@@ -153,7 +154,7 @@ export function SearchView({
                         aria-label={`Open ${item.repo} on Hugging Face`}
                         className="flex h-9 w-9 flex-none items-center justify-center rounded-[7px] text-faint hover:bg-panel hover:text-ink"
                       >
-                        <ArrowUpRight size={15} aria-hidden="true" />
+                        <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" />
                       </a>
                     ) : null}
                   </div>

@@ -4,15 +4,15 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { MODEL_ENTRIES } from "../src/lib/atlas/models";
 import { publishableEntry } from "../src/lib/atlas/published";
+import { CATALOG_FIXTURES } from "../test/catalogFixture";
 
 const modules = import.meta.glob("./**/*.*s");
 
 describe("published catalog snapshots", () => {
   it("keeps clients on a stable snapshot until the next rebuild", async () => {
     const t = convexTest(schema, modules);
-    const entries = MODEL_ENTRIES.slice(0, 3);
+    const entries = CATALOG_FIXTURES;
     await t.run(async (ctx) => {
       await ctx.db.insert("catalogState", {
         key: "public",

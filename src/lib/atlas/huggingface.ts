@@ -63,7 +63,14 @@ export interface ParsedHuggingFaceRepo {
   kinds: HardwareKind[];
   runtimes: string[];
   benchmarkRows: StructuredBenchmarkRow[];
+  contextLabel: string;
+  contextTokens: number | null;
 }
+
+export type IngestionRepoInfo = Omit<HuggingFaceRepoInfo, "tags" | "files" | "cardData" | "config">;
+export type IngestionClassification =
+  | { status: "publishable"; parsed: Omit<ParsedHuggingFaceRepo, "repo"> & { repo: IngestionRepoInfo } }
+  | { status: "skipped"; reason: string; repo: IngestionRepoInfo };
 
 export interface StructuredBenchmarkRow {
   name: string;
@@ -162,6 +169,46 @@ function firstString(...values: unknown[]): string | null {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return null;
+}
+
+function contextMetadata(config: Record<string, unknown>): { label: string; tokens: number | null } {
+  const textConfig = asRecord(config.text_config);
+  const source = Object.keys(textConfig).length > 0 ? textConfig : config;
+  const candidate = source.max_position_embeddings ?? source.max_sequence_length ?? source.seq_length;
+  const tokens = typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0
+    ? candidate
+    : null;
+  if (!tokens) return { label: "N/A", tokens: null };
+  if (tokens >= 1_000_000) return { label: `${Math.round(tokens / 1_000_000)}M`, tokens };
+  if (tokens >= 1_000) return { label: `${Math.round(tokens / 1_000)}K`, tokens };
+  return { label: String(tokens), tokens };
+}
+
+export function compactClassification(classification: RepoClassification): IngestionClassification {
+  const compactRepo = (repo: HuggingFaceRepoInfo): IngestionRepoInfo => ({
+    id: repo.id,
+    author: repo.author,
+    sha: repo.sha,
+    createdAt: repo.createdAt,
+    lastModified: repo.lastModified,
+    weightManifestHash: repo.weightManifestHash,
+    weightsLastModified: repo.weightsLastModified,
+    weightCommitSha: repo.weightCommitSha,
+    weightBytes: repo.weightBytes,
+    private: repo.private,
+    gated: repo.gated,
+    disabled: repo.disabled,
+    pipelineTag: repo.pipelineTag,
+    license: repo.license,
+    baseModels: repo.baseModels,
+    safetensorsParameters: repo.safetensorsParameters,
+  });
+  return classification.status === "publishable"
+    ? {
+        status: "publishable",
+        parsed: { ...classification.parsed, repo: compactRepo(classification.parsed.repo) },
+      }
+    : { status: "skipped", reason: classification.reason, repo: compactRepo(classification.repo) };
 }
 
 function numericTotal(value: unknown): number | null {
@@ -598,6 +645,7 @@ export function classifyHuggingFaceRepo(
     ? estimateVram(parameters.paramsB, format, repo.weightBytes, repo.config)
     : null;
   const approved = APPROVED_REPO_METADATA[repo.id.toLowerCase()];
+  const context = contextMetadata(repo.config);
   return {
     status: "publishable",
     parsed: {
@@ -614,6 +662,8 @@ export function classifyHuggingFaceRepo(
       kinds: vram?.kinds ?? [],
       runtimes: approved?.runtimes ?? vram?.runtimes ?? [],
       benchmarkRows: structuredBenchmarks(repo),
+      contextLabel: context.label,
+      contextTokens: context.tokens,
     },
   };
 }

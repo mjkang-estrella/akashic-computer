@@ -5,352 +5,178 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
-  classifyHuggingFaceRepo,
-  estimateVram,
-  isWeightBlobFile,
+  compactClassification,
   matchesSourceRules,
   normalizeHuggingFaceRepo,
   normalizeOwnerKey,
-  weightMetadataFromTree,
-  type MonitoredSourceRule,
-  type ParsedHuggingFaceRepo,
-  type RepoClassification,
+  type IngestionClassification,
 } from "../src/lib/atlas/huggingface";
-import type { PublishedCatalogEntry, PublishedArtifact } from "../src/lib/atlas/published";
+import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
 import { uploaderDisplay } from "../src/lib/atlas/naming";
-import type { BenchKey } from "../src/lib/atlas/types";
 import { convexValuesEqual, scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
 import { upsertMaterialChange } from "./intelligence";
-import { hubRetryDelayMs } from "../src/lib/atlas/catalogHealth";
+import {
+  classifyWithWeightMetadata,
+  fetchRepo,
+  listRepos,
+  retryDelayForError,
+} from "./huggingFaceClient";
+import { ingestionClassificationValue } from "./catalogValues";
+import {
+  clean,
+  familyForParsed,
+  mergeParsedIntoPayload,
+  newPayload,
+  significantTimestamp,
+  slugPart,
+  sourceRule,
+  targetForParsed,
+  timestamp,
+  trustForRole,
+  type IngestedParsedRepo,
+} from "./catalogReconciliation";
 
-const NULL_DELTAS: Record<BenchKey, null> = {
-  mmlu: null,
-  ifeval: null,
-  gpqa: null,
-  hle: null,
-  aime: null,
-  math500: null,
-  lcb: null,
-  swe: null,
-};
+const sourceRuleResultValue = v.union(v.null(), v.object({
+  owner: v.string(),
+  role: v.union(v.literal("creator"), v.literal("artifact_provider"), v.literal("creator_provider")),
+  enabled: v.boolean(),
+  familyIds: v.array(v.string()),
+  includePatterns: v.optional(v.array(v.string())),
+  excludePatterns: v.optional(v.array(v.string())),
+}));
 
-const WEIGHT_DATE_POLICY_VERSION = 2;
+const eventResultValue = v.union(v.null(), v.object({
+  status: v.union(v.literal("pending"), v.literal("superseded"), v.literal("processed"), v.literal("ignored"), v.literal("failed")),
+  owner: v.string(),
+  repoId: v.string(),
+  repoName: v.string(),
+  scope: v.string(),
+  action: v.string(),
+}));
 
-type AnyRecord = Record<string, unknown>;
+const runResultValue = v.union(v.null(), v.object({
+  status: v.union(v.literal("running"), v.literal("success"), v.literal("degraded"), v.literal("failed")),
+  expectedSources: v.optional(v.number()),
+  completedSources: v.optional(v.number()),
+  sourceOwners: v.optional(v.array(v.string())),
+  sourcePaceMs: v.optional(v.number()),
+  discovered: v.number(),
+  changed: v.number(),
+  published: v.number(),
+  skipped: v.number(),
+  failed: v.number(),
+  retries: v.number(),
+}));
 
-class HubRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly retryAfterMs: number,
-    readonly serverDirected: boolean,
-  ) {
-    super(message);
-    this.name = "HubRequestError";
-  }
-}
-
-function hubRequestError(response: Response, context: string): HubRequestError {
-  const fallbackMs = response.status === 429 ? 5 * 60_000 : 60_000;
-  const retryAfter = response.headers.get("retry-after");
-  const rateLimitReset = response.headers.get("x-ratelimit-reset");
-  return new HubRequestError(
-    `${context}: ${response.status} ${response.statusText}`,
-    response.status,
-    hubRetryDelayMs(
-      retryAfter,
-      rateLimitReset,
-      Date.now(),
-      fallbackMs,
-      0,
-    ),
-    Boolean(retryAfter || rateLimitReset),
-  );
-}
-
-function retryDelayForError(error: unknown, attempt: number, fallbackMs: number): number {
-  if (error instanceof HubRequestError) {
-    return error.serverDirected
-      ? error.retryAfterMs
-      : Math.min(30 * 60_000, error.retryAfterMs * 2 ** Math.max(0, attempt));
-  }
-  return Math.min(30 * 60_000, Math.max(30_000, fallbackMs * 2 ** attempt));
-}
-
-function clean<T>(value: T): T {
-  if (Array.isArray(value)) return value.map(clean) as T;
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as AnyRecord)
-        .filter(([, entry]) => entry !== undefined)
-        .map(([key, entry]) => [key, clean(entry)]),
-    ) as T;
-  }
-  return value;
-}
-
-function slugPart(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-function normalizedIdentity(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function timestamp(value: string | null | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function significantTimestamp(
-  repo: ParsedHuggingFaceRepo["repo"],
-  fallback?: number,
-): number {
-  return timestamp(repo.weightsLastModified) ??
-    fallback ??
-    timestamp(repo.createdAt) ??
-    timestamp(repo.lastModified) ??
-    Date.now();
-}
-
-function dateLabel(value: number): string {
-  return new Date(value).toISOString().slice(0, 10);
-}
-
-function contextMetadata(config: AnyRecord): { label: string; tokens: number | null } {
-  const textConfig = config.text_config && typeof config.text_config === "object" && !Array.isArray(config.text_config)
-    ? config.text_config as AnyRecord
-    : config;
-  const candidate = textConfig.max_position_embeddings ?? textConfig.max_sequence_length ?? textConfig.seq_length;
-  if (typeof candidate !== "number" || !Number.isFinite(candidate) || candidate <= 0) {
-    return { label: "N/A", tokens: null };
-  }
-  const label = candidate >= 1_000_000
-    ? `${Number((candidate / 1_000_000).toFixed(1))}M`
-    : `${Math.round(candidate / 1_000)}K`;
-  return { label, tokens: candidate };
-}
-
-function releaseNameFor(parsed: ParsedHuggingFaceRepo): string {
-  let value = parsed.modelStem.replace(/[-_]+/g, " ").trim();
-  if (parsed.sizeLabel) {
-    const escaped = parsed.sizeLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    value = value.replace(new RegExp(`\\s*${escaped.replace("-", "[- ]?")}\\s*$`, "i"), "").trim();
-  }
-  return value || parsed.modelStem;
-}
-
-function trustForRole(role: string, hasBaseModel: boolean) {
-  return role === "artifact_provider" || (role === "creator_provider" && hasBaseModel)
-    ? "vendor" as const
-    : "official" as const;
-}
-
-function artifactFor(
-  parsed: ParsedHuggingFaceRepo,
-  role: string,
-  variant: string,
-  fallbackParamsB?: number,
-): PublishedArtifact {
-  const estimate = parsed.paramsB
-    ? null
-    : fallbackParamsB
-      ? estimateVram(fallbackParamsB, parsed.format, undefined, parsed.repo.config)
-      : null;
-  return {
-    variant,
-    repo: parsed.repo.id,
-    format: parsed.format,
-    trust: trustForRole(role, parsed.repo.baseModels.length > 0),
-    confidence: "verified",
-    kinds: estimate?.kinds ?? parsed.kinds,
-    runtimes: estimate?.runtimes ?? parsed.runtimes,
-    minVramGb: estimate?.minVramGb ?? parsed.minVramGb ?? 0,
-    recVramGb: estimate?.recVramGb ?? parsed.recVramGb ?? 0,
-    vramEstimate: estimate?.details ?? parsed.vramEstimate ?? undefined,
-    deltas: NULL_DELTAS,
-    measured: false,
-    qualityRank: 99,
-    gated: parsed.repo.gated,
-    vramEstimated: true,
-    lastUpdatedAt: significantTimestamp(parsed.repo),
-  };
-}
-
-function deepMerge(base: unknown, patch: unknown): unknown {
-  if (
-    !base ||
-    !patch ||
-    typeof base !== "object" ||
-    typeof patch !== "object" ||
-    Array.isArray(base) ||
-    Array.isArray(patch)
-  ) {
-    return patch;
-  }
-  const output: AnyRecord = { ...(base as AnyRecord) };
-  for (const [key, value] of Object.entries(patch as AnyRecord)) {
-    output[key] = key in output ? deepMerge(output[key], value) : value;
-  }
-  return output;
-}
-
-function sourceRule(source: AnyRecord): MonitoredSourceRule {
-  return {
-    owner: String(source.owner),
-    role: source.role as MonitoredSourceRule["role"],
-    familyIds: Array.isArray(source.familyIds) ? source.familyIds.map(String) : [],
-    includePatterns: Array.isArray(source.includePatterns) ? source.includePatterns.map(String) : undefined,
-    excludePatterns: Array.isArray(source.excludePatterns) ? source.excludePatterns.map(String) : undefined,
-  };
-}
-
-function hfHeaders(): HeadersInit {
-  const token = process.env.HF_TOKEN;
-  return token ? { Authorization: `Bearer ${token}`, "User-Agent": "akashic-catalog-sync/1.0" } : { "User-Agent": "akashic-catalog-sync/1.0" };
-}
-
-async function fetchRepo(repoName: string): Promise<{ status: number; data?: unknown }> {
-  const encoded = repoName.split("/").map(encodeURIComponent).join("/");
-  const response = await fetch(
-    `https://huggingface.co/api/models/${encoded}?full=true&config=true&cardData=true`,
-    { headers: hfHeaders() },
-  );
-  if (!response.ok) {
-    if (response.status === 404) return { status: response.status };
-    throw hubRequestError(response, `Hugging Face repo fetch failed for ${repoName}`);
-  }
-  const data = await response.json() as AnyRecord;
-  const revision = typeof data.sha === "string" && data.sha ? data.sha : "main";
-  const configResponse = await fetch(
-    `https://huggingface.co/${encoded}/raw/${encodeURIComponent(revision)}/config.json`,
-    { headers: hfHeaders() },
-  );
-  if (configResponse.ok) data.config = await configResponse.json();
-  else if (configResponse.status === 429 || configResponse.status >= 500) {
-    throw hubRequestError(configResponse, `Hugging Face config fetch failed for ${repoName}`);
-  }
-  return { status: response.status, data };
-}
-
-async function fetchWeightMetadata(repoName: string, revision: string) {
-  const encodedRepo = repoName.split("/").map(encodeURIComponent).join("/");
-  const encodedRevision = encodeURIComponent(revision);
-  let url: string | null = `https://huggingface.co/api/models/${encodedRepo}/tree/${encodedRevision}?recursive=true&expand=true&limit=100`;
-  const weightEntries: unknown[] = [];
-  let pages = 0;
-  while (url && pages < 100) {
-    const response: Response = await fetch(url, { headers: hfHeaders() });
-    if (!response.ok) throw hubRequestError(response, `Hugging Face weight tree failed for ${repoName}`);
-    const page = await response.json();
-    if (!Array.isArray(page)) throw new Error(`Hugging Face weight tree returned a non-array for ${repoName}`);
-    for (const entry of page) {
-      const path = entry && typeof entry === "object" && "path" in entry ? String(entry.path) : "";
-      if (isWeightBlobFile(path)) weightEntries.push(entry);
-    }
-    const link = response.headers.get("link");
-    const next = link?.match(/<([^>]+)>;\s*rel="next"/i)?.[1];
-    url = next ? new URL(next, "https://huggingface.co").toString() : null;
-    pages += 1;
-  }
-  if (url) throw new Error(`Hugging Face weight-tree pagination exceeded 100 pages for ${repoName}`);
-  return weightMetadataFromTree(weightEntries);
-}
-
-async function classifyWithWeightMetadata(raw: unknown, rule: MonitoredSourceRule): Promise<RepoClassification> {
-  const initial = classifyHuggingFaceRepo(raw, rule);
-  if (initial.status !== "publishable") return initial;
-  const metadata = await fetchWeightMetadata(initial.parsed.repo.id, initial.parsed.repo.sha);
-  if (!metadata) return initial;
-  const enriched = {
-    ...(raw as AnyRecord),
-    _akashicWeightManifestHash: metadata.manifestHash,
-    _akashicWeightsLastModified: metadata.lastModified,
-    _akashicWeightCommitSha: metadata.commitSha ?? undefined,
-    _akashicWeightBytes: metadata.totalBytes,
-  };
-  return classifyHuggingFaceRepo(enriched, rule);
-}
-
-async function listRepos(owner: string): Promise<unknown[]> {
-  let url: string | null = `https://huggingface.co/api/models?author=${encodeURIComponent(owner)}&sort=lastModified&direction=-1&limit=100`;
-  const results: unknown[] = [];
-  let pages = 0;
-  while (url && pages < 100) {
-    const response: Response = await fetch(url, { headers: hfHeaders() });
-    if (!response.ok) throw hubRequestError(response, `Hugging Face list failed for ${owner}`);
-    const page = await response.json();
-    if (!Array.isArray(page)) throw new Error(`Hugging Face list returned a non-array for ${owner}`);
-    results.push(...page);
-    const link: string | null = response.headers.get("link");
-    const next: string | null = link?.match(/<([^>]+)>;\s*rel="next"/i)?.[1] ?? null;
-    url = next;
-    pages += 1;
-  }
-  if (url) throw new Error(`Hugging Face pagination exceeded 100 pages for ${owner}`);
-  return results;
-}
+const sourceRepoResultValue = v.union(v.null(), v.object({
+  repoId: v.string(),
+  repoName: v.string(),
+  headSha: v.optional(v.string()),
+  weightManifestHash: v.optional(v.string()),
+  weightsLastModifiedAt: v.optional(v.number()),
+}));
 
 export const sourceByOwner = internalQuery({
   args: { owner: v.string() },
+  returns: sourceRuleResultValue,
   handler: async (ctx, args) => {
     const byKey = await ctx.db
       .query("monitoredSources")
       .withIndex("by_owner_key", (q) => q.eq("ownerKey", normalizeOwnerKey(args.owner)))
       .first();
-    return byKey ?? await ctx.db
+    const source = byKey ?? await ctx.db
       .query("monitoredSources")
       .withIndex("by_owner", (q) => q.eq("owner", args.owner))
       .first();
+    return source ? {
+      owner: source.owner,
+      role: source.role,
+      enabled: source.enabled,
+      familyIds: source.familyIds,
+      includePatterns: source.includePatterns,
+      excludePatterns: source.excludePatterns,
+    } : null;
   },
-});
-
-export const enabledSources = internalQuery({
-  args: {},
-  handler: async (ctx) =>
-    await ctx.db
-      .query("monitoredSources")
-      .filter((q) => q.eq(q.field("enabled"), true))
-      .collect(),
 });
 
 export const eventById = internalQuery({
   args: { eventId: v.id("webhookEvents") },
-  handler: async (ctx, args) => await ctx.db.get(args.eventId),
+  returns: eventResultValue,
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    return event ? {
+      status: event.status,
+      owner: event.owner,
+      repoId: event.repoId,
+      repoName: event.repoName,
+      scope: event.scope,
+      action: event.action,
+    } : null;
+  },
 });
 
 export const syncRunById = internalQuery({
   args: { runId: v.id("syncRuns") },
-  handler: async (ctx, args) => await ctx.db.get(args.runId),
+  returns: runResultValue,
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    return run ? {
+      status: run.status,
+      expectedSources: run.expectedSources,
+      completedSources: run.completedSources,
+      sourceOwners: run.sourceOwners,
+      sourcePaceMs: run.sourcePaceMs,
+      discovered: run.discovered,
+      changed: run.changed,
+      published: run.published,
+      skipped: run.skipped,
+      failed: run.failed,
+      retries: run.retries,
+    } : null;
+  },
 });
 
 export const sourceRepoByName = internalQuery({
   args: { repoName: v.string() },
-  handler: async (ctx, args) =>
-    await ctx.db
+  returns: sourceRepoResultValue,
+  handler: async (ctx, args) => {
+    const repo = await ctx.db
       .query("sourceRepositories")
       .withIndex("by_repo_name", (q) => q.eq("repoName", args.repoName))
-      .unique(),
+      .unique();
+    return repo ? {
+      repoId: repo.repoId,
+      repoName: repo.repoName,
+      headSha: repo.headSha,
+      weightManifestHash: repo.weightManifestHash,
+      weightsLastModifiedAt: repo.weightsLastModifiedAt,
+    } : null;
+  },
 });
 
 export const sourceRepoById = internalQuery({
   args: { repoId: v.string() },
-  handler: async (ctx, args) =>
-    await ctx.db
+  returns: sourceRepoResultValue,
+  handler: async (ctx, args) => {
+    const repo = await ctx.db
       .query("sourceRepositories")
       .withIndex("by_repo_id", (q) => q.eq("repoId", args.repoId))
-      .first(),
+      .first();
+    return repo ? {
+      repoId: repo.repoId,
+      repoName: repo.repoName,
+      headSha: repo.headSha,
+      weightManifestHash: repo.weightManifestHash,
+      weightsLastModifiedAt: repo.weightsLastModifiedAt,
+    } : null;
+  },
 });
 
 export const startWebhookRun = internalMutation({
   args: { owner: v.string(), now: v.number() },
+  returns: v.id("syncRuns"),
   handler: async (ctx, args) =>
     await ctx.db.insert("syncRuns", {
       kind: "webhook",
@@ -366,12 +192,24 @@ export const startWebhookRun = internalMutation({
     }),
 });
 
-async function applyOverride(ctx: MutationCtx, slug: string, payload: PublishedCatalogEntry) {
-  const override = await ctx.db
-    .query("catalogOverrides")
-    .withIndex("by_entity", (q) => q.eq("entityType", "catalog_entry").eq("entityKey", slug))
+async function applyModelIntroduction(ctx: MutationCtx, slug: string, payload: PublishedCatalogEntry) {
+  const introduction = await ctx.db
+    .query("modelIntroductions")
+    .withIndex("by_slug", (q) => q.eq("slug", slug))
     .unique();
-  return override ? (deepMerge(payload, override.patch) as PublishedCatalogEntry) : payload;
+  if (!introduction) return payload;
+  return {
+    ...payload,
+    introduction: {
+      heading: introduction.heading,
+      summary: introduction.summary,
+      paragraphs: introduction.paragraphs,
+      highlights: introduction.highlights,
+      sourceLabel: introduction.sourceLabel,
+      sourceUrl: introduction.sourceUrl,
+      sourceSha: introduction.sourceSha,
+    },
+  };
 }
 
 async function catalogEntryForRepo(ctx: MutationCtx, repoName: string) {
@@ -392,7 +230,7 @@ async function catalogEntryForRepo(ctx: MutationCtx, repoName: string) {
 
 async function directlyLinkedCatalogEntry(
   ctx: MutationCtx,
-  parsed: ParsedHuggingFaceRepo,
+  parsed: IngestedParsedRepo,
   previousRepoName?: string,
 ) {
   const repoNames = [parsed.repo.id, previousRepoName, ...parsed.repo.baseModels]
@@ -404,177 +242,10 @@ async function directlyLinkedCatalogEntry(
   return null;
 }
 
-function targetForParsed(
-  documents: Array<Doc<"catalogEntries">>,
-  parsed: ParsedHuggingFaceRepo,
-  rule: MonitoredSourceRule,
-  knownRepoNames: string[] = [],
-) {
-  const exact = documents.find((document) =>
-    [parsed.repo.id, ...knownRepoNames].some((repoName) => document.sourceRepos.includes(repoName)),
-  );
-  if (exact) return exact;
-  for (const baseModel of parsed.repo.baseModels) {
-    const linked = documents.find((document) => document.sourceRepos.includes(baseModel));
-    if (linked) return linked;
-  }
-  if (rule.role === "artifact_provider") return null;
-  const stem = normalizedIdentity(parsed.modelStem);
-  return (
-    documents.find((document) => {
-      if (!rule.familyIds.includes(document.familyId)) return false;
-      const payload = document.payload as PublishedCatalogEntry;
-      const identity = normalizedIdentity(`${payload.release.name}${payload.size.label}`);
-      return stem === identity || stem.includes(identity) || identity.includes(stem);
-    }) ?? null
-  );
-}
-
-function familyForParsed(
-  documents: Array<Doc<"catalogEntries">>,
-  parsed: ParsedHuggingFaceRepo,
-  rule: MonitoredSourceRule,
-): PublishedCatalogEntry["family"] | null {
-  const identities = new Map<string, PublishedCatalogEntry["family"]>();
-  for (const document of documents) {
-    if (!rule.familyIds.includes(document.familyId)) continue;
-    const family = (document.payload as PublishedCatalogEntry).family;
-    identities.set(family.id, family);
-  }
-  const stem = normalizedIdentity(parsed.modelStem);
-  const matching = [...identities.values()].filter((family) => stem.includes(normalizedIdentity(family.name)));
-  if (matching.length === 1) return matching[0];
-  return identities.size === 1 ? [...identities.values()][0] : null;
-}
-
-function newPayload(
-  family: PublishedCatalogEntry["family"],
-  parsed: ParsedHuggingFaceRepo,
-): PublishedCatalogEntry | null {
-  if (!parsed.paramsB || !parsed.sizeLabel || !parsed.category) return null;
-  const updatedAt = significantTimestamp(parsed.repo);
-  const releaseName = releaseNameFor(parsed);
-  const releaseId = slugPart(releaseName);
-  const context = contextMetadata(parsed.repo.config);
-  const artifact = artifactFor(parsed, "creator", parsed.variant);
-  const benchmarkRefs = parsed.benchmarkRows.map((row) => ({ ...row }));
-  const slug = `${family.id}-${releaseId}-${slugPart(parsed.sizeLabel)}`;
-  return {
-    id: slug,
-    slug,
-    family,
-    release: {
-      id: releaseId,
-      name: releaseName,
-      date: dateLabel(timestamp(parsed.repo.createdAt) ?? updatedAt),
-      ctx: context.label,
-      license: parsed.repo.license ?? "Unknown",
-      category: parsed.category,
-      capabilities: parsed.capabilities,
-      benchmarkRefs,
-    },
-    size: {
-      label: parsed.sizeLabel,
-      paramsB: parsed.paramsB,
-      activeParamsB: parsed.activeParamsB ?? undefined,
-      isMoe: parsed.isMoe || undefined,
-      variants: [parsed.variant],
-      context: context.label,
-      updated: dateLabel(updatedAt),
-      category: parsed.category,
-      capabilities: parsed.capabilities,
-      benchmarkRefs,
-    },
-    name: `${releaseName} ${parsed.sizeLabel.replace(/-A\d+(?:\.\d+)?B$/i, "")}`,
-    effectiveDate: dateLabel(updatedAt),
-    dateLabel: dateLabel(updatedAt),
-    updated: true,
-    timestamp: updatedAt,
-    context: context.label,
-    artifacts: [artifact],
-    quantizations: [parsed.format],
-    providers: [uploaderDisplay(parsed.repo.id)],
-    category: parsed.category,
-    capabilities: parsed.capabilities,
-    benchmarkRefs,
-    recipeReferences: [],
-    materialChanges: [],
-    runReports: [],
-  };
-}
-
-function mergeParsedIntoPayload(
-  original: PublishedCatalogEntry,
-  parsed: ParsedHuggingFaceRepo,
-  role: string,
-  previousRepoName?: string,
-): PublishedCatalogEntry {
-  const updatedAt = significantTimestamp(parsed.repo, original.timestamp);
-  const existingIndex = original.artifacts.findIndex(
-    (artifact) => artifact.repo === parsed.repo.id || artifact.repo === previousRepoName,
-  );
-  const existing = existingIndex >= 0 ? original.artifacts[existingIndex] : undefined;
-  const variant = existing?.variant ?? (original.size.variants.includes(parsed.variant) ? parsed.variant : original.size.variants[0] ?? parsed.variant);
-  const nextArtifact = artifactFor(parsed, role, variant, original.size.paramsB);
-  const artifacts = existing
-    ? original.artifacts.map((artifact, index) =>
-        index === existingIndex
-          ? { ...artifact, ...nextArtifact, qualityRank: artifact.qualityRank }
-          : artifact,
-      )
-    : [...original.artifacts, nextArtifact];
-  const canonicalRepo = original.artifacts[0]?.repo;
-  const updatesCanonicalWeights = trustForRole(role, parsed.repo.baseModels.length > 0) === "official" &&
-    existing?.repo === canonicalRepo;
-  const modelUpdatedAt = updatesCanonicalWeights ? updatedAt : original.timestamp;
-  const canonicalParamsB = updatesCanonicalWeights ? parsed.paramsB ?? original.size.paramsB : original.size.paramsB;
-  const canonicalSizeLabel = updatesCanonicalWeights ? parsed.sizeLabel ?? original.size.label : original.size.label;
-  const parsedContext = contextMetadata(parsed.repo.config);
-  const canonicalContext = updatesCanonicalWeights && parsedContext.tokens
-    ? parsedContext.label
-    : original.context;
-  const benchmarkRefs = [...original.benchmarkRefs];
-  for (const row of parsed.benchmarkRows) {
-    if (!benchmarkRefs.some((existingRow) => existingRow.name === row.name && existingRow.sourceUrl === row.sourceUrl)) {
-      benchmarkRefs.push(row);
-    }
-  }
-  return {
-    ...original,
-    id: original.slug,
-    name: updatesCanonicalWeights ? `${original.release.name} ${canonicalSizeLabel}` : original.name,
-    effectiveDate: dateLabel(modelUpdatedAt),
-    dateLabel: dateLabel(modelUpdatedAt),
-    updated: true,
-    timestamp: modelUpdatedAt,
-    context: canonicalContext,
-    release: updatesCanonicalWeights
-      ? {
-          ...original.release,
-          ...(parsed.repo.license ? { license: parsed.repo.license } : {}),
-          ...(parsedContext.tokens ? { ctx: parsedContext.label } : {}),
-        }
-      : original.release,
-    size: {
-      ...original.size,
-      label: canonicalSizeLabel,
-      paramsB: canonicalParamsB,
-      updated: updatesCanonicalWeights ? dateLabel(modelUpdatedAt) : original.size.updated,
-      context: canonicalContext,
-      activeParamsB: parsed.activeParamsB ?? original.size.activeParamsB,
-      isMoe: parsed.isMoe || original.size.isMoe || undefined,
-    },
-    artifacts,
-    quantizations: [...new Set(artifacts.map((artifact) => artifact.format))],
-    providers: [...new Set(artifacts.map((artifact) => uploaderDisplay(artifact.repo)))].sort(),
-    benchmarkRefs,
-  };
-}
-
 async function upsertNormalized(
   ctx: MutationCtx,
   payload: PublishedCatalogEntry,
-  parsed: ParsedHuggingFaceRepo,
+  parsed: IngestedParsedRepo,
   role: string,
   now: number,
   previousRepoName?: string,
@@ -612,7 +283,7 @@ async function upsertNormalized(
       name: payload.release.name,
       releasedAt: timestamp(payload.release.date),
       lastUpdatedAt: payload.timestamp,
-      contextTokens: contextMetadata(parsed.repo.config).tokens ?? undefined,
+      contextTokens: parsed.contextTokens ?? undefined,
       contextLabel: payload.release.ctx,
       license: payload.release.license,
       category: payload.release.category,
@@ -637,7 +308,7 @@ async function upsertNormalized(
       label: payload.size.label,
       parameterCountB: payload.size.paramsB,
       activeParameterCountB: parsed.activeParamsB ?? undefined,
-      contextTokens: contextMetadata(parsed.repo.config).tokens ?? undefined,
+      contextTokens: parsed.contextTokens ?? undefined,
       contextLabel: payload.context,
       lastUpdatedAt: payload.timestamp,
       category: payload.size.category,
@@ -697,7 +368,6 @@ async function upsertNormalized(
   const artifactValue = clean({
     variantId: variant._id,
     huggingFaceRepo: parsed.repo.id,
-    aliases: previousRepoName && previousRepoName !== parsed.repo.id ? [previousRepoName] : [],
     format: parsed.format,
     quantization: parsed.format,
     uploaderKind: trustForRole(role, parsed.repo.baseModels.length > 0),
@@ -718,35 +388,26 @@ async function upsertNormalized(
   if (existingArtifact) await ctx.db.patch(existingArtifact._id, artifactValue);
   else await ctx.db.insert("artifacts", artifactValue);
 
-  for (const row of parsed.benchmarkRows) {
-    const existing = await ctx.db
-      .query("modelBenchmarks")
-      .withIndex("by_variant_benchmark", (q) => q.eq("variantId", variant!._id).eq("benchmarkName", row.name))
-      .first();
-    const value = {
-      variantId: variant._id,
-      benchmarkName: row.name,
-      result: row.result,
-      sourceLabel: row.sourceLabel,
-      sourceUrl: row.sourceUrl,
-      sourceRepo: parsed.repo.id,
-      sourceSha: parsed.repo.sha,
-      lastSyncedAt: now,
-    };
-    if (existing) await ctx.db.patch(existing._id, value);
-    else await ctx.db.insert("modelBenchmarks", value);
-  }
 }
 
 export const applyRepoResult = internalMutation({
   args: {
-    classification: v.any(),
+    classification: ingestionClassificationValue,
     sourceOwner: v.string(),
     repoKey: v.optional(v.string()),
     runId: v.id("syncRuns"),
     eventId: v.optional(v.id("webhookEvents")),
     now: v.number(),
   },
+  returns: v.union(
+    v.object({ status: v.literal("skipped"), reason: v.string() }),
+    v.object({
+      status: v.literal("published"),
+      slug: v.string(),
+      resolution: v.union(v.literal("direct"), v.literal("family_scan"), v.literal("new")),
+      changed: v.boolean(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const sourceByKey = await ctx.db
       .query("monitoredSources")
@@ -757,7 +418,7 @@ export const applyRepoResult = internalMutation({
       .withIndex("by_owner", (q) => q.eq("owner", args.sourceOwner))
       .first();
     if (!source) throw new Error(`Unmonitored source ${args.sourceOwner}`);
-    const classification = args.classification as RepoClassification;
+    const classification = args.classification as IngestionClassification;
     const repo = classification.status === "publishable" ? classification.parsed.repo : classification.repo;
     const priorById = await ctx.db
       .query("sourceRepositories")
@@ -767,14 +428,10 @@ export const applyRepoResult = internalMutation({
       .query("sourceRepositories")
       .withIndex("by_repo_name", (q) => q.eq("repoName", repo.id))
       .first());
-    const aliases = priorByName && priorByName.repoName !== repo.id
-      ? [...new Set([...priorByName.aliases, priorByName.repoName])]
-      : priorByName?.aliases ?? [];
     const sourceValue = clean({
       repoId: args.repoKey ?? priorByName?.repoId ?? repo.id,
       repoName: repo.id,
       owner: repo.author,
-      aliases,
       headSha: repo.sha,
       createdAt: timestamp(repo.createdAt),
       lastModifiedAt: timestamp(repo.lastModified),
@@ -782,17 +439,11 @@ export const applyRepoResult = internalMutation({
       weightsLastModifiedAt: timestamp(repo.weightsLastModified),
       weightCommitSha: repo.weightCommitSha ?? undefined,
       weightBytes: repo.weightBytes ?? undefined,
-      weightDatePolicyVersion: repo.weightsLastModified ? WEIGHT_DATE_POLICY_VERSION : undefined,
       private: repo.private,
       gated: repo.gated,
       disabled: repo.disabled,
       pipelineTag: repo.pipelineTag ?? undefined,
-      tags: repo.tags,
       license: repo.license ?? undefined,
-      files: repo.files,
-      baseModels: repo.baseModels,
-      cardData: repo.cardData,
-      config: repo.config,
       status: classification.status === "publishable" ? "published" as const : "skipped" as const,
       skipReason: classification.status === "skipped" ? classification.reason : undefined,
       missingCount: 0,
@@ -823,16 +474,20 @@ export const applyRepoResult = internalMutation({
     const rule = sourceRule(source);
     const previousRepoName = priorByName?.repoName !== parsed.repo.id ? priorByName?.repoName : undefined;
     const directTarget = await directlyLinkedCatalogEntry(ctx, parsed, previousRepoName);
-    const documents = directTarget
-      ? [directTarget]
-      : (await Promise.all(
+    const familyDocuments = directTarget
+      ? []
+      : await Promise.all(
           rule.familyIds.map((familyId) =>
             ctx.db
               .query("catalogEntries")
               .withIndex("by_family", (q) => q.eq("familyId", familyId))
-              .collect(),
+              .take(501),
           ),
-        )).flat();
+        );
+    if (familyDocuments.some((entries) => entries.length > 500)) {
+      throw new Error("Catalog family exceeds the 500-entry reconciliation bound");
+    }
+    const documents = directTarget ? [directTarget] : familyDocuments.flat();
     const target = directTarget ?? targetForParsed(documents, parsed, rule, previousRepoName ? [previousRepoName] : []);
     const resolution = directTarget ? "direct" as const : target ? "family_scan" as const : "new" as const;
     let payload: PublishedCatalogEntry | null = target
@@ -854,7 +509,7 @@ export const applyRepoResult = internalMutation({
       return { status: "skipped" as const, reason: "unresolved catalog identity" };
     }
 
-    payload = await applyOverride(ctx, payload.slug, payload);
+    payload = await applyModelIntroduction(ctx, payload.slug, payload);
     const existingEntry = target?.slug === payload.slug
       ? target
       : await ctx.db
@@ -1005,20 +660,23 @@ export const applyRepoResult = internalMutation({
 
 export const finishWebhookRun = internalMutation({
   args: { runId: v.id("syncRuns"), now: v.number(), success: v.boolean(), message: v.optional(v.string()) },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
-    if (!run) return;
+    if (!run) return null;
     await ctx.db.patch(args.runId, clean({
       status: args.success ? "success" as const : "failed" as const,
       completedAt: args.now,
       failed: args.success ? run.failed : run.failed + 1,
       message: args.message,
     }));
+    return null;
   },
 });
 
 export const completeUnchangedWebhook = internalMutation({
   args: { eventId: v.id("webhookEvents"), runId: v.id("syncRuns"), now: v.number() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
     await ctx.db.patch(args.runId, {
@@ -1026,6 +684,7 @@ export const completeUnchangedWebhook = internalMutation({
       completedAt: args.now,
       message: "Repository SHA already processed",
     });
+    return null;
   },
 });
 
@@ -1057,6 +716,7 @@ export const scheduleWebhookRetry = internalMutation({
 
 export const failWebhook = internalMutation({
   args: { eventId: v.id("webhookEvents"), runId: v.id("syncRuns"), error: v.string(), now: v.number() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.eventId, { status: "failed", error: args.error, processedAt: args.now, nextRetryAt: undefined });
     const run = await ctx.db.get(args.runId);
@@ -1068,6 +728,7 @@ export const failWebhook = internalMutation({
         message: args.error,
       });
     }
+    return null;
   },
 });
 
@@ -1079,6 +740,7 @@ export const removeRepository = internalMutation({
     eventId: v.optional(v.id("webhookEvents")),
     runId: v.optional(v.id("syncRuns")),
   },
+  returns: v.object({ removed: v.boolean() }),
   handler: async (ctx, args) => {
     const source = await ctx.db
       .query("sourceRepositories")
@@ -1095,7 +757,8 @@ export const removeRepository = internalMutation({
       const artifacts = await ctx.db
         .query("artifacts")
         .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", args.repoName))
-        .collect();
+        .take(101);
+      if (artifacts.length > 100) throw new Error("Repository exceeds the 100-artifact removal bound");
       for (const artifact of artifacts) await ctx.db.patch(artifact._id, { available: false, lastSyncedAt: args.now });
       const variants = await Promise.all(artifacts.map((artifact) => ctx.db.get(artifact.variantId)));
       const sizeIds = [...new Set(variants.filter(Boolean).map((variant) => variant!.sizeId))];
@@ -1171,9 +834,10 @@ export const processWebhook = internalAction({
     attempt: v.number(),
     runId: v.optional(v.id("syncRuns")),
   },
-  handler: async (ctx, args): Promise<void> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const event = await ctx.runQuery(internal.sync.eventById, { eventId: args.eventId });
-    if (!event || event.status !== "pending") return;
+    if (!event || event.status !== "pending") return null;
     const runId = args.runId ?? (await ctx.runMutation(internal.sync.startWebhookRun, { owner: event.owner, now: Date.now() }));
     try {
       if (event.action === "delete") {
@@ -1187,7 +851,7 @@ export const processWebhook = internalAction({
             runId,
           });
           await ctx.runMutation(internal.sync.finishWebhookRun, { runId, now: Date.now(), success: true });
-          return;
+          return null;
         }
         if (!result.data) throw new Error(`Delete confirmation failed with HTTP ${result.status}`);
       }
@@ -1201,19 +865,20 @@ export const processWebhook = internalAction({
         prior.headSha === normalized.sha &&
         prior.repoName === normalized.id &&
         prior.weightManifestHash &&
-        prior.weightsLastModifiedAt &&
-        prior.weightDatePolicyVersion === WEIGHT_DATE_POLICY_VERSION
+        prior.weightsLastModifiedAt
       ) {
         await ctx.runMutation(internal.sync.completeUnchangedWebhook, {
           eventId: args.eventId,
           runId,
           now: Date.now(),
         });
-        return;
+        return null;
       }
       const source = await ctx.runQuery(internal.sync.sourceByOwner, { owner: event.owner });
       if (!source?.enabled) throw new Error(`Source ${event.owner} is no longer monitored`);
-      const classification = await classifyWithWeightMetadata(response.data, sourceRule(source));
+      const classification = compactClassification(
+        await classifyWithWeightMetadata(response.data, sourceRule(source)),
+      );
       await ctx.runMutation(internal.sync.applyRepoResult, {
         classification,
         sourceOwner: event.owner,
@@ -1244,6 +909,7 @@ export const processWebhook = internalAction({
         });
       }
     }
+    return null;
   },
 });
 
@@ -1344,6 +1010,7 @@ export const recordAuditRetry = internalMutation({
 
 export const markAuditMissing = internalMutation({
   args: { owner: v.string(), seen: v.array(v.string()), runId: v.id("syncRuns"), now: v.number() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const seen = new Set(args.seen);
     const repos = await ctx.db
@@ -1362,6 +1029,7 @@ export const markAuditMissing = internalMutation({
         });
       }
     }
+    return null;
   },
 });
 
@@ -1451,9 +1119,10 @@ export const finishAuditSource = internalMutation({
 
 export const auditSource = internalAction({
   args: { runId: v.id("syncRuns"), owner: v.string(), attempt: v.number() },
-  handler: async (ctx, args): Promise<void> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const activeRun = await ctx.runQuery(internal.sync.syncRunById, { runId: args.runId });
-    if (!activeRun || activeRun.status !== "running") return;
+    if (!activeRun || activeRun.status !== "running") return null;
     try {
       const source = await ctx.runQuery(internal.sync.sourceByOwner, { owner: args.owner });
       if (!source?.enabled) throw new Error(`Source ${args.owner} is not enabled`);
@@ -1466,7 +1135,6 @@ export const auditSource = internalAction({
       let changed = 0;
       let published = 0;
       let skipped = 0;
-      let remainingWeightBackfills = 24;
       for (let offset = 0; offset < candidates.length; offset += 12) {
         const batch = candidates.slice(offset, offset + 12);
         const previous = await Promise.all(
@@ -1475,16 +1143,7 @@ export const auditSource = internalAction({
         const changedRepos = batch.filter((repo, index) => {
           const prior = previous[index];
           if (prior?.headSha !== repo.sha) return true;
-          const needsWeightBackfill = source.role !== "artifact_provider" &&
-            prior.status === "published" &&
-            (
-              !prior.weightManifestHash ||
-              !prior.weightsLastModifiedAt ||
-              prior.weightDatePolicyVersion !== WEIGHT_DATE_POLICY_VERSION
-            ) &&
-            remainingWeightBackfills > 0;
-          if (needsWeightBackfill) remainingWeightBackfills -= 1;
-          return needsWeightBackfill;
+          return false;
         });
         const hydrated: Array<{ repo: (typeof changedRepos)[number]; data: unknown }> = [];
         for (const repo of changedRepos) {
@@ -1495,7 +1154,9 @@ export const auditSource = internalAction({
           hydrated.push({ repo, data: response.data });
         }
         for (const result of hydrated) {
-          const classification = await classifyWithWeightMetadata(result.data, rule);
+          const classification = compactClassification(
+            await classifyWithWeightMetadata(result.data, rule),
+          );
           const outcome = await ctx.runMutation(internal.sync.applyRepoResult, {
             classification,
             sourceOwner: args.owner,
@@ -1537,7 +1198,7 @@ export const auditSource = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const currentRun = await ctx.runQuery(internal.sync.syncRunById, { runId: args.runId });
-      if (!currentRun || currentRun.status !== "running") return;
+      if (!currentRun || currentRun.status !== "running") return null;
       if (args.attempt < 2) {
         const delayMs = retryDelayForError(error, args.attempt, 60_000);
         const now = Date.now();
@@ -1552,7 +1213,7 @@ export const auditSource = internalAction({
           ...args,
           attempt: args.attempt + 1,
         });
-        return;
+        return null;
       }
       const completion = await ctx.runMutation(internal.sync.finishAuditSource, {
         runId: args.runId,
@@ -1573,5 +1234,6 @@ export const auditSource = internalAction({
         });
       }
     }
+    return null;
   },
 });

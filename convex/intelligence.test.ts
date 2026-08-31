@@ -4,14 +4,14 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { MODEL_ENTRIES } from "../src/lib/atlas/models";
 import { publishableEntry } from "../src/lib/atlas/published";
+import { QWEN_ENTRY } from "../test/catalogFixture";
 
 const modules = import.meta.glob("./**/*.*s");
 
 async function catalogFixture() {
   const t = convexTest(schema, modules);
-  const entry = MODEL_ENTRIES.find((candidate) => candidate.artifacts.length > 0)!;
+  const entry = QWEN_ENTRY;
   await t.run(async (ctx) => {
     await ctx.db.insert("catalogState", {
       key: "public",
@@ -71,7 +71,7 @@ describe("catalog intelligence", () => {
       now: 10,
     });
     expect(first).toMatchObject({ matchedEntries: 1, changedEntries: 1 });
-    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug })).recipeReferences)
+    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.recipeReferences)
       .toHaveLength(1);
 
     const second = await t.mutation(internal.recipeSync.finalizeSync, {
@@ -106,7 +106,7 @@ describe("catalog intelligence", () => {
       now: 101,
     };
     await t.mutation(internal.intelligence.upsertRunReport, args);
-    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug })).runReports)
+    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.runReports)
       .toHaveLength(1);
 
     await t.mutation(internal.intelligence.upsertRunReport, {
@@ -114,7 +114,7 @@ describe("catalog intelligence", () => {
       published: false,
       now: 102,
     });
-    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug })).runReports)
+    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.runReports)
       .toHaveLength(0);
   });
 
@@ -157,7 +157,7 @@ describe("catalog intelligence", () => {
     expect(result).toEqual({ slug: entry.slug, changed: true });
 
     const payload = await t.query(api.catalog.getBySlug, { slug: entry.slug });
-    expect(payload.introduction).toMatchObject({
+    expect(payload!.introduction).toMatchObject({
       heading: `About ${entry.name}`,
       sourceSha: "abc123",
     });
@@ -166,10 +166,10 @@ describe("catalog intelligence", () => {
       .withIndex("by_slug", (q) => q.eq("slug", entry.slug))
       .unique());
     expect(storedEntry?.updatedAt).toBe(entry.timestamp);
-    const override = await t.run(async (ctx) => await ctx.db
-      .query("catalogOverrides")
-      .withIndex("by_entity", (q) => q.eq("entityType", "catalog_entry").eq("entityKey", entry.slug))
+    const introduction = await t.run(async (ctx) => await ctx.db
+      .query("modelIntroductions")
+      .withIndex("by_slug", (q) => q.eq("slug", entry.slug))
       .unique());
-    expect(override?.patch).toMatchObject({ introduction: { sourceSha: "abc123" } });
+    expect(introduction).toMatchObject({ sourceSha: "abc123" });
   });
 });

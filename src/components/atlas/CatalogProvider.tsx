@@ -3,19 +3,17 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { ConvexProvider, ConvexReactClient, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { FAMILIES } from "@/lib/atlas/catalog";
-import { MODEL_ENTRIES, type ModelEntry } from "@/lib/atlas/models";
+import type { ModelEntry } from "@/lib/atlas/models";
 import {
-  compareModelsForEntries,
   hydratePublishedEntries,
   type PublishedCatalogEntry,
+  type PublishedCatalogSummary,
 } from "@/lib/atlas/published";
-import type { CompareModel, Family, MaterialChange } from "@/lib/atlas/types";
+import type { Family, MaterialChange } from "@/lib/atlas/types";
 
 interface CatalogContextValue {
   entries: ModelEntry[];
   families: Family[];
-  compareModels: CompareModel[];
   materialChanges: MaterialChange[];
   revision: string;
   syncedAt: number | null;
@@ -35,34 +33,19 @@ interface CatalogContextValue {
     lastCompletedAuditAt: number | null;
   } | null;
   loading: boolean;
-  source: "convex" | "snapshot";
 }
-
-const snapshot: CatalogContextValue = {
-  entries: MODEL_ENTRIES,
-  families: FAMILIES,
-  compareModels: compareModelsForEntries(MODEL_ENTRIES),
-  materialChanges: [],
-  revision: "migration-snapshot",
-  syncedAt: null,
-  health: null,
-  loading: false,
-  source: "snapshot",
-};
 
 const loadingCatalog: CatalogContextValue = {
   entries: [],
   families: [],
-  compareModels: [],
   materialChanges: [],
   revision: "loading",
   syncedAt: null,
   health: null,
   loading: true,
-  source: "convex",
 };
 
-const CatalogContext = createContext<CatalogContextValue>(snapshot);
+const CatalogContext = createContext<CatalogContextValue | null>(null);
 
 function absoluteHttpUrl(value: string | undefined): string | null {
   if (!value) return null;
@@ -82,10 +65,9 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   const sourceHealth = useQuery(api.catalog.healthSummary, { now: loadedAt });
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
-    const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogEntry[]);
+    const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogSummary[]);
     return {
       ...hydrated,
-      compareModels: compareModelsForEntries(hydrated.entries),
       materialChanges: recentChanges ?? hydrated.entries
         .flatMap((entry) => entry.materialChanges)
         .sort((left, right) => right.occurredAt - left.occurredAt)
@@ -108,7 +90,6 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
         lastCompletedAuditAt: sourceHealth.lastCompletedAuditAt,
       } : null,
       loading: false,
-      source: "convex",
     };
   }, [recentChanges, result, sourceHealth]);
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
@@ -117,39 +98,17 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
 const configuredConvexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convexUrl = absoluteHttpUrl(configuredConvexUrl);
 const convexClient = convexUrl ? new ConvexReactClient(convexUrl) : null;
-const invalidConvexUrl = Boolean(configuredConvexUrl && !convexUrl);
-
 export function CatalogProvider({ children }: { children: ReactNode }) {
   if (!convexClient) {
-    const value = invalidConvexUrl
-      ? {
-          ...snapshot,
-          health: {
-            level: "stale" as const,
-            catalogStale: true,
-            catalogDegraded: false,
-            sourceTotal: 0,
-            freshSourceCount: 0,
-            staleSourceCount: 0,
-            failingSourceCount: 0,
-            retryingSourceCount: 0,
-            staleSources: [],
-            pendingWebhookCount: 0,
-            failedWebhookCount: 0,
-            webhookStale: false,
-            lastCompletedAuditAt: null,
-          },
-        }
-      : snapshot;
     return (
-      <CatalogContext.Provider value={value}>
-        {invalidConvexUrl && (
-          <div role="alert" className="border-b border-line bg-panel2 px-4 py-2 text-center text-[12px] text-muted">
-            Live catalog unavailable: the Convex deployment URL is invalid. Showing the bundled snapshot.
-          </div>
-        )}
-        {children}
-      </CatalogContext.Provider>
+      <main className="mx-auto flex min-h-screen w-full max-w-[760px] items-center px-5 py-16">
+        <section role="alert" className="w-full border-y border-line py-8">
+          <h1 className="font-display text-[28px] font-semibold">Catalog unavailable</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+            Akashic requires a valid NEXT_PUBLIC_CONVEX_URL. No bundled catalog is used.
+          </p>
+        </section>
+      </main>
     );
   }
   return (
@@ -160,5 +119,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
 }
 
 export function useCatalog() {
-  return useContext(CatalogContext);
+  const value = useContext(CatalogContext);
+  if (!value) throw new Error("useCatalog must be used inside CatalogProvider");
+  return value;
+}
+
+export function useCatalogEntry(slug: string): ModelEntry | null | undefined {
+  const result = useQuery(api.catalog.getBySlug, { slug });
+  if (result === undefined || result === null) return result;
+  return hydratePublishedEntries([result as PublishedCatalogEntry]).entries[0] ?? null;
 }

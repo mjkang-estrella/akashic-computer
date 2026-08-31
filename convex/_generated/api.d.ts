@@ -10,14 +10,18 @@
 
 import type * as admin from "../admin.js";
 import type * as catalog from "../catalog.js";
+import type * as catalogReconciliation from "../catalogReconciliation.js";
 import type * as catalogSnapshot from "../catalogSnapshot.js";
+import type * as catalogValues from "../catalogValues.js";
 import type * as crons from "../crons.js";
+import type * as familyConfig from "../familyConfig.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
+import type * as huggingFaceClient from "../huggingFaceClient.js";
 import type * as intelligence from "../intelligence.js";
 import type * as recipeSync from "../recipeSync.js";
-import type * as seed from "../seed.js";
 import type * as sourceConfig from "../sourceConfig.js";
+import type * as sourceConfigSync from "../sourceConfigSync.js";
 import type * as sync from "../sync.js";
 import type * as webhooks from "../webhooks.js";
 
@@ -30,14 +34,18 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   catalog: typeof catalog;
+  catalogReconciliation: typeof catalogReconciliation;
   catalogSnapshot: typeof catalogSnapshot;
+  catalogValues: typeof catalogValues;
   crons: typeof crons;
+  familyConfig: typeof familyConfig;
   health: typeof health;
   http: typeof http;
+  huggingFaceClient: typeof huggingFaceClient;
   intelligence: typeof intelligence;
   recipeSync: typeof recipeSync;
-  seed: typeof seed;
   sourceConfig: typeof sourceConfig;
+  sourceConfigSync: typeof sourceConfigSync;
   sync: typeof sync;
   webhooks: typeof webhooks;
 }>;

@@ -12,9 +12,14 @@ export const receive = internalMutation({
     scope: v.string(),
     action: v.string(),
     headSha: v.optional(v.string()),
-    payload: v.any(),
     receivedAt: v.number(),
   },
+  returns: v.union(
+    v.object({ status: v.literal("unmonitored") }),
+    v.object({ status: v.literal("duplicate"), eventId: v.id("webhookEvents") }),
+    v.object({ status: v.literal("coalesced"), eventId: v.id("webhookEvents") }),
+    v.object({ status: v.literal("accepted"), eventId: v.id("webhookEvents") }),
+  ),
   handler: async (ctx, args) => {
     const ownerKey = normalizeOwnerKey(args.owner);
     const sourceByKey = await ctx.db
@@ -65,7 +70,6 @@ export const receive = internalMutation({
         scope: args.scope,
         action: args.action,
         headSha: args.headSha,
-        payload: args.payload,
         receivedAt: args.receivedAt,
       });
     } else {

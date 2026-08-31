@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { matchesSourceRules } from "../src/lib/atlas/huggingface";
-import { MODEL_ENTRIES } from "../src/lib/atlas/models";
 import { CURRENT_MONITORED_SOURCES } from "./sourceConfig";
+import { FAMILY_BY_ID } from "./familyConfig";
 
 describe("Poolside source configuration", () => {
   const poolside = CURRENT_MONITORED_SOURCES.find((source) => source.owner === "poolside");
@@ -16,15 +16,10 @@ describe("Poolside source configuration", () => {
     expect(matchesSourceRules("poolside/Laguna-tiny-per-element", poolside)).toBe(false);
   });
 
-  it("publishes the four curated Laguna releases", () => {
-    const entries = MODEL_ENTRIES.filter((entry) => entry.family.id === "laguna");
-    expect(entries).toHaveLength(4);
-    expect(entries.map((entry) => entry.release.name)).toEqual(expect.arrayContaining([
-      "Laguna S 2.1",
-      "Laguna XS 2.1",
-      "Laguna M.1",
-      "Laguna XS.2",
-    ]));
-    expect(entries.flatMap((entry) => entry.artifacts).some((artifact) => /dflash|speculator/i.test(artifact.repo))).toBe(false);
+  it("references defined catalog families", () => {
+    const missing = CURRENT_MONITORED_SOURCES.flatMap((source) =>
+      source.familyIds.filter((familyId) => !FAMILY_BY_ID.has(familyId)),
+    );
+    expect(missing).toEqual([]);
   });
 });

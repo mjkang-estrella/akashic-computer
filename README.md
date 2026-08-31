@@ -22,7 +22,7 @@ Qwen -> Qwen 3.6 -> 27B -> Instruct -> NVFP4 -> 18-24 GB VRAM
 - TypeScript
 - Tailwind CSS
 - Convex backend/database
-- Lucide icons
+- Hugeicons
 
 ## Local Development
 
@@ -35,9 +35,7 @@ Open `http://localhost:3000`.
 
 ## Convex
 
-Convex is the runtime source of truth for the public catalog. The static
-`src/lib/atlas/catalog.ts` file is retained as the migration fixture and
-rollback snapshot.
+Convex is the only runtime source of truth for the public catalog.
 
 To create and sync a Convex dev deployment:
 
@@ -47,11 +45,13 @@ npx convex dev
 
 The first run will open the Convex login/project setup flow.
 
-Seed the current snapshot after setting an operator secret:
+Configure monitored sources and run the first audit after setting an operator
+secret:
 
 ```bash
 npx convex env set CATALOG_ADMIN_SECRET '<random-secret>'
-npx convex run seed:seedCurrentCatalog '{"secret":"<random-secret>"}'
+npx convex run admin:syncSourceConfig '{"secret":"<random-secret>"}'
+npx convex run admin:runAudit '{"secret":"<random-secret>"}'
 ```
 
 See `docs/catalog-sync.md` for production deployment, Hugging Face webhooks,
@@ -64,6 +64,7 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
+npm run test:e2e
 ```
 
 ## Planning Docs

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AiVisionRecognitionIcon,
@@ -8,7 +9,7 @@ import {
   AudioWaveformIcon,
   Cancel01Icon,
   DashboardSquare01Icon,
-  FileAxis3DIcon,
+  FileAxisThreeDIcon,
   FilterHorizontalIcon,
   FilterResetIcon,
   GameController03Icon,
@@ -19,7 +20,7 @@ import {
   Video01Icon,
 } from "@hugeicons/core-free-icons";
 import { compareModelEntriesByRecency, type ModelEntry } from "@/lib/atlas/models";
-import { modelTransitionName, runViewTransition } from "@/lib/atlas/motion";
+import { modelTransitionName } from "@/lib/atlas/motion";
 import { modelReleaseName, parameterDetailLabel, parameterTotalLabel } from "@/lib/atlas/naming";
 import {
   MODEL_CAPABILITIES,
@@ -48,7 +49,7 @@ const CATEGORY_ICONS: Record<ModelCategoryId, IconSvgElement> = {
   "video-generation": Video01Icon,
   "audio-speech": AudioWaveformIcon,
   retrieval: SearchAreaIcon,
-  "3d-spatial": FileAxis3DIcon,
+  "3d-spatial": FileAxisThreeDIcon,
   "world-models": GameController03Icon,
   robotics: Robot01Icon,
 };
@@ -192,9 +193,9 @@ function validValue<T extends string>(value: string | null, values: readonly T[]
   return value && values.includes(value as T) ? (value as T) : fallback;
 }
 
-function setUrlParam(url: URL, key: string, value: string, defaultValue = "all") {
-  if (value === defaultValue) url.searchParams.delete(key);
-  else url.searchParams.set(key, value);
+function setUrlParam(params: URLSearchParams, key: string, value: string, defaultValue = "all") {
+  if (value === defaultValue) params.delete(key);
+  else params.set(key, value);
 }
 
 interface FilterPanelProps {
@@ -377,23 +378,30 @@ function FilterPanel({
 export function ModelCatalogView({
   entries: modelEntries,
   families,
-  initialFamilyId,
   onOpen,
 }: {
   entries: ModelEntry[];
   families: Family[];
-  initialFamilyId?: string | null;
   onOpen: (entry: ModelEntry) => void;
 }) {
-  const [category, setCategory] = useState<CategoryFilter>("all");
-  const [capabilities, setCapabilities] = useState<Set<ModelCapabilityId>>(new Set());
-  const [familyId, setFamilyId] = useState(initialFamilyId ?? "all");
-  const [sizeBand, setSizeBand] = useState<SizeBand>("all");
-  const [variant, setVariant] = useState("all");
-  const [quant, setQuant] = useState("all");
-  const [provider, setProvider] = useState("all");
-  const [locationReady, setLocationReady] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const categoryIds = ["all", ...MODEL_CATEGORIES.map((item) => item.id)] as CategoryFilter[];
+  const category = validValue(searchParams.get("category"), categoryIds, "all");
+  const capabilities = useMemo(() => {
+    const capabilityIds = MODEL_CAPABILITIES.map((item) => item.id);
+    return new Set(
+      (searchParams.get("capability") ?? "")
+        .split(",")
+        .filter((value): value is ModelCapabilityId => capabilityIds.includes(value as ModelCapabilityId)),
+    );
+  }, [searchParams]);
+  const familyId = searchParams.get("family") ?? "all";
+  const sizeBand = validValue(searchParams.get("size"), SIZE_BANDS.map((item) => item.id), "all");
+  const variant = searchParams.get("catalogVariant") ?? "all";
+  const quant = searchParams.get("quant") ?? "all";
+  const provider = searchParams.get("provider") ?? "all";
 
   const variants = useMemo(
     () => [...new Set(modelEntries.flatMap((entry) => entry.size.variants))].sort(),
@@ -407,49 +415,6 @@ export function ModelCatalogView({
     () => [...new Set(modelEntries.flatMap((entry) => entry.providers))].sort(),
     [modelEntries],
   );
-
-  useEffect(() => {
-    const syncFromLocation = () => {
-      const params = new URL(window.location.href).searchParams;
-      const categoryIds = ["all", ...MODEL_CATEGORIES.map((item) => item.id)] as CategoryFilter[];
-      const capabilityIds = MODEL_CAPABILITIES.map((item) => item.id);
-      setCategory(validValue(params.get("category"), categoryIds, "all"));
-      setCapabilities(
-        new Set(
-          (params.get("capability") ?? "")
-            .split(",")
-            .filter((value): value is ModelCapabilityId => capabilityIds.includes(value as ModelCapabilityId)),
-        ),
-      );
-      setFamilyId(params.get("family") ?? initialFamilyId ?? "all");
-      setSizeBand(validValue(params.get("size"), SIZE_BANDS.map((item) => item.id), "all"));
-      setVariant(params.get("catalogVariant") ?? "all");
-      setQuant(params.get("quant") ?? "all");
-      setProvider(params.get("provider") ?? "all");
-      setLocationReady(true);
-    };
-
-    syncFromLocation();
-    window.addEventListener("popstate", syncFromLocation);
-    return () => window.removeEventListener("popstate", syncFromLocation);
-  }, [initialFamilyId]);
-
-  useEffect(() => {
-    if (!locationReady) return;
-    const url = new URL(window.location.href);
-    setUrlParam(url, "category", category);
-    setUrlParam(url, "family", familyId);
-    setUrlParam(url, "size", sizeBand);
-    setUrlParam(url, "catalogVariant", variant);
-    setUrlParam(url, "quant", quant);
-    setUrlParam(url, "provider", provider);
-    if (capabilities.size) {
-      url.searchParams.set("capability", [...capabilities].sort().join(","));
-    } else {
-      url.searchParams.delete("capability");
-    }
-    window.history.replaceState(null, "", url);
-  }, [capabilities, category, familyId, locationReady, provider, quant, sizeBand, variant]);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -506,29 +471,26 @@ export function ModelCatalogView({
     (provider !== "all" ? 1 : 0);
   const filtered = filterCount > 0;
 
-  const updateCategory = (value: CategoryFilter) => runViewTransition(() => setCategory(value));
-  const updateFamily = (value: string) => runViewTransition(() => setFamilyId(value));
-  const updateSizeBand = (value: SizeBand) => runViewTransition(() => setSizeBand(value));
-  const updateVariant = (value: string) => runViewTransition(() => setVariant(value));
-  const updateQuant = (value: string) => runViewTransition(() => setQuant(value));
-  const updateProvider = (value: string) => runViewTransition(() => setProvider(value));
-  const resetFilters = () => runViewTransition(() => {
-    setCategory("all");
-    setCapabilities(new Set());
-    setFamilyId("all");
-    setSizeBand("all");
-    setVariant("all");
-    setQuant("all");
-    setProvider("all");
-  });
+  const replaceParams = (update: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams.toString());
+    update(params);
+    const query = params.toString();
+    router.replace(query ? `/models?${query}` : "/models", { scroll: false });
+  };
+  const updateCategory = (value: CategoryFilter) => replaceParams((params) => setUrlParam(params, "category", value));
+  const updateFamily = (value: string) => replaceParams((params) => setUrlParam(params, "family", value));
+  const updateSizeBand = (value: SizeBand) => replaceParams((params) => setUrlParam(params, "size", value));
+  const updateVariant = (value: string) => replaceParams((params) => setUrlParam(params, "catalogVariant", value));
+  const updateQuant = (value: string) => replaceParams((params) => setUrlParam(params, "quant", value));
+  const updateProvider = (value: string) => replaceParams((params) => setUrlParam(params, "provider", value));
+  const resetFilters = () => router.replace("/models", { scroll: false });
   const toggleCapability = (item: ModelCapabilityId) => {
-    runViewTransition(() => {
-      setCapabilities((current) => {
-        const next = new Set(current);
-        if (next.has(item)) next.delete(item);
-        else next.add(item);
-        return next;
-      });
+    replaceParams((params) => {
+      const next = new Set(capabilities);
+      if (next.has(item)) next.delete(item);
+      else next.add(item);
+      if (next.size) params.set("capability", [...next].sort().join(","));
+      else params.delete("capability");
     });
   };
   const filterPanelProps: FilterPanelProps = {

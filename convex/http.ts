@@ -18,11 +18,8 @@ function secureEqual(actual: string | null, expected: string): boolean {
 }
 
 function validWebhookSecret(actual: string | null): boolean {
-  const secrets = [
-    process.env.HF_WEBHOOK_SECRET,
-    process.env.HF_WEBHOOK_SECRET_PREVIOUS,
-  ].filter((secret): secret is string => Boolean(secret));
-  return secrets.some((secret) => secureEqual(actual, secret));
+  const expected = process.env.HF_WEBHOOK_SECRET;
+  return Boolean(expected && secureEqual(actual, expected));
 }
 
 http.route({
@@ -60,7 +57,6 @@ http.route({
       scope: event.scope,
       action: event.action,
       headSha: event.headSha,
-      payload,
       receivedAt: Date.now(),
     });
     if (result.status === "unmonitored") {

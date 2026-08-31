@@ -4,9 +4,9 @@ import { convexTest } from "convex-test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { classifyHuggingFaceRepo } from "../src/lib/atlas/huggingface";
-import { MODEL_ENTRIES } from "../src/lib/atlas/models";
+import { classifyHuggingFaceRepo, compactClassification } from "../src/lib/atlas/huggingface";
 import { publishableEntry } from "../src/lib/atlas/published";
+import { MINIMAX_H3_ENTRY, QWEN_ENTRY } from "../test/catalogFixture";
 
 const modules = import.meta.glob("./**/*.*s");
 
@@ -38,21 +38,6 @@ describe("webhook ingestion", () => {
       body: "not-json",
     });
     expect(response.status).toBe(401);
-  });
-
-  it("accepts the previous secret during rotation", async () => {
-    process.env.HF_WEBHOOK_SECRET_PREVIOUS = "previous-secret";
-    const t = await monitoredTest();
-    const response = await t.fetch("/webhooks/huggingface", {
-      method: "POST",
-      headers: { "X-Webhook-Secret": "previous-secret", "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: { scope: "repo", action: "update" },
-        repo: { id: "stable", name: "qwen/Qwen3-8B", type: "model", headSha: "sha" },
-      }),
-    });
-    expect(response.status).toBe(202);
-    delete process.env.HF_WEBHOOK_SECRET_PREVIOUS;
   });
 
   it("accepts a signed main-branch delivery and ignores pull-request-only activity", async () => {
@@ -89,7 +74,6 @@ describe("webhook ingestion", () => {
       scope: "repo",
       action: "update",
       headSha: "sha",
-      payload: {},
       receivedAt: 1_000,
     };
     expect(await t.mutation(internal.webhooks.receive, args)).toMatchObject({ status: "accepted" });
@@ -110,7 +94,6 @@ describe("webhook ingestion", () => {
       scope: "repo",
       action: "update",
       headSha: "a",
-      payload: {},
       receivedAt: 1_000,
     };
     await t.mutation(internal.webhooks.receive, first);
@@ -135,9 +118,7 @@ describe("webhook ingestion", () => {
 
   it("retains a delete tombstone and removes only the unavailable artifact", async () => {
     const t = await monitoredTest();
-    const entry = MODEL_ENTRIES.find(
-      (candidate) => new Set(candidate.artifacts.map((artifact) => artifact.repo)).size > 1,
-    )!;
+    const entry = QWEN_ENTRY;
     const removedRepo = entry.artifacts[0].repo;
     await t.run(async (ctx) => {
       const familyId = await ctx.db.insert("modelFamilies", {
@@ -178,13 +159,9 @@ describe("webhook ingestion", () => {
         repoId: removedRepo,
         repoName: removedRepo,
         owner: removedRepo.split("/")[0],
-        aliases: [],
         private: false,
         gated: false,
         disabled: false,
-        tags: [],
-        files: [],
-        baseModels: [],
         status: "published",
         missingCount: 0,
         lastSeenAt: 1,
@@ -216,11 +193,9 @@ describe("webhook ingestion", () => {
     );
   });
 
-  it("applies protected catalog overrides after automatic metadata", async () => {
+  it("reapplies a typed model introduction after automatic metadata", async () => {
     const t = await monitoredTest();
-    const entry = MODEL_ENTRIES.find((candidate) =>
-      candidate.artifacts.some((artifact) => artifact.repo === "Qwen/Qwen3-8B"),
-    )!;
+    const entry = QWEN_ENTRY;
     const payload = publishableEntry(entry);
     const runId = await t.run(async (ctx) => {
       const familyId = await ctx.db.insert("modelFamilies", {
@@ -268,11 +243,14 @@ describe("webhook ingestion", () => {
         publishedAt: 1,
         sourceRevision: "seed",
       });
-      await ctx.db.insert("catalogOverrides", {
-        entityType: "catalog_entry",
-        entityKey: entry.slug,
-        patch: { name: "Protected model name" },
-        reason: "test operator correction",
+      await ctx.db.insert("modelIntroductions", {
+        slug: entry.slug,
+        heading: "Protected introduction",
+        summary: "Typed catalog introduction",
+        paragraphs: ["Source-attributed content."],
+        highlights: [],
+        sourceLabel: "Official model card",
+        sourceUrl: "https://huggingface.co/Qwen/Qwen3-8B",
         updatedAt: 1,
       });
       return await ctx.db.insert("syncRuns", {
@@ -299,11 +277,11 @@ describe("webhook ingestion", () => {
       cardData: { license: "apache-2.0" },
       config: { max_position_embeddings: 32768 },
     };
-    const classification = classifyHuggingFaceRepo(raw, {
+    const classification = compactClassification(classifyHuggingFaceRepo(raw, {
       owner: "Qwen",
       role: "creator",
       familyIds: ["qwen"],
-    });
+    }));
     const outcome = await t.mutation(internal.sync.applyRepoResult, {
       classification,
       sourceOwner: "Qwen",
@@ -313,12 +291,12 @@ describe("webhook ingestion", () => {
     });
     expect(outcome).toMatchObject({ status: "published", resolution: "direct" });
     const published = await t.query(api.catalog.getBySlug, { slug: entry.slug });
-    expect(published).toMatchObject({ name: "Protected model name" });
+    expect(published).toMatchObject({ introduction: { heading: "Protected introduction" } });
   });
 
   it("preserves distinct variants that share one canonical repository", async () => {
     const t = convexTest(schema, modules);
-    const entry = MODEL_ENTRIES.find((candidate) => candidate.slug === "minimax-h3-33b")!;
+    const entry = MINIMAX_H3_ENTRY;
     const payload = publishableEntry(entry);
     const runId = await t.run(async (ctx) => {
       await ctx.db.insert("monitoredSources", {
@@ -333,13 +311,9 @@ describe("webhook ingestion", () => {
         repoId: "MiniMaxAI/MiniMax-H3",
         repoName: "MiniMaxAI/MiniMax-H3",
         owner: "MiniMaxAI",
-        aliases: [],
         private: false,
         gated: false,
         disabled: false,
-        tags: [],
-        files: [],
-        baseModels: [],
         status: "skipped",
         skipReason: "pipeline category is not recognized",
         missingCount: 0,
@@ -368,7 +342,7 @@ describe("webhook ingestion", () => {
         retries: 0,
       });
     });
-    const classification = classifyHuggingFaceRepo({
+    const classification = compactClassification(classifyHuggingFaceRepo({
       id: "MiniMaxAI/MiniMax-H3",
       author: "MiniMaxAI",
       sha: "h3-sha",
@@ -383,7 +357,7 @@ describe("webhook ingestion", () => {
       owner: "MiniMaxAI",
       role: "creator",
       familyIds: ["minimax"],
-    });
+    }));
     expect(classification.status).toBe("publishable");
     expect(await t.mutation(internal.sync.applyRepoResult, {
       classification,
@@ -428,9 +402,7 @@ describe("webhook ingestion", () => {
 
   it("uses the newest weight commit rather than a newer description commit", async () => {
     const t = await monitoredTest();
-    const entry = MODEL_ENTRIES.find((candidate) =>
-      candidate.artifacts.some((artifact) => artifact.repo === "Qwen/Qwen3-8B"),
-    )!;
+    const entry = QWEN_ENTRY;
     const baseline = Date.parse("2026-01-01T00:00:00.000Z");
     const weightUpdate = Date.parse("2026-07-21T17:02:54.000Z");
     const newerQuantUpdate = Date.parse("2026-08-01T00:00:00.000Z");
@@ -469,7 +441,7 @@ describe("webhook ingestion", () => {
         retries: 0,
       });
     });
-    const classification = classifyHuggingFaceRepo({
+    const classification = compactClassification(classifyHuggingFaceRepo({
       id: "Qwen/Qwen3-8B",
       author: "Qwen",
       sha: "description-sha",
@@ -488,7 +460,7 @@ describe("webhook ingestion", () => {
       owner: "Qwen",
       role: "creator",
       familyIds: ["qwen"],
-    });
+    }));
     expect(await t.mutation(internal.sync.applyRepoResult, {
       classification,
       sourceOwner: "Qwen",
@@ -511,7 +483,6 @@ describe("webhook ingestion", () => {
       weightsLastModifiedAt: weightUpdate,
       weightManifestHash: "manifest-v1",
       weightCommitSha: "weights-sha",
-      weightDatePolicyVersion: 2,
     });
   });
 

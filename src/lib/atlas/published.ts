@@ -1,7 +1,6 @@
 import type { ModelEntry } from "./models";
 import type {
   Artifact,
-  CompareModel,
   Family,
   Release,
   SizeNode,
@@ -18,6 +17,14 @@ export interface PublishedArtifact extends Artifact {
   lastUpdatedAt?: number;
 }
 
+export interface PublishedArtifactSummary {
+  repo: string;
+  format: string;
+  variant: string;
+  runtimes: string[];
+  recVramGb: number;
+}
+
 export interface PublishedCatalogEntry
   extends Omit<ModelEntry, "family" | "release" | "size" | "artifacts"> {
   family: FamilyIdentity;
@@ -25,6 +32,15 @@ export interface PublishedCatalogEntry
   size: PublishedSize;
   artifacts: PublishedArtifact[];
 }
+
+export type PublishedCatalogSummary = Omit<
+  PublishedCatalogEntry,
+  "artifacts" | "benchmarkRefs" | "introduction" | "recipeReferences" | "materialChanges" | "runReports" | "size" | "release"
+> & {
+  release: Omit<ReleaseIdentity, "benchmarkRefs">;
+  size: Omit<PublishedSize, "benchmarkRefs" | "scores">;
+  artifacts: PublishedArtifactSummary[];
+};
 
 function withoutUndefined<T>(value: T): T {
   if (Array.isArray(value)) return value.map(withoutUndefined) as T;
@@ -57,7 +73,36 @@ export function publishableEntry(entry: ModelEntry): PublishedCatalogEntry {
   });
 }
 
-export function hydratePublishedEntries(payloads: PublishedCatalogEntry[]): {
+export function catalogSummary(entry: PublishedCatalogEntry): PublishedCatalogSummary {
+  const summary = withoutKey(
+    withoutKey(
+      withoutKey(
+        withoutKey(withoutKey(entry, "benchmarkRefs"), "introduction"),
+        "recipeReferences",
+      ),
+      "materialChanges",
+    ),
+    "runReports",
+  );
+  const release = withoutKey(summary.release, "benchmarkRefs");
+  const size = withoutKey(withoutKey(summary.size, "benchmarkRefs"), "scores");
+  return {
+    ...summary,
+    release,
+    size,
+    artifacts: entry.artifacts.map((artifact) => ({
+      repo: artifact.repo,
+      format: artifact.format,
+      variant: artifact.variant,
+      runtimes: artifact.runtimes,
+      recVramGb: artifact.recVramGb,
+    })),
+  };
+}
+
+export function hydratePublishedEntries(
+  payloads: Array<PublishedCatalogEntry | PublishedCatalogSummary>,
+): {
   families: Family[];
   entries: ModelEntry[];
 } {
@@ -94,35 +139,32 @@ export function hydratePublishedEntries(payloads: PublishedCatalogEntry[]): {
       family,
       release,
       size,
-      artifacts: payload.artifacts,
-      recipeReferences: payload.recipeReferences ?? [],
-      materialChanges: payload.materialChanges ?? [],
-      runReports: payload.runReports ?? [],
+      artifacts: payload.artifacts.map((artifact) => ({
+        ...artifact,
+        trust: "official" as const,
+        confidence: "verified" as const,
+        kinds: [],
+        minVramGb: artifact.recVramGb,
+        deltas: {
+          mmlu: null,
+          ifeval: null,
+          gpqa: null,
+          hle: null,
+          aime: null,
+          math500: null,
+          lcb: null,
+          swe: null,
+        },
+        measured: false,
+        qualityRank: 99,
+      })),
+      benchmarkRefs: "benchmarkRefs" in payload ? payload.benchmarkRefs : [],
+      introduction: "introduction" in payload ? payload.introduction : undefined,
+      recipeReferences: "recipeReferences" in payload ? payload.recipeReferences ?? [] : [],
+      materialChanges: "materialChanges" in payload ? payload.materialChanges ?? [] : [],
+      runReports: "runReports" in payload ? payload.runReports ?? [] : [],
     };
   });
 
   return { families, entries };
-}
-
-export function compareModelsForEntries(entries: ModelEntry[]): CompareModel[] {
-  return entries.flatMap((entry) =>
-    entry.size.variants.flatMap((variant) => {
-      const scores = entry.size.scores?.[variant];
-      if (!scores) return [];
-      return [
-        {
-          id: `${entry.family.id}-${entry.release.id}-${entry.size.label}-${variant}`,
-          name: entry.name,
-          family: entry.family,
-          release: entry.release,
-          size: entry.size,
-          variant,
-          scores,
-          artifacts: entry.artifacts
-            .filter((artifact) => artifact.variant === variant)
-            .map((artifact) => withoutKey(artifact, "variant")),
-        } satisfies CompareModel,
-      ];
-    }),
-  );
 }

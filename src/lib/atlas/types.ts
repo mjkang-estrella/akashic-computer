@@ -238,14 +238,3 @@ export interface FitVerdict {
   level: FitLevel;
   text: string;
 }
-
-export interface CompareModel {
-  id: string;
-  name: string;
-  family: Family;
-  release: Release;
-  size: SizeNode;
-  variant: string;
-  scores: Record<BenchKey, number>;
-  artifacts: Artifact[];
-}

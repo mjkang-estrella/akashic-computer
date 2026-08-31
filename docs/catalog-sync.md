@@ -1,9 +1,10 @@
 # Catalog Synchronization
 
 Akashic uses Hugging Face webhooks for low-latency updates and a daily Convex
-audit for recovery. Public reads come from the denormalized `catalogEntries`
-table. Normalized family, release, size, variant, artifact, benchmark, source,
-event, and run tables retain provenance and diagnostics.
+audit for recovery. Model lists read lean summaries from
+`catalogSnapshotChunks`; model pages read full records from `catalogEntries`.
+Normalized family, release, size, variant, artifact, source, event, and run
+tables retain the fields used for reconciliation and diagnostics.
 
 Official vLLM Recipes are checked hourly at minute 15. A revision comparison
 makes unchanged checks read-only; changed revisions synchronize compact,
@@ -26,16 +27,17 @@ versioned references without copying or regenerating launch commands.
    npx convex env set --prod CATALOG_ADMIN_SECRET '<operator-secret>'
    ```
 
-3. Seed the production catalog before assigning the frontend Convex URL.
+3. Synchronize the source configuration and run the first audit before assigning
+   the frontend Convex URL.
 
    ```bash
-   npx convex run --prod seed:seedCurrentCatalog '{"secret":"<operator-secret>"}'
+   npx convex run --prod admin:syncSourceConfig '{"secret":"<operator-secret>"}'
+   npx convex run --prod admin:runAudit '{"secret":"<operator-secret>"}'
    npx convex run --prod catalog:listPublished '{}'
    ```
 
-4. Set `NEXT_PUBLIC_CONVEX_URL` and `NEXT_PUBLIC_CONVEX_SITE_URL` in the
-   frontend deployment to the values printed by Convex, then redeploy the
-   frontend.
+4. Set `NEXT_PUBLIC_CONVEX_URL` in the frontend deployment to the cloud URL
+   printed by Convex, then redeploy the frontend.
 
 ## Hugging Face Webhooks
 
@@ -81,7 +83,7 @@ idempotent no-op.
 - Known creator and provider repositories resolve through the indexed artifact,
   variant, and size graph. A family-wide catalog read is reserved for a genuinely
   new model identity that has no existing repository or `base_model` link.
-- Release, variant, artifact, and benchmark upserts use compound indexes instead
+- Release, variant, and artifact upserts use compound indexes instead
   of post-query filters. In steady state, `applyRepoResult` I/O should scale with
   one changed model and its artifacts rather than the total entries in its
   family.
@@ -100,9 +102,7 @@ model-card, configuration, discussion, and other description-only changes do
 not advance the public date.
 
 Quantizations retain their own weight update timestamps, but they do not
-advance the base model's date, even when the model creator publishes them. The
-daily audit gradually backfills legacy creator records that predate weight-level
-provenance, with a per-source cap to avoid another expensive baseline pass.
+advance the base model's date, even when the model creator publishes them.
 
 ## Recommended VRAM Semantics
 
@@ -171,11 +171,10 @@ weight manifest rather than repository `lastModified`.
 
 ## Protected Model Introductions
 
-Detailed model-card introductions are stored as protected catalog-entry
-overrides. Each introduction contains a short disclosure summary, structured
+Detailed model-card introductions are stored in the typed `modelIntroductions`
+table. Each introduction contains a short disclosure summary, structured
 highlights, paraphrased explanatory paragraphs, and an immutable source URL/SHA.
-The override survives subsequent Hugging Face ingestion and is projected into
-the public catalog snapshot without fetching a README in the browser.
+Ingestion reapplies the introduction to the matching model detail record.
 
 ## Validation
 
@@ -186,8 +185,8 @@ Adapters, LoRAs, PEFT packages, checkpoints, demos, private repositories,
 disabled repositories, unknown formats, and unresolved lineage are retained as
 skipped source records but never published.
 
-Benchmarks are imported only from structured `model-index` metadata. README
-tables are never parsed. Protected `catalogOverrides` are merged last.
+Benchmark evidence is accepted only from structured `model-index` metadata.
+README tables are never parsed.
 
 ## Recovery And Status
 
@@ -218,15 +217,13 @@ the public catalog:
 
 ```bash
 npx convex run --prod admin:syncSourceConfig '{"secret":"<operator-secret>"}'
-npx convex run --prod admin:seedFamily '{"secret":"<operator-secret>","familyId":"<family-id>"}'
 npx convex run --prod admin:runAudit '{"secret":"<operator-secret>"}'
 npx convex run --prod admin:cancelAudit '{"secret":"<operator-secret>","reason":"<reason>"}'
 npx convex run --prod admin:checkHealth '{"secret":"<operator-secret>"}'
 ```
 
-For secret rotation, set `HF_WEBHOOK_SECRET_PREVIOUS` to the old secret, update
-the Hugging Face webhooks to the new `HF_WEBHOOK_SECRET`, confirm delivery, and
-then remove the previous value.
+For secret rotation, set the new `HF_WEBHOOK_SECRET` in Convex and immediately
+update every Hugging Face webhook to the same value.
 
 The hourly health watchdog records state transitions in `catalogHealthAlerts`.
 Set `CATALOG_ALERT_WEBHOOK_URL` to a Slack- or Discord-compatible incoming
@@ -234,6 +231,6 @@ webhook to receive transition notifications; otherwise transitions are emitted
 to Convex logs.
 
 An accepted webhook is stale after 10 minutes without processing. The catalog
-is globally stale after 26 hours without a successful daily audit. The Convex
+is globally stale when no monitored source has succeeded in 26 hours. The Convex
 dashboard exposes `webhookEvents`, `syncRuns`, `sourceRepositories`, and their
 skip/failure reasons for diagnosis.

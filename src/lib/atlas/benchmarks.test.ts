@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { OFFICIAL_BENCHMARKS, resolveOfficialBenchmarks } from "./benchmarks";
-import { MODEL_ENTRIES } from "./models";
+import { modelEntry } from "../../../test/catalogFixture";
+
+const benchmarkEntries = [...new Set(
+  OFFICIAL_BENCHMARKS.flatMap((benchmark) => benchmark.results.map((result) => result.repo)),
+)].map((repo, index) => modelEntry({
+  slug: `benchmark-model-${index}`,
+  repo,
+  releaseName: repo.split("/").at(-1) ?? repo,
+}));
 
 describe("official benchmark leaderboards", () => {
   it("uses unique benchmark identifiers", () => {
@@ -16,7 +24,7 @@ describe("official benchmark leaderboards", () => {
   });
 
   it("resolves every curated result against the catalog snapshot", () => {
-    const resolved = resolveOfficialBenchmarks(MODEL_ENTRIES);
+    const resolved = resolveOfficialBenchmarks(benchmarkEntries);
     const expected = OFFICIAL_BENCHMARKS.reduce(
       (total, benchmark) => total + benchmark.results.length,
       0,
@@ -29,7 +37,7 @@ describe("official benchmark leaderboards", () => {
   });
 
   it("sorts higher scores first and assigns stable tie ranks", () => {
-    for (const benchmark of resolveOfficialBenchmarks(MODEL_ENTRIES)) {
+    for (const benchmark of resolveOfficialBenchmarks(benchmarkEntries)) {
       expect(benchmark.results.length, benchmark.name).toBeGreaterThanOrEqual(2);
       for (let index = 1; index < benchmark.results.length; index += 1) {
         const previous = benchmark.results[index - 1];

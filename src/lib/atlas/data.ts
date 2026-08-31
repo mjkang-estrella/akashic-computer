@@ -1,15 +1,7 @@
-import { FAMILIES } from "./catalog";
-import { artifactsFor } from "./fit";
-import { modelDisplayName } from "./naming";
 import type {
-  BenchCategory,
   BenchDef,
-  BenchKey,
-  CompareModel,
   RigPreset,
 } from "./types";
-
-export { FAMILIES } from "./catalog";
 
 export const BENCHES: BenchDef[] = [
   { key: "mmlu", label: "MMLU-Pro", source: "lmarena", category: "general" },
@@ -22,16 +14,6 @@ export const BENCHES: BenchDef[] = [
   { key: "swe", label: "SWE-bench Verified", source: "swebench.com", category: "coding" },
 ];
 
-export const BENCH_CATEGORIES: { id: BenchCategory; label: string }[] = [
-  { id: "general", label: "General" },
-  { id: "reasoning", label: "Reasoning" },
-  { id: "math", label: "Math" },
-  { id: "coding", label: "Coding" },
-];
-
-/** One headline benchmark per category, shown when no category is picked. */
-export const HEADLINE_BENCHES: BenchKey[] = ["mmlu", "gpqa", "aime", "lcb"];
-
 export const RIG_PRESETS: RigPreset[] = [
   { id: "vram16", label: "16 GB", gb: 16, kind: "cuda" },
   { id: "vram24", label: "24 GB", gb: 24, kind: "cuda" },
@@ -43,27 +25,3 @@ export const RIG_PRESETS: RigPreset[] = [
 ];
 
 export const DEFAULT_PRESET_ID = "vram384";
-
-/** Every size+variant with sourced reference scores appears in the Compare tab. */
-export const COMPARE_MODELS: CompareModel[] = FAMILIES.flatMap((family) =>
-  family.releases.flatMap((release) =>
-    release.sizes.flatMap((size) =>
-      size.variants.flatMap((variant) => {
-        const scores = size.scores?.[variant];
-        if (!scores) return [];
-        return [
-          {
-            id: `${family.id}-${release.id}-${size.label}-${variant}`,
-            name: modelDisplayName(family, release, size),
-            family,
-            release,
-            size,
-            variant,
-            scores,
-            artifacts: artifactsFor(family, release, size, variant),
-          },
-        ];
-      }),
-    ),
-  ),
-);

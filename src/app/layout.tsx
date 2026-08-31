@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, STIX_Two_Text } from "next/font/google";
+import { AtlasShell } from "@/components/atlas/AtlasShell";
+import { CatalogProvider } from "@/components/atlas/CatalogProvider";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -49,7 +51,11 @@ export default function RootLayout({
       lang="en"
       className={`${plexSans.variable} ${plexMono.variable} ${stixTwo.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <CatalogProvider>
+          <AtlasShell>{children}</AtlasShell>
+        </CatalogProvider>
+      </body>
     </html>
   );
 }

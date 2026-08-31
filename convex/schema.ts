@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { publishedCatalogEntryValue, publishedCatalogSummaryValue } from "./catalogValues";
 
 const sourceFields = {
   sourceRepo: v.optional(v.string()),
@@ -91,7 +92,6 @@ export default defineSchema({
   artifacts: defineTable({
     variantId: v.id("modelVariants"),
     huggingFaceRepo: v.string(),
-    aliases: v.optional(v.array(v.string())),
     format: v.string(),
     quantization: v.optional(v.string()),
     dtype: v.optional(v.string()),
@@ -120,21 +120,6 @@ export default defineSchema({
     .index("by_variant", ["variantId"])
     .index("by_repo", ["huggingFaceRepo"])
     .index("by_repo_variant", ["huggingFaceRepo", "variantId"]),
-
-  modelBenchmarks: defineTable({
-    variantId: v.id("modelVariants"),
-    benchmarkName: v.string(),
-    result: v.string(),
-    sourceLabel: v.string(),
-    sourceUrl: v.string(),
-    sourceRepo: v.optional(v.string()),
-    sourceSha: v.optional(v.string()),
-    measuredAt: v.optional(v.number()),
-    lastSyncedAt: v.optional(v.number()),
-  })
-    .index("by_variant", ["variantId"])
-    .index("by_variant_benchmark", ["variantId", "benchmarkName"])
-    .index("by_benchmark", ["benchmarkName"]),
 
   recipeReferences: defineTable({
     provider: v.literal("vllm"),
@@ -241,7 +226,7 @@ export default defineSchema({
 
   monitoredSources: defineTable({
     owner: v.string(),
-    ownerKey: v.optional(v.string()),
+    ownerKey: v.string(),
     displayName: v.string(),
     role: v.union(
       v.literal("creator"),
@@ -266,7 +251,6 @@ export default defineSchema({
     repoId: v.string(),
     repoName: v.string(),
     owner: v.string(),
-    aliases: v.array(v.string()),
     headSha: v.optional(v.string()),
     createdAt: v.optional(v.number()),
     lastModifiedAt: v.optional(v.number()),
@@ -274,17 +258,11 @@ export default defineSchema({
     weightsLastModifiedAt: v.optional(v.number()),
     weightCommitSha: v.optional(v.string()),
     weightBytes: v.optional(v.number()),
-    weightDatePolicyVersion: v.optional(v.number()),
     private: v.boolean(),
     gated: v.boolean(),
     disabled: v.boolean(),
     pipelineTag: v.optional(v.string()),
-    tags: v.array(v.string()),
     license: v.optional(v.string()),
-    files: v.array(v.string()),
-    baseModels: v.array(v.string()),
-    cardData: v.optional(v.any()),
-    config: v.optional(v.any()),
     status: v.union(
       v.literal("published"),
       v.literal("skipped"),
@@ -308,7 +286,6 @@ export default defineSchema({
     scope: v.string(),
     action: v.string(),
     headSha: v.optional(v.string()),
-    payload: v.any(),
     status: v.union(
       v.literal("pending"),
       v.literal("superseded"),
@@ -328,7 +305,7 @@ export default defineSchema({
     .index("by_status_and_received", ["status", "receivedAt"]),
 
   syncRuns: defineTable({
-    kind: v.union(v.literal("webhook"), v.literal("audit"), v.literal("seed")),
+    kind: v.union(v.literal("webhook"), v.literal("audit")),
     sourceOwner: v.optional(v.string()),
     status: v.union(
       v.literal("running"),
@@ -354,20 +331,17 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_status_and_kind", ["status", "kind"]),
 
-  catalogOverrides: defineTable({
-    entityType: v.union(
-      v.literal("family"),
-      v.literal("release"),
-      v.literal("size"),
-      v.literal("variant"),
-      v.literal("artifact"),
-      v.literal("catalog_entry"),
-    ),
-    entityKey: v.string(),
-    patch: v.any(),
-    reason: v.string(),
+  modelIntroductions: defineTable({
+    slug: v.string(),
+    heading: v.string(),
+    summary: v.string(),
+    paragraphs: v.array(v.string()),
+    highlights: v.array(v.object({ label: v.string(), value: v.string() })),
+    sourceLabel: v.string(),
+    sourceUrl: v.string(),
+    sourceSha: v.optional(v.string()),
     updatedAt: v.number(),
-  }).index("by_entity", ["entityType", "entityKey"]),
+  }).index("by_slug", ["slug"]),
 
   catalogEntries: defineTable({
     slug: v.string(),
@@ -376,7 +350,7 @@ export default defineSchema({
     sizeLabel: v.string(),
     sourceRepos: v.array(v.string()),
     updatedAt: v.number(),
-    payload: v.any(),
+    payload: publishedCatalogEntryValue,
     publishedAt: v.number(),
     sourceRevision: v.string(),
   })
@@ -398,7 +372,7 @@ export default defineSchema({
   catalogSnapshotChunks: defineTable({
     snapshotKey: v.string(),
     chunk: v.number(),
-    entries: v.array(v.any()),
+    entries: v.array(publishedCatalogSummaryValue),
   }).index("by_snapshot_and_chunk", ["snapshotKey", "chunk"]),
 
   catalogSnapshotState: defineTable({

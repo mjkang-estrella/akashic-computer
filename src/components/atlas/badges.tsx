@@ -1,4 +1,5 @@
-import { Check, TriangleAlert, X } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert01Icon, Cancel01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 
 import type { FitVerdict } from "@/lib/atlas/types";
 
@@ -28,8 +29,7 @@ export function FitBadge({ fit }: { fit: FitVerdict }) {
       : fit.level === "tight"
         ? "bg-cautionsoft text-caution"
         : "bg-alertsoft text-alert";
-  const Icon =
-    fit.level === "runs" ? Check : fit.level === "tight" ? TriangleAlert : X;
+  const icon = fit.level === "runs" ? Tick01Icon : fit.level === "tight" ? Alert01Icon : Cancel01Icon;
 
   return (
     <span
@@ -38,7 +38,7 @@ export function FitBadge({ fit }: { fit: FitVerdict }) {
       title={fit.text}
       className={`inline-flex h-5 w-5 items-center justify-center rounded-[5px] ${styles}`}
     >
-      <Icon aria-hidden="true" size={12} strokeWidth={2.5} />
+      <HugeiconsIcon icon={icon} aria-hidden="true" size={12} strokeWidth={2.5} />
     </span>
   );
 }

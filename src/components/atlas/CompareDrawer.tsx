@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { BENCHES } from "@/lib/atlas/data";
 import { fitOf } from "@/lib/atlas/fit";
 import { learnTermForFormat } from "@/lib/atlas/learn";
@@ -43,7 +44,7 @@ export function CompareDrawer({
             aria-label="Clear artifact comparison"
             className="inline-flex h-11 flex-none items-center gap-1 rounded px-2 text-[12.5px] font-semibold text-muted hover:text-ink md:h-8"
           >
-            Clear <X size={13} aria-hidden="true" />
+            Clear <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.8} aria-hidden="true" />
           </button>
         </div>
 
@@ -60,7 +61,7 @@ export function CompareDrawer({
                     aria-label={`Remove ${artifact.repo} from comparison`}
                     className="flex h-11 w-11 flex-none items-center justify-center rounded-[7px] text-faint hover:bg-panel2 hover:text-ink"
                   >
-                    <X size={15} aria-hidden="true" />
+                    <HugeiconsIcon icon={Cancel01Icon} size={15} strokeWidth={1.8} aria-hidden="true" />
                   </button>
                 </div>
                 <dl className="mt-1.5 space-y-1 text-[12.5px]">
@@ -134,7 +135,7 @@ export function CompareDrawer({
                         aria-label={`Remove ${artifact.repo} from comparison`}
                         className="flex h-8 w-8 items-center justify-center rounded text-faint hover:bg-panel2 hover:text-ink"
                       >
-                        <X size={13} aria-hidden="true" />
+                        <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.8} aria-hidden="true" />
                       </button>
                     </span>
                   </th>
