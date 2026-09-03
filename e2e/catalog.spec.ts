@@ -48,6 +48,13 @@ test("loads model details through the detail query", async ({ page }) => {
   await expect(page).toHaveURL(/\/models$/);
 });
 
+test("shows official vLLM and SGLang recipes for an exact model match", async ({ page }) => {
+  await page.goto("/models/glm-glm-5-3-flash-321b");
+  await expect(page.getByRole("heading", { name: /GLM 5\.3 Flash/ })).toBeVisible();
+  await expect(page.getByText(/Official vLLM recipe/).first()).toBeVisible();
+  await expect(page.getByText(/Official SGLang recipe/).first()).toBeVisible();
+});
+
 test("does not translate retired query-string tabs", async ({ page }) => {
   await page.goto("/?tab=model");
   await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();

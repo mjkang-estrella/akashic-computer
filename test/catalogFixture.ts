@@ -83,7 +83,7 @@ export function modelEntry(options: {
     category: "language",
     capabilities: ["general", "reasoning"],
     benchmarkRefs: [],
-    recipeReferences: [],
+    deploymentRecipes: [],
     materialChanges: [],
     runReports: [],
   };

@@ -39,6 +39,7 @@ describe("catalog intelligence", () => {
     const repo = entry.artifacts[0].repo;
     const recipe = {
       provider: "vllm" as const,
+      runtime: "vLLM",
       upstreamId: repo,
       title: `${entry.name} recipe`,
       publisher: entry.family.vendor,
@@ -49,20 +50,22 @@ describe("catalog intelligence", () => {
       contentHash: "semantic-hash",
       tasks: ["text-generation"],
       features: ["tool_calling"],
-      verifiedHardware: [{ id: "dgx_spark_gb10", label: "DGX Spark (GB10)" }],
+      hardware: [{ id: "dgx_spark_gb10", label: "DGX Spark (GB10)", status: "verified" as const }],
       variants: [{ key: "default", modelId: repo, precision: "BF16" }],
       artifactRepos: [repo],
     };
 
-    expect(await t.mutation(internal.recipeSync.upsertRecipeBatch, {
+    expect(await t.mutation(internal.deploymentRecipeSync.upsertRecipeBatch, {
       recipes: [recipe],
       now: 10,
     })).toEqual({ inserted: 1, updated: 0 });
-    await t.mutation(internal.recipeSync.beginSync, {
+    await t.mutation(internal.deploymentRecipeSync.beginSync, {
+      provider: "vllm",
       sourceRevision: "abc123",
       now: 10,
     });
-    const first = await t.mutation(internal.recipeSync.finalizeSync, {
+    const first = await t.mutation(internal.deploymentRecipeSync.finalizeSync, {
+      provider: "vllm",
       sourceRevision: "abc123",
       recipeIds: [repo],
       inserted: 1,
@@ -71,10 +74,44 @@ describe("catalog intelligence", () => {
       now: 10,
     });
     expect(first).toMatchObject({ matchedEntries: 1, changedEntries: 1 });
-    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.recipeReferences)
+    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.deploymentRecipes)
       .toHaveLength(1);
 
-    const second = await t.mutation(internal.recipeSync.finalizeSync, {
+    const sglangRecipe = {
+      ...recipe,
+      provider: "sglang" as const,
+      runtime: "SGLang",
+      upstreamId: "docs/src/snippets/configs/qwen.jsx",
+      title: `${entry.name} SGLang cookbook`,
+      recipeUrl: "https://docs.sglang.ai/cookbook/qwen",
+      sourceUrl: "https://github.com/sgl-project/sglang/blob/def456/docs/src/snippets/configs/qwen.jsx",
+      sourceSha: "def456",
+      contentHash: "sglang-semantic-hash",
+    };
+    await t.mutation(internal.deploymentRecipeSync.upsertRecipeBatch, {
+      recipes: [sglangRecipe],
+      now: 15,
+    });
+    await t.mutation(internal.deploymentRecipeSync.beginSync, {
+      provider: "sglang",
+      sourceRevision: "def456",
+      now: 15,
+    });
+    const sglang = await t.mutation(internal.deploymentRecipeSync.finalizeSync, {
+      provider: "sglang",
+      sourceRevision: "def456",
+      recipeIds: [sglangRecipe.upstreamId],
+      inserted: 1,
+      updated: 0,
+      initialSync: true,
+      now: 15,
+    });
+    expect(sglang).toMatchObject({ matchedEntries: 1, changedEntries: 1 });
+    expect(((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.deploymentRecipes ?? [])
+      .map((item) => item.provider)).toEqual(["sglang", "vllm"]);
+
+    const second = await t.mutation(internal.deploymentRecipeSync.finalizeSync, {
+      provider: "vllm",
       sourceRevision: "abc123",
       recipeIds: [repo],
       inserted: 0,
@@ -83,6 +120,8 @@ describe("catalog intelligence", () => {
       now: 20,
     });
     expect(second.changedEntries).toBe(0);
+    expect((await t.query(api.catalog.getBySlug, { slug: entry.slug }))!.deploymentRecipes)
+      .toHaveLength(2);
   });
 
   it("publishes and retracts provenance-bound run reports", async () => {

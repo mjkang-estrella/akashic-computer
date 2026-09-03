@@ -132,7 +132,8 @@ export const listRecentChanges = query({
 export const status = query({
   args: {},
   returns: v.object({
-    recipeSync: v.union(v.null(), v.object({
+    deploymentRecipeSyncs: v.array(v.object({
+      provider: v.union(v.literal("vllm"), v.literal("sglang")),
       status: v.union(v.literal("running"), v.literal("success"), v.literal("failed")),
       sourceRevision: v.optional(v.string()),
       lastSuccessAt: v.optional(v.number()),
@@ -141,18 +142,16 @@ export const status = query({
     })),
   }),
   handler: async (ctx) => {
-    const recipeSync = await ctx.db
-      .query("recipeSyncState")
-      .withIndex("by_key", (q) => q.eq("key", "vllm"))
-      .unique();
+    const deploymentRecipeSyncs = await ctx.db.query("deploymentRecipeSyncState").take(10);
     return {
-      recipeSync: recipeSync ? {
-        status: recipeSync.status,
-        sourceRevision: recipeSync.sourceRevision,
-        lastSuccessAt: recipeSync.lastSuccessAt,
-        matchedEntries: recipeSync.matchedEntries,
-        lastError: recipeSync.lastError,
-      } : null,
+      deploymentRecipeSyncs: deploymentRecipeSyncs.map((sync) => ({
+        provider: sync.provider,
+        status: sync.status,
+        sourceRevision: sync.sourceRevision,
+        lastSuccessAt: sync.lastSuccessAt,
+        matchedEntries: sync.matchedEntries,
+        lastError: sync.lastError,
+      })),
     };
   },
 });
@@ -190,7 +189,7 @@ export const upsertRunReport = internalMutation({
       throw new Error(`Artifact ${args.artifactRepo} is not linked to ${args.modelSlug}`);
     }
     const recipe = args.recipeUpstreamId
-      ? (payload.recipeReferences ?? []).find((item) => item.upstreamId === args.recipeUpstreamId)
+      ? (payload.deploymentRecipes ?? []).find((item) => item.upstreamId === args.recipeUpstreamId)
       : undefined;
     if (args.recipeUpstreamId && !recipe) {
       throw new Error(`Recipe ${args.recipeUpstreamId} is not linked to ${args.modelSlug}`);

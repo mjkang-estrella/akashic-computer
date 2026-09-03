@@ -35,7 +35,7 @@ export interface PublishedCatalogEntry
 
 export type PublishedCatalogSummary = Omit<
   PublishedCatalogEntry,
-  "artifacts" | "benchmarkRefs" | "introduction" | "recipeReferences" | "materialChanges" | "runReports" | "size" | "release"
+  "artifacts" | "benchmarkRefs" | "introduction" | "deploymentRecipes" | "materialChanges" | "runReports" | "size" | "release"
 > & {
   release: Omit<ReleaseIdentity, "benchmarkRefs">;
   size: Omit<PublishedSize, "benchmarkRefs" | "scores">;
@@ -78,7 +78,7 @@ export function catalogSummary(entry: PublishedCatalogEntry): PublishedCatalogSu
     withoutKey(
       withoutKey(
         withoutKey(withoutKey(entry, "benchmarkRefs"), "introduction"),
-        "recipeReferences",
+        "deploymentRecipes",
       ),
       "materialChanges",
     ),
@@ -160,7 +160,7 @@ export function hydratePublishedEntries(
       })),
       benchmarkRefs: "benchmarkRefs" in payload ? payload.benchmarkRefs : [],
       introduction: "introduction" in payload ? payload.introduction : undefined,
-      recipeReferences: "recipeReferences" in payload ? payload.recipeReferences ?? [] : [],
+      deploymentRecipes: "deploymentRecipes" in payload ? payload.deploymentRecipes ?? [] : [],
       materialChanges: "materialChanges" in payload ? payload.materialChanges ?? [] : [],
       runReports: "runReports" in payload ? payload.runReports ?? [] : [],
     };

@@ -121,8 +121,9 @@ export default defineSchema({
     .index("by_repo", ["huggingFaceRepo"])
     .index("by_repo_variant", ["huggingFaceRepo", "variantId"]),
 
-  recipeReferences: defineTable({
-    provider: v.literal("vllm"),
+  deploymentRecipes: defineTable({
+    provider: v.union(v.literal("vllm"), v.literal("sglang")),
+    runtime: v.string(),
     upstreamId: v.string(),
     title: v.string(),
     publisher: v.string(),
@@ -132,7 +133,7 @@ export default defineSchema({
     sourceSha: v.string(),
     contentHash: v.string(),
     upstreamUpdatedAt: v.optional(v.number()),
-    minimumVllmVersion: v.optional(v.string()),
+    minimumRuntimeVersion: v.optional(v.string()),
     difficulty: v.optional(v.union(
       v.literal("beginner"),
       v.literal("intermediate"),
@@ -140,31 +141,31 @@ export default defineSchema({
     )),
     tasks: v.array(v.string()),
     features: v.array(v.string()),
-    verifiedHardware: v.array(v.object({ id: v.string(), label: v.string() })),
+    hardware: v.array(v.object({
+      id: v.string(),
+      label: v.string(),
+      status: v.union(v.literal("verified"), v.literal("documented")),
+    })),
     variants: v.array(v.object({
       key: v.string(),
       modelId: v.string(),
       precision: v.string(),
       minimumVramGb: v.optional(v.number()),
-      minimumVllmVersion: v.optional(v.string()),
+      minimumRuntimeVersion: v.optional(v.string()),
       description: v.optional(v.string()),
     })),
     artifactRepos: v.array(v.string()),
     available: v.boolean(),
     lastSyncedAt: v.number(),
   })
-    .index("by_upstream_id", ["upstreamId"])
-    .index("by_available", ["available"]),
+    .index("by_provider_and_upstream_id", ["provider", "upstreamId"])
+    .index("by_provider_and_available", ["provider", "available"]),
 
-  recipeSyncState: defineTable({
-    key: v.string(),
+  deploymentRecipeSyncState: defineTable({
+    provider: v.union(v.literal("vllm"), v.literal("sglang")),
     sourceRevision: v.optional(v.string()),
     recipeIds: v.array(v.string()),
-    status: v.union(
-      v.literal("running"),
-      v.literal("success"),
-      v.literal("failed"),
-    ),
+    status: v.union(v.literal("running"), v.literal("success"), v.literal("failed")),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     lastSuccessAt: v.optional(v.number()),
@@ -173,7 +174,7 @@ export default defineSchema({
     updated: v.number(),
     removed: v.number(),
     matchedEntries: v.number(),
-  }).index("by_key", ["key"]),
+  }).index("by_provider", ["provider"]),
 
   materialChanges: defineTable({
     dedupeKey: v.string(),

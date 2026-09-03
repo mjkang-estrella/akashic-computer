@@ -5,7 +5,7 @@ import type {
   Family,
   MaterialChange,
   ModelIntroduction,
-  RecipeReference,
+  DeploymentRecipe,
   Release,
   RunReport,
   SizeNode,
@@ -37,7 +37,7 @@ export interface ModelEntry {
   capabilities: ModelCapabilityId[];
   benchmarkRefs: NonNullable<SizeNode["benchmarkRefs"]>;
   introduction?: ModelIntroduction;
-  recipeReferences: RecipeReference[];
+  deploymentRecipes: DeploymentRecipe[];
   materialChanges: MaterialChange[];
   runReports: RunReport[];
 }

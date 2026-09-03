@@ -6,9 +6,11 @@ audit for recovery. Model lists read lean summaries from
 Normalized family, release, size, variant, artifact, source, event, and run
 tables retain the fields used for reconciliation and diagnostics.
 
-Official vLLM Recipes are checked hourly at minute 15. A revision comparison
-makes unchanged checks read-only; changed revisions synchronize compact,
-versioned references without copying or regenerating launch commands.
+Official vLLM Recipes are checked hourly at minute 15. Official SGLang
+cookbooks are checked daily at 04:15 UTC because their source lives in the much
+larger SGLang monorepo. Revision comparisons make unchanged checks read-only.
+Changed revisions synchronize compact, versioned references without copying or
+regenerating launch commands.
 
 ## Production Setup
 
@@ -117,17 +119,25 @@ metadata keep the prior weight-based estimate and are labeled accordingly.
 
 ## Deployment Recipes And Run Reports
 
-`recipeSync:syncVllmRecipes` reads the official model index, per-model JSON,
-hardware taxonomy, and current `vllm-project/recipes` revision. Catalog entries
-are linked only by exact Hugging Face artifact IDs. A recipe's semantic hash
-excludes unrelated repository commits, so unchanged recipes generate no writes
-when another recipe changes.
+`deploymentRecipeSync:syncVllm` reads the official model index, per-model JSON,
+hardware taxonomy, and current `vllm-project/recipes` revision.
+`deploymentRecipeSync:syncSglang` reads the official cookbook navigation, MDX
+pages, and imported literal configuration objects from `sgl-project/sglang` at
+an immutable revision. The SGLang parser uses Acorn and never executes upstream
+JavaScript. Catalog entries link to recipes only through exact Hugging Face
+artifact IDs.
+
+Each recipe has a semantic content hash. An upstream revision can change
+without rewriting unchanged recipe rows. SGLang hardware is labeled
+`verified` only when its cookbook cell carries `verified: true`; other listed
+hardware remains `documented`.
 
 Evidence labels have narrow meanings:
 
 - **Official vLLM recipe** means the official vLLM Recipes project publishes it.
-- **Verified on hardware** appears only when upstream marks that profile
-  `verified`.
+- **Official SGLang recipe** means the official SGLang cookbook publishes it.
+- **Verified on hardware** appears only when the corresponding upstream source
+  marks that profile verified.
 - No recipe match means unverified, not unsupported.
 - **Akashic run report** is a separate measurement tied to an exact artifact,
   runtime version, hardware profile, and optional recipe revision.
@@ -135,7 +145,7 @@ Evidence labels have narrow meanings:
 Run an immediate recipe refresh with:
 
 ```bash
-npx convex run --prod admin:syncVllmRecipes '{"secret":"<operator-secret>"}'
+npx convex run --prod admin:syncDeploymentRecipes '{"secret":"<operator-secret>"}'
 ```
 
 Publish a measured report only after preserving its evidence artifact:

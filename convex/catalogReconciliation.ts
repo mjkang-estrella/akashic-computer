@@ -212,7 +212,7 @@ export function newPayload(
     category: parsed.category,
     capabilities: parsed.capabilities,
     benchmarkRefs,
-    recipeReferences: [],
+    deploymentRecipes: [],
     materialChanges: [],
     runReports: [],
   };

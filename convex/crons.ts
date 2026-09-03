@@ -13,7 +13,14 @@ crons.daily(
 crons.hourly(
   "synchronize official vLLM recipes",
   { minuteUTC: 15 },
-  internal.recipeSync.syncVllmRecipes,
+  internal.deploymentRecipeSync.syncVllm,
+  {},
+);
+
+crons.daily(
+  "synchronize official SGLang recipes",
+  { hourUTC: 4, minuteUTC: 15 },
+  internal.deploymentRecipeSync.syncSglang,
   {},
 );
 

@@ -1,8 +1,8 @@
 import type {
   MaterialChange,
-  RecipeHardware,
-  RecipeReference,
-  RecipeVariant,
+  DeploymentRecipeHardware,
+  DeploymentRecipe,
+  DeploymentRecipeVariant,
 } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -16,7 +16,7 @@ export interface VllmRecipeIndexItem {
   derived_from?: string;
 }
 
-export interface ParsedRecipeReference extends RecipeReference {
+export interface ParsedDeploymentRecipe extends DeploymentRecipe {
   contentHash: string;
 }
 
@@ -74,14 +74,14 @@ export function stableHash(value: unknown): string {
 function hardwareList(
   value: unknown,
   labels: Record<string, string>,
-): RecipeHardware[] {
+): DeploymentRecipeHardware[] {
   return Object.entries(record(value))
     .filter(([, state]) => state === "verified")
-    .map(([id]) => ({ id, label: labels[id] ?? id.replaceAll("_", " ") }))
+    .map(([id]) => ({ id, label: labels[id] ?? id.replaceAll("_", " "), status: "verified" as const }))
     .sort((left, right) => left.label.localeCompare(right.label));
 }
 
-function variantsFor(raw: UnknownRecord, hfId: string): RecipeVariant[] {
+function variantsFor(raw: UnknownRecord, hfId: string): DeploymentRecipeVariant[] {
   const model = record(raw.model);
   const variants = record(raw.variants);
   const defaultModelId = text(model.model_id) ?? hfId;
@@ -95,9 +95,9 @@ function variantsFor(raw: UnknownRecord, hfId: string): RecipeVariant[] {
       modelId: text(variant.model_id) ?? defaultModelId,
       precision: precision.toUpperCase(),
       minimumVramGb: number(variant.vram_minimum_gb),
-      minimumVllmVersion: text(variant.min_vllm_version) ?? minimumVersion,
+      minimumRuntimeVersion: text(variant.min_vllm_version) ?? minimumVersion,
       description: text(variant.description),
-    } satisfies RecipeVariant];
+    } satisfies DeploymentRecipeVariant];
   });
   return parsed.length > 0
     ? parsed
@@ -109,7 +109,7 @@ export function parseVllmRecipe(
   raw: unknown,
   sourceSha: string,
   hardwareLabels: Record<string, string>,
-): ParsedRecipeReference | null {
+): ParsedDeploymentRecipe | null {
   const recipe = record(raw);
   const meta = record(recipe.meta);
   const model = record(recipe.model);
@@ -122,8 +122,9 @@ export function parseVllmRecipe(
     ...variants.map((variant) => variant.modelId),
   ].filter((value): value is string => Boolean(value)))];
   const sitePath = text(index.url) ?? `/${text(meta.derived_from) ?? hfId}`;
-  const reference: RecipeReference = {
+  const reference: DeploymentRecipe = {
     provider: "vllm",
+    runtime: "vLLM",
     upstreamId: hfId,
     title: text(meta.title) ?? text(index.title) ?? hfId.split("/").at(-1) ?? hfId,
     publisher: text(meta.provider) ?? text(index.provider) ?? hfId.split("/")[0],
@@ -132,13 +133,13 @@ export function parseVllmRecipe(
     sourceUrl: `https://github.com/vllm-project/recipes/tree/${sourceSha}`,
     sourceSha,
     upstreamUpdatedAt: timestamp(meta.date_updated),
-    minimumVllmVersion: text(model.min_vllm_version),
+    minimumRuntimeVersion: text(model.min_vllm_version),
     difficulty: ["beginner", "intermediate", "advanced"].includes(text(meta.difficulty) ?? "")
-      ? text(meta.difficulty) as RecipeReference["difficulty"]
+      ? text(meta.difficulty) as DeploymentRecipe["difficulty"]
       : undefined,
     tasks: stringArray(meta.tasks),
     features: Object.keys(record(recipe.features)).sort(),
-    verifiedHardware: hardwareList(meta.hardware, hardwareLabels),
+    hardware: hardwareList(meta.hardware, hardwareLabels),
     variants,
     artifactRepos,
   };
@@ -152,11 +153,11 @@ export function parseVllmRecipe(
       description: reference.description,
       recipeUrl: reference.recipeUrl,
       upstreamUpdatedAt: reference.upstreamUpdatedAt,
-      minimumVllmVersion: reference.minimumVllmVersion,
+      minimumRuntimeVersion: reference.minimumRuntimeVersion,
       difficulty: reference.difficulty,
       tasks: reference.tasks,
       features: reference.features,
-      verifiedHardware: reference.verifiedHardware,
+      hardware: reference.hardware,
       variants: reference.variants,
       artifactRepos: reference.artifactRepos,
     }),
@@ -175,6 +176,6 @@ export function changeDateLabel(occurredAt: number): string {
   return new Date(occurredAt).toISOString().slice(0, 10);
 }
 
-export function vllmRecipeRevisionFromAtom(feed: string): string | null {
+export function githubRevisionFromAtom(feed: string): string | null {
   return feed.match(/Grit::Commit\/([0-9a-f]{40})/i)?.[1] ?? null;
 }

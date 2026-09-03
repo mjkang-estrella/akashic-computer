@@ -47,8 +47,8 @@ export function ModelDetailView({
   const compareLimitReached = checked.size >= 4;
   const active = activeParamsLabel(entry.size.label, entry.size.activeParamsB);
   const displayRecipes = useMemo(() => {
-    const grouped = new Map<string, (typeof entry.recipeReferences)[number]>();
-    for (const recipe of entry.recipeReferences) {
+    const grouped = new Map<string, (typeof entry.deploymentRecipes)[number]>();
+    for (const recipe of entry.deploymentRecipes) {
       const existing = grouped.get(recipe.recipeUrl);
       if (!existing) {
         grouped.set(recipe.recipeUrl, recipe);
@@ -60,8 +60,9 @@ export function ModelDetailView({
           [...existing.variants, ...recipe.variants]
             .map((item) => [`${item.modelId}:${item.precision}`, item]),
         ).values()],
-        verifiedHardware: [...new Map(
-          [...existing.verifiedHardware, ...recipe.verifiedHardware]
+        hardware: [...new Map(
+          [...existing.hardware, ...recipe.hardware]
+            .sort((left, right) => left.status === right.status ? 0 : left.status === "verified" ? -1 : 1)
             .map((item) => [item.id, item]),
         ).values()],
         artifactRepos: [...new Set([...existing.artifactRepos, ...recipe.artifactRepos])],
@@ -240,7 +241,7 @@ export function ModelDetailView({
               Available artifacts
             </h3>
             <p className="mt-1 text-[12.5px] text-muted">
-              Original checkpoints, quantized weights, and their official vLLM deployment references.
+              Original checkpoints, quantized weights, and exact official deployment recipes.
             </p>
           </div>
           {entry.size.variants.length > 1 ? (
@@ -276,9 +277,9 @@ export function ModelDetailView({
                   <HugeiconsIcon icon={Rocket01Icon} size={17} strokeWidth={1.8} aria-hidden="true" className="flex-none text-meta" />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-[12.5px] font-semibold">Official vLLM recipe · {recipe.title}</span>
+                      <span className="text-[12.5px] font-semibold">Official {recipe.runtime} recipe · {recipe.title}</span>
                       <span className="rounded-[4px] bg-metasoft px-1.5 py-0.5 font-mono text-[10px] text-meta">
-                        vLLM {recipe.minimumVllmVersion ?? "version in recipe"}+
+                        {recipe.runtime}{recipe.minimumRuntimeVersion ? ` ${recipe.minimumRuntimeVersion}+` : ""}
                       </span>
                     </span>
                     <span className="mt-0.5 block max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
@@ -298,8 +299,8 @@ export function ModelDetailView({
                     <div className="border-t border-linesoft pb-4 pt-3">
                   <dl className="grid gap-3 sm:grid-cols-3">
                     <div>
-                      <dt className="text-[10.5px] text-faint">Minimum vLLM</dt>
-                      <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.minimumVllmVersion ?? "See recipe"}</dd>
+                      <dt className="text-[10.5px] text-faint">Minimum runtime</dt>
+                      <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.minimumRuntimeVersion ?? "See recipe"}</dd>
                     </div>
                     <div>
                       <dt className="text-[10.5px] text-faint">Recipe revision</dt>
@@ -314,13 +315,16 @@ export function ModelDetailView({
                     <div>
                       <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
                         <HugeiconsIcon icon={ComputerCheckIcon} size={15} strokeWidth={1.8} aria-hidden="true" />
-                        Upstream verified hardware
+                        Upstream hardware
                       </p>
-                      {recipe.verifiedHardware.length > 0 ? (
+                      {recipe.hardware.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {recipe.verifiedHardware.map((hardware) => (
-                            <span key={hardware.id} className="rounded-[5px] bg-verifysoft px-2 py-1 text-[11px] font-semibold text-verify">
-                              Verified on {hardware.label}
+                          {recipe.hardware.map((hardware) => (
+                            <span
+                              key={hardware.id}
+                              className={`rounded-[5px] px-2 py-1 text-[11px] font-semibold ${hardware.status === "verified" ? "bg-verifysoft text-verify" : "bg-panel2 text-muted"}`}
+                            >
+                              {hardware.status === "verified" ? "Verified" : "Documented"} on {hardware.label}
                             </span>
                           ))}
                         </div>
@@ -355,7 +359,7 @@ export function ModelDetailView({
           </div>
         ) : (
           <div className="mt-4 border-y border-linesoft py-3">
-            <p className="text-[12px] font-semibold">No exact official vLLM recipe match</p>
+            <p className="text-[12px] font-semibold">No exact official deployment recipe match</p>
             <p className="mt-0.5 max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
               Absence means unverified, not unsupported. Akashic only attaches recipes through exact artifact IDs.
             </p>
@@ -454,7 +458,7 @@ export function ModelDetailView({
                     </span>
                     {recipeCheckpoint?.variant.minimumVramGb ? (
                       <span className="mt-0.5 block text-[10px] font-semibold text-meta">
-                        vLLM recipe minimum · {recipeCheckpoint.variant.minimumVramGb} GB
+                        {recipeCheckpoint.recipe.runtime} recipe minimum · {recipeCheckpoint.variant.minimumVramGb} GB
                       </span>
                     ) : null}
                   </div>
@@ -490,7 +494,7 @@ export function ModelDetailView({
         </p>
         <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
           <HugeiconsIcon icon={StarIcon} size={13} strokeWidth={1.9} aria-hidden="true" className="text-meta" />
-          A star marks an exact checkpoint referenced by an official vLLM recipe.
+          A star marks an exact checkpoint referenced by an official deployment recipe.
         </p>
       </section>
 

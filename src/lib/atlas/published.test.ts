@@ -26,7 +26,7 @@ describe("published catalog projections", () => {
     };
     const summary = catalogSummary(payload);
     expect(summary).not.toHaveProperty("introduction");
-    expect(summary).not.toHaveProperty("recipeReferences");
+    expect(summary).not.toHaveProperty("deploymentRecipes");
     expect(summary.size).not.toHaveProperty("scores");
   });
 });

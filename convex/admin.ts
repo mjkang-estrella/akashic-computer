@@ -158,32 +158,26 @@ export const checkHealth = action({
   },
 });
 
-const recipeSyncResultValue = v.object({
-  status: v.union(v.literal("unchanged"), v.literal("synchronized")),
-  sourceRevision: v.string(),
+const deploymentRecipeSyncResultValue = v.object({
+  provider: v.union(v.literal("vllm"), v.literal("sglang")),
+  status: v.union(v.literal("unchanged"), v.literal("synchronized"), v.literal("failed")),
   recipes: v.number(),
-  inserted: v.number(),
-  updated: v.number(),
-  removed: v.number(),
   matchedEntries: v.number(),
-  changedEntries: v.number(),
+  error: v.optional(v.string()),
 });
 
-export const syncVllmRecipes = action({
+export const syncDeploymentRecipes = action({
   args: { secret: v.string(), force: v.optional(v.boolean()) },
-  returns: recipeSyncResultValue,
-  handler: async (ctx, args): Promise<{
-    status: "unchanged" | "synchronized";
-    sourceRevision: string;
+  returns: v.array(deploymentRecipeSyncResultValue),
+  handler: async (ctx, args): Promise<Array<{
+    provider: "vllm" | "sglang";
+    status: "unchanged" | "synchronized" | "failed";
     recipes: number;
-    inserted: number;
-    updated: number;
-    removed: number;
     matchedEntries: number;
-    changedEntries: number;
-  }> => {
+    error?: string;
+  }>> => {
     assertAdminSecret(args.secret);
-    return await ctx.runAction(internal.recipeSync.syncVllmRecipes, { force: args.force });
+    return await ctx.runAction(internal.deploymentRecipeSync.syncAll, { force: args.force });
   },
 });
 

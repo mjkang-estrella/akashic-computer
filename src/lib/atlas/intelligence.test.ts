@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   materialChangeId,
   parseVllmRecipe,
-  vllmRecipeRevisionFromAtom,
+  githubRevisionFromAtom,
 } from "./intelligence";
 
 const index = {
@@ -50,8 +50,8 @@ describe("vLLM recipe intelligence", () => {
     });
 
     expect(parsed).not.toBeNull();
-    expect(parsed?.verifiedHardware).toEqual([
-      { id: "dgx_spark_gb10", label: "DGX Spark (GB10)" },
+    expect(parsed?.hardware).toEqual([
+      { id: "dgx_spark_gb10", label: "DGX Spark (GB10)", status: "verified" },
     ]);
     expect(parsed?.artifactRepos).toEqual([
       "Example/Model-32B",
@@ -60,7 +60,7 @@ describe("vLLM recipe intelligence", () => {
     expect(parsed?.variants[0]).toMatchObject({
       precision: "FP8",
       minimumVramGb: 40,
-      minimumVllmVersion: "0.11.0",
+      minimumRuntimeVersion: "0.11.0",
     });
   });
 
@@ -82,7 +82,7 @@ describe("vLLM recipe intelligence", () => {
   });
 
   it("reads the latest immutable revision from GitHub's public commit feed", () => {
-    expect(vllmRecipeRevisionFromAtom(`
+    expect(githubRevisionFromAtom(`
       <feed>
         <id>tag:github.com,2008:/vllm-project/recipes/commits/main</id>
         <entry>
@@ -90,6 +90,6 @@ describe("vLLM recipe intelligence", () => {
         </entry>
       </feed>
     `)).toBe("8959cf64189c71d36e11c6a30335f923f261b1f7");
-    expect(vllmRecipeRevisionFromAtom("<feed />")).toBeNull();
+    expect(githubRevisionFromAtom("<feed />")).toBeNull();
   });
 });

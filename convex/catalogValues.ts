@@ -217,18 +217,23 @@ const summaryFields = {
 
 export const publishedCatalogSummaryValue = v.object(summaryFields);
 
-const recipeHardwareValue = v.object({ id: v.string(), label: v.string() });
-const recipeVariantValue = v.object({
+const deploymentRecipeHardwareValue = v.object({
+  id: v.string(),
+  label: v.string(),
+  status: v.union(v.literal("verified"), v.literal("documented")),
+});
+const deploymentRecipeVariantValue = v.object({
   key: v.string(),
   modelId: v.string(),
   precision: v.string(),
   minimumVramGb: v.optional(v.number()),
-  minimumVllmVersion: v.optional(v.string()),
+  minimumRuntimeVersion: v.optional(v.string()),
   description: v.optional(v.string()),
 });
 
-const recipeReferenceFields = {
-  provider: v.literal("vllm"),
+const deploymentRecipeFields = {
+  provider: v.union(v.literal("vllm"), v.literal("sglang")),
+  runtime: v.string(),
   upstreamId: v.string(),
   title: v.string(),
   publisher: v.string(),
@@ -237,17 +242,17 @@ const recipeReferenceFields = {
   sourceUrl: v.string(),
   sourceSha: v.string(),
   upstreamUpdatedAt: v.optional(v.number()),
-  minimumVllmVersion: v.optional(v.string()),
+  minimumRuntimeVersion: v.optional(v.string()),
   difficulty: v.optional(v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced"))),
   tasks: v.array(v.string()),
   features: v.array(v.string()),
-  verifiedHardware: v.array(recipeHardwareValue),
-  variants: v.array(recipeVariantValue),
+  hardware: v.array(deploymentRecipeHardwareValue),
+  variants: v.array(deploymentRecipeVariantValue),
   artifactRepos: v.array(v.string()),
 };
-export const recipeReferenceValue = v.object(recipeReferenceFields);
-export const parsedRecipeReferenceValue = v.object({
-  ...recipeReferenceFields,
+export const deploymentRecipeValue = v.object(deploymentRecipeFields);
+export const parsedDeploymentRecipeValue = v.object({
+  ...deploymentRecipeFields,
   contentHash: v.string(),
 });
 
@@ -316,7 +321,7 @@ export const publishedCatalogEntryValue = v.object({
   }),
   benchmarkRefs: v.array(benchmarkReferenceValue),
   introduction: v.optional(modelIntroductionValue),
-  recipeReferences: v.optional(v.array(recipeReferenceValue)),
+  deploymentRecipes: v.optional(v.array(deploymentRecipeValue)),
   materialChanges: v.optional(v.array(materialChangeValue)),
   runReports: v.optional(v.array(runReportValue)),
 });

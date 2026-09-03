@@ -172,22 +172,26 @@ export interface MaterialChange {
   reviewStatus: "automatic" | "reviewed";
 }
 
-export interface RecipeHardware {
+export type DeploymentRecipeProvider = "vllm" | "sglang";
+
+export interface DeploymentRecipeHardware {
   id: string;
   label: string;
+  status: "verified" | "documented";
 }
 
-export interface RecipeVariant {
+export interface DeploymentRecipeVariant {
   key: string;
   modelId: string;
   precision: string;
   minimumVramGb?: number;
-  minimumVllmVersion?: string;
+  minimumRuntimeVersion?: string;
   description?: string;
 }
 
-export interface RecipeReference {
-  provider: "vllm";
+export interface DeploymentRecipe {
+  provider: DeploymentRecipeProvider;
+  runtime: string;
   upstreamId: string;
   title: string;
   publisher: string;
@@ -196,12 +200,12 @@ export interface RecipeReference {
   sourceUrl: string;
   sourceSha: string;
   upstreamUpdatedAt?: number;
-  minimumVllmVersion?: string;
+  minimumRuntimeVersion?: string;
   difficulty?: "beginner" | "intermediate" | "advanced";
   tasks: string[];
   features: string[];
-  verifiedHardware: RecipeHardware[];
-  variants: RecipeVariant[];
+  hardware: DeploymentRecipeHardware[];
+  variants: DeploymentRecipeVariant[];
   artifactRepos: string[];
 }
 
