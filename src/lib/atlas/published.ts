@@ -140,9 +140,8 @@ export function hydratePublishedEntries(
       release,
       size,
       artifacts: payload.artifacts.map((artifact) => ({
-        ...artifact,
         trust: "official" as const,
-        confidence: "verified" as const,
+        confidence: "needs_review" as const,
         kinds: [],
         minVramGb: artifact.recVramGb,
         deltas: {
@@ -157,6 +156,7 @@ export function hydratePublishedEntries(
         },
         measured: false,
         qualityRank: 99,
+        ...artifact,
       })),
       benchmarkRefs: "benchmarkRefs" in payload ? payload.benchmarkRefs : [],
       introduction: "introduction" in payload ? payload.introduction : undefined,

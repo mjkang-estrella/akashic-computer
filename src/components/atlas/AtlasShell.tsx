@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useQueries } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { hydratePublishedEntries, type PublishedCatalogEntry } from "@/lib/atlas/published";
 import { usePathname, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -45,15 +48,24 @@ export function AtlasShell({ children }: { children: ReactNode }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const rig = resolveProfile(RIG_PRESETS, presetId, manualGb);
 
+  // List summaries omit memory and benchmark evidence. Fetch only the selected models.
+  const comparisonQueries = useMemo(() => Object.fromEntries(
+    entries.filter((entry) => entry.artifacts.some((artifact) => checked.has(artifact.repo)))
+      .map((entry) => [entry.slug, { query: api.catalog.getBySlug, args: { slug: entry.slug } }]),
+  ), [checked, entries]);
+  const comparisonResults = useQueries(comparisonQueries);
   const checkedArtifacts = useMemo(() => {
+    const details = Object.values(comparisonResults).filter((value): value is PublishedCatalogEntry =>
+      Boolean(value) && !(value instanceof Error),
+    );
     const artifacts = new Map(
-      entries.flatMap((entry) => entry.artifacts).map((artifact) => [artifact.repo, artifact]),
+      hydratePublishedEntries(details).entries.flatMap((entry) => entry.artifacts).map((artifact) => [artifact.repo, artifact]),
     );
     return [...checked].flatMap((repo) => {
       const artifact = artifacts.get(repo);
       return artifact ? [artifact] : [];
     });
-  }, [checked, entries]);
+  }, [checked, comparisonResults]);
 
   const toggleChecked = (repo: string, on: boolean) => {
     setChecked((current) => {

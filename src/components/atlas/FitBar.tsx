@@ -32,7 +32,7 @@ export function FitBar({
       </summary>
       <div className="profile-popover absolute right-0 top-full z-30 mt-2 w-[min(360px,calc(100vw-40px))] rounded-[10px] border border-ink bg-panel p-3.5">
         <div className="mb-3 flex items-baseline justify-between gap-3 border-b border-linesoft pb-2.5">
-          <span className="text-[13px] font-semibold">VRAM profile</span>
+          <span className="text-[13px] font-semibold">Memory budget</span>
           <span className="font-mono text-[13px] text-muted">{selectedGb} GB</span>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
@@ -59,7 +59,7 @@ export function FitBar({
           })}
         </div>
         <label className="mt-2.5 flex min-h-11 items-center justify-between gap-2 rounded-[7px] border border-line bg-paper px-2.5 text-[12.5px] text-muted sm:min-h-9">
-          <span>Custom VRAM</span>
+          <span>Custom memory</span>
           <span className="flex items-center gap-1.5">
             <input
               type="number"
@@ -81,6 +81,7 @@ export function FitBar({
             GB
           </span>
         </label>
+        <p className="mt-2 text-[11.5px] text-muted">A total budget does not describe device topology or confirm runtime fit.</p>
       </div>
     </details>
   );

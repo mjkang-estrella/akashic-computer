@@ -565,8 +565,8 @@ function capabilitiesFor(repo: HuggingFaceRepoInfo, category: ModelCategoryId | 
   return [...capabilities];
 }
 
-function modelStem(repo: HuggingFaceRepoInfo): string {
-  return (repo.id.split("/").at(-1) ?? repo.id)
+export function modelStemForRepoId(repoId: string): string {
+  return (repoId.split("/").at(-1) ?? repoId)
     .replace(/[-_.](?:NVFP4|MXFP8|FP8|BF16|GGUF|AWQ|GPTQ(?:[-_.]?INT[48])?|INT[48])$/i, "")
     .replace(/[-_.](?:Instruct|Chat|Base)$/i, "");
 }
@@ -651,7 +651,7 @@ export function classifyHuggingFaceRepo(
     parsed: {
       repo,
       format,
-      modelStem: modelStem(repo),
+      modelStem: modelStemForRepoId(repo.id),
       ...parameters,
       variant: variantFor(repo),
       category,

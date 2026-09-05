@@ -50,7 +50,7 @@ export function DeltaChip({
   delta: number | null;
   measured: boolean;
 }) {
-  if (delta === null) {
+  if (delta === null || !Number.isFinite(delta)) {
     return (
       <span
         className="rounded bg-panel2 px-1.5 py-px font-mono text-[11.5px] text-faint"

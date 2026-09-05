@@ -213,33 +213,38 @@ async function applyModelIntroduction(ctx: MutationCtx, slug: string, payload: P
 }
 
 async function catalogEntryForRepo(ctx: MutationCtx, repoName: string) {
-  const artifact = await ctx.db
+  const artifacts = await ctx.db
     .query("artifacts")
     .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", repoName))
-    .first();
-  if (!artifact) return null;
-  const variant = await ctx.db.get(artifact.variantId);
-  if (!variant) return null;
-  const size = await ctx.db.get(variant.sizeId);
-  if (!size) return null;
-  return await ctx.db
-    .query("catalogEntries")
-    .withIndex("by_slug", (q) => q.eq("slug", size.slug))
-    .unique();
+    .take(21);
+  if (artifacts.length > 20) throw new Error("Repository exceeds the variant lookup bound");
+  for (const artifact of artifacts) {
+    if (!artifact.available) continue;
+    const variant = await ctx.db.get(artifact.variantId);
+    if (!variant) continue;
+    const size = await ctx.db.get(variant.sizeId);
+    if (!size) continue;
+    const entry = await ctx.db.query("catalogEntries")
+      .withIndex("by_slug", (q) => q.eq("slug", size.slug)).unique();
+    if (entry?.sourceRepos.includes(repoName)) return entry;
+  }
+  return null;
 }
 
 async function directlyLinkedCatalogEntry(
   ctx: MutationCtx,
   parsed: IngestedParsedRepo,
   previousRepoName?: string,
+  rule?: ReturnType<typeof sourceRule>,
 ) {
+  const entries: NonNullable<Awaited<ReturnType<typeof catalogEntryForRepo>>>[] = [];
   const repoNames = [parsed.repo.id, previousRepoName, ...parsed.repo.baseModels]
     .filter((repoName): repoName is string => Boolean(repoName));
   for (const repoName of new Set(repoNames)) {
     const entry = await catalogEntryForRepo(ctx, repoName);
-    if (entry) return entry;
+    if (entry && !entries.some((item) => item._id === entry._id)) entries.push(entry);
   }
-  return null;
+  return rule ? targetForParsed(entries, parsed, rule) : null;
 }
 
 async function upsertNormalized(
@@ -473,7 +478,7 @@ export const applyRepoResult = internalMutation({
     const parsed = classification.parsed;
     const rule = sourceRule(source);
     const previousRepoName = priorByName?.repoName !== parsed.repo.id ? priorByName?.repoName : undefined;
-    const directTarget = await directlyLinkedCatalogEntry(ctx, parsed, previousRepoName);
+    const directTarget = await directlyLinkedCatalogEntry(ctx, parsed, previousRepoName, rule);
     const familyDocuments = directTarget
       ? []
       : await Promise.all(
@@ -488,15 +493,16 @@ export const applyRepoResult = internalMutation({
       throw new Error("Catalog family exceeds the 500-entry reconciliation bound");
     }
     const documents = directTarget ? [directTarget] : familyDocuments.flat();
-    const target = directTarget ?? targetForParsed(documents, parsed, rule, previousRepoName ? [previousRepoName] : []);
+    const target = directTarget ?? targetForParsed(documents, parsed, rule);
     const resolution = directTarget ? "direct" as const : target ? "family_scan" as const : "new" as const;
     let payload: PublishedCatalogEntry | null = target
       ? mergeParsedIntoPayload(target.payload as PublishedCatalogEntry, parsed, source.role, previousRepoName)
       : null;
-    if (!payload && source.role !== "artifact_provider") {
+    if (!payload && source.role !== "artifact_provider" && !(source.role === "creator_provider" && parsed.repo.baseModels.length > 0)) {
       const family = familyForParsed(documents, parsed, rule);
       if (family) payload = newPayload(family, parsed);
     }
+    if (!target && payload && documents.some((document) => document.slug === payload?.slug)) payload = null;
     if (!payload) {
       await ctx.db.patch(sourceRepoId, {
         status: "skipped",
@@ -509,6 +515,44 @@ export const applyRepoResult = internalMutation({
       return { status: "skipped" as const, reason: "unresolved catalog identity" };
     }
 
+    // Repair an old incorrect association atomically with the new association.
+    const previousEntry = await catalogEntryForRepo(ctx, previousRepoName ?? parsed.repo.id);
+    if (previousEntry && previousEntry.slug !== payload.slug) {
+      const previous = previousEntry.payload as PublishedCatalogEntry;
+      const remaining = previous.artifacts.filter((artifact) =>
+        artifact.repo !== parsed.repo.id && artifact.repo !== previousRepoName,
+      );
+      if (remaining.length === 0) throw new Error("Cannot automatically move the last artifact of a model");
+      const repos = new Set(remaining.map((artifact) => artifact.repo.toLowerCase()));
+      const retainedRecipes = previous.deploymentRecipes.filter((recipe) =>
+        recipe.artifactRepos.some((repo) => repos.has(repo.toLowerCase())),
+      );
+      const excludedUrls = new Set([
+        `https://huggingface.co/${parsed.repo.id}`,
+        ...previous.deploymentRecipes.filter((recipe) => !retainedRecipes.includes(recipe)).map((recipe) => recipe.recipeUrl),
+      ]);
+      const obsoleteArtifacts = await ctx.db.query("artifacts")
+        .withIndex("by_repo", (q) => q.eq("huggingFaceRepo", previousRepoName ?? parsed.repo.id)).take(21);
+      if (obsoleteArtifacts.length > 20) throw new Error("Repository exceeds the variant repair bound");
+      for (const artifact of obsoleteArtifacts) {
+        const variant = await ctx.db.get(artifact.variantId);
+        const size = variant ? await ctx.db.get(variant.sizeId) : null;
+        if (size?.slug === previousEntry.slug) await ctx.db.patch(artifact._id, { available: false, confidence: "needs_review" });
+      }
+      await ctx.db.patch(previousEntry._id, {
+        sourceRepos: remaining.map((artifact) => artifact.repo),
+        payload: {
+          ...previous,
+          artifacts: remaining,
+          quantizations: [...new Set(remaining.map((artifact) => artifact.format))],
+          providers: [...new Set(remaining.map((artifact) => uploaderDisplay(artifact.repo)))].sort(),
+          deploymentRecipes: retainedRecipes,
+          // Durable materialChanges/runReports records remain in their source tables.
+          materialChanges: previous.materialChanges.filter((change) => !change.sourceUrls.some((url) => excludedUrls.has(url))),
+          runReports: previous.runReports.filter((report) => repos.has(report.artifactRepo.toLowerCase())),
+        },
+      });
+    }
     payload = await applyModelIntroduction(ctx, payload.slug, payload);
     const existingEntry = target?.slug === payload.slug
       ? target
@@ -1233,6 +1277,35 @@ export const auditSource = internalAction({
           attempt: 0,
         });
       }
+    }
+    return null;
+  },
+});
+
+/** Operator-only reingestion after identity-rule changes, even when the SHA is unchanged. */
+export const refreshRepository = internalAction({
+  args: { repoName: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { repoName }): Promise<null> => {
+    const owner = repoName.split("/")[0];
+    const source = await ctx.runQuery(internal.sync.sourceByOwner, { owner });
+    if (!source?.enabled) throw new Error("Source is not enabled");
+    const runId = await ctx.runMutation(internal.sync.startWebhookRun, { owner, now: Date.now() });
+    try {
+      const response = await fetchRepo(repoName);
+      if (!response.data) throw new Error(`Repository fetch failed: ${response.status}`);
+      const classification = compactClassification(await classifyWithWeightMetadata(response.data, sourceRule(source)));
+      if (classification.status !== "publishable") throw new Error(`Repository cannot be published: ${classification.reason}`);
+      const result = await ctx.runMutation(internal.sync.applyRepoResult, {
+        classification, sourceOwner: owner, runId, now: Date.now(),
+      });
+      if (result.status !== "published") throw new Error(result.reason);
+      await ctx.runMutation(internal.sync.finishWebhookRun, { runId, now: Date.now(), success: true });
+    } catch (error) {
+      await ctx.runMutation(internal.sync.finishWebhookRun, {
+        runId, now: Date.now(), success: false, message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
     return null;
   },

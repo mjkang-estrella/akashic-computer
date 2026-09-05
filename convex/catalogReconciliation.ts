@@ -1,6 +1,7 @@
 import type { Doc } from "./_generated/dataModel";
 import {
   estimateVram,
+  modelStemForRepoId,
   type IngestionClassification,
   type MonitoredSourceRule,
 } from "../src/lib/atlas/huggingface";
@@ -121,23 +122,30 @@ export function targetForParsed(
   documents: Array<Doc<"catalogEntries">>,
   parsed: IngestedParsedRepo,
   rule: MonitoredSourceRule,
-  knownRepoNames: string[] = [],
 ) {
-  const exact = documents.find((document) =>
-    [parsed.repo.id, ...knownRepoNames].some((repoName) => document.sourceRepos.includes(repoName)),
-  );
-  if (exact) return exact;
-  for (const baseModel of parsed.repo.baseModels) {
-    const linked = documents.find((document) => document.sourceRepos.includes(baseModel));
-    if (linked) return linked;
-  }
-  if (rule.role === "artifact_provider") return null;
+  // Existing links are evidence, not authority: older ingestion used substring matches.
   const stem = normalizedIdentity(parsed.modelStem);
-  return documents.find((document) => {
+  const candidates = documents.filter((document) => {
     if (!rule.familyIds.includes(document.familyId)) return false;
+    const release = normalizedIdentity(document.payload.release.name);
     const identity = normalizedIdentity(`${document.payload.release.name}${document.payload.size.label}`);
-    return stem === identity || stem.includes(identity) || identity.includes(stem);
-  }) ?? null;
+    const sameSize = parsed.sizeLabel
+      ? normalizedIdentity(parsed.sizeLabel) === normalizedIdentity(document.payload.size.label)
+      : false;
+    return (stem === identity || (stem === release && sameSize));
+  });
+  if (rule.role === "creator" || (rule.role === "creator_provider" && !parsed.repo.baseModels.length)) {
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+  // All declared bases must resolve to one model. Multi-base merges are not quantizations.
+  if (!parsed.repo.baseModels.every((base) => normalizedIdentity(modelStemForRepoId(base)) === stem)) return null;
+  const bases = parsed.repo.baseModels.map((base) => documents.filter((document) =>
+    document.sourceRepos.some((repo) => repo.toLowerCase() === base.toLowerCase()),
+  ));
+  if (!bases.length || bases.some((matches) => matches.length !== 1)) return null;
+  const linked = [...new Set(bases.map((matches) => matches[0]))];
+  if (linked.length !== 1) return null;
+  return linked[0];
 }
 
 export function familyForParsed(
@@ -229,8 +237,7 @@ export function mergeParsedIntoPayload(
     (artifact) => artifact.repo === parsed.repo.id || artifact.repo === previousRepoName,
   );
   const existing = existingIndex >= 0 ? original.artifacts[existingIndex] : undefined;
-  const variant = existing?.variant ??
-    (original.size.variants.includes(parsed.variant) ? parsed.variant : original.size.variants[0] ?? parsed.variant);
+  const variant = existing?.variant ?? parsed.variant;
   const nextArtifact = artifactFor(parsed, role, variant, original.size.paramsB);
   const artifacts = existing
     ? original.artifacts.map((artifact, index) =>
@@ -268,6 +275,7 @@ export function mergeParsedIntoPayload(
     size: {
       ...original.size,
       label: canonicalSizeLabel,
+      variants: [...new Set([...original.size.variants, variant])],
       paramsB: canonicalParamsB,
       updated: updatesCanonicalWeights ? dateLabel(modelUpdatedAt) : original.size.updated,
       context: canonicalContext,

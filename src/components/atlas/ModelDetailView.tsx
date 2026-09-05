@@ -7,7 +7,7 @@ import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowUpRight01Icon,
-  CheckmarkCircle02Icon,
+  Alert01Icon,
   CancelCircleIcon,
   ComputerCheckIcon,
   Rocket01Icon,
@@ -16,6 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
+import { fitOf, memoryRange } from "@/lib/atlas/fit";
 import { modelTransitionName } from "@/lib/atlas/motion";
 import type { RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
@@ -48,7 +49,10 @@ export function ModelDetailView({
   const active = activeParamsLabel(entry.size.label, entry.size.activeParamsB);
   const displayRecipes = useMemo(() => {
     const grouped = new Map<string, (typeof entry.deploymentRecipes)[number]>();
-    for (const recipe of entry.deploymentRecipes) {
+    const repos = new Set(entry.artifacts.filter((artifact) => artifact.variant === variant).map((artifact) => artifact.repo.toLowerCase()));
+    for (const sourceRecipe of entry.deploymentRecipes) {
+      if (!sourceRecipe.artifactRepos.some((repo) => repos.has(repo.toLowerCase()))) continue;
+      const recipe = { ...sourceRecipe, variants: sourceRecipe.variants.filter((item) => repos.has(item.modelId.toLowerCase())) };
       const existing = grouped.get(recipe.recipeUrl);
       if (!existing) {
         grouped.set(recipe.recipeUrl, recipe);
@@ -71,7 +75,7 @@ export function ModelDetailView({
       });
     }
     return [...grouped.values()];
-  }, [entry]);
+  }, [entry, variant]);
   const displayMaterialChanges = useMemo(() => [
     ...new Map(
       entry.materialChanges.map((change) => [
@@ -80,21 +84,7 @@ export function ModelDetailView({
       ]),
     ).values(),
   ], [entry]);
-  const recipeCheckpointByRepo = useMemo(() => {
-    const checkpoints = new Map<
-      string,
-      { recipe: (typeof displayRecipes)[number]; variant: (typeof displayRecipes)[number]["variants"][number] }
-    >();
-    for (const recipe of displayRecipes) {
-      for (const recipeVariant of recipe.variants) {
-        checkpoints.set(recipeVariant.modelId.toLowerCase(), {
-          recipe,
-          variant: recipeVariant,
-        });
-      }
-    }
-    return checkpoints;
-  }, [displayRecipes]);
+
 
   return (
     <article className="pt-5" aria-labelledby="model-detail-title">
@@ -241,7 +231,7 @@ export function ModelDetailView({
               Available artifacts
             </h3>
             <p className="mt-1 text-[12.5px] text-muted">
-              Original checkpoints, quantized weights, and exact official deployment recipes.
+              Original checkpoints and quantized weights linked to this model. Repositories may contain multiple download files.
             </p>
           </div>
           {entry.size.variants.length > 1 ? (
@@ -269,6 +259,153 @@ export function ModelDetailView({
           )}
         </div>
 
+
+        {entry.runReports.length > 0 ? (
+          <details className="motion-disclosure group/reports mt-3 border-y border-linesoft">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 marker:hidden">
+              <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="text-faint" />
+              <span className="flex-1 text-[12px] font-semibold">Akashic run reports · {entry.runReports.length}</span>
+              <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.8} aria-hidden="true" className="text-faint transition-transform group-open/reports:rotate-180" />
+            </summary>
+            <div className="disclosure-body">
+              <div className="disclosure-content">
+                <div className="divide-y divide-linesoft border-t border-linesoft">
+                {entry.runReports.map((report) => (
+                  <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
+                    <span>
+                      <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
+                      <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
+                    </span>
+                    <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
+                    <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
+                    <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
+                  </div>
+                ))}
+                </div>
+              </div>
+            </div>
+          </details>
+        ) : null}
+
+        <div className="mt-4 overflow-hidden rounded-[8px] border border-line bg-panel">
+          <div className="hidden grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid">
+            <span aria-hidden="true"><span className="sr-only">Compare</span></span>
+            <span><LexiconHint term="quantization" onLearn={onLearn}>Quant</LexiconHint></span>
+            <span><LexiconHint term="provider" onLearn={onLearn}>Provider and repository</LexiconHint></span>
+            <span>Memory estimate</span>
+            <span>Runtime assessment</span>
+            <span className="sr-only">Open repository</span>
+          </div>
+          <div className="divide-y divide-linesoft">
+            {artifacts.map((artifact) => {
+              const fit = fitOf(artifact, rig);
+              const exceeds = fit.level === "no";
+              const selected = checked.has(artifact.repo);
+              const disabled = !selected && compareLimitReached;
+              const recipeCheckpoints = displayRecipes.flatMap((recipe) => recipe.variants
+                .filter((item) => item.modelId.toLowerCase() === artifact.repo.toLowerCase())
+                .map((recipeVariant) => ({ recipe, variant: recipeVariant })));
+              const recipeCheckpoint = recipeCheckpoints[0];
+              return (
+                <div
+                  key={`${artifact.variant}-${artifact.repo}`}
+                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] md:items-center ${
+                    exceeds ? "bg-alertsoft" : "bg-panel"
+                  }`}
+                >
+                  <label className="absolute flex h-10 w-10 cursor-pointer items-center justify-center md:static" title="Compare artifact">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={disabled}
+                      onChange={(event) => onCheck(artifact.repo, event.target.checked)}
+                      aria-label={`Compare ${artifact.repo}`}
+                      className="disabled:cursor-not-allowed disabled:opacity-35"
+                    />
+                  </label>
+                  <div className="min-w-0 pl-11 md:pl-0">
+                    <span className="flex flex-wrap items-center gap-1.5 font-mono text-[13px] font-semibold">
+                      {artifact.format}
+                      {recipeCheckpoint ? (
+                        <span
+                          title={`Official checkpoint in ${recipeCheckpoint.recipe.title}`}
+                          className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[10px] font-semibold text-meta"
+                        >
+                          <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" className="recipe-star" />
+                          Recipe checkpoint
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {artifact.runtimes.map((runtime) => (
+                        <span key={runtime} className="rounded-[4px] bg-panel/70 px-1.5 py-px font-mono text-[10.5px] text-muted">
+                          {runtime}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                  <div className="min-w-0 pl-11 md:pl-0">
+                    <span className="block text-[12.5px] font-semibold">{uploaderDisplay(artifact.repo)}</span>
+                    <span className="mt-0.5 block break-all font-mono text-[10.5px] text-muted">{artifact.repo}</span>
+                    {artifact.confidence !== "verified" ? <span className="text-[10px] text-caution">Model link unverified</span> : null}
+                  </div>
+                  <div className="pl-11 md:pl-0">
+                    <span className="text-[11px] text-muted md:hidden">Memory estimate · </span>
+                    <span className="font-mono text-[13px] font-semibold">{artifact.vramEstimate ? `${artifact.vramEstimate.weightGb} GB weights` : memoryRange(artifact.minVramGb, artifact.recVramGb)}</span>
+                    <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
+                      {artifact.vramEstimate
+                        ? `+ ${artifact.vramEstimate.kvCacheGb} GB KV estimate · ${artifact.vramEstimate.contextTokens.toLocaleString("en-US")} tokens · concurrency ${artifact.vramEstimate.concurrency} · ${artifact.vramEstimate.kvCacheDtype}`
+                        : "Estimate only; weight and KV breakdown unknown. Exact file not selected."}
+                    </span>
+                    {recipeCheckpoints.filter((item) => item.variant.minimumVramGb && item.variant.precision.toUpperCase() === artifact.format.toUpperCase()).map((item) => (
+                      <a key={`${item.recipe.recipeUrl}:${item.variant.key}`} href={item.recipe.recipeUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[10px] font-semibold text-meta underline-offset-2 hover:underline">
+                        {item.recipe.runtime} recipe condition · {item.variant.minimumVramGb} GB
+                      </a>
+                    ))}
+                  </div>
+                  <div
+                    key={`${artifact.repo}-${rig.gb}-${fit.level}`}
+                    className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : "text-caution"}`}
+                  >
+                    <HugeiconsIcon
+                      icon={exceeds ? CancelCircleIcon : Alert01Icon}
+                      className="flex-none"
+                      size={17}
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                    {fit.text}
+                  </div>
+                  <a
+                    href={`https://huggingface.co/${artifact.repo}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${artifact.repo} on Hugging Face`}
+                    title="Open on Hugging Face"
+                    className="absolute right-3 flex h-9 w-9 items-center justify-center rounded-[7px] text-muted hover:bg-panel hover:text-ink md:static"
+                  >
+                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} aria-hidden="true" />
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <p className="mt-2.5 text-[11.5px] text-muted">
+          Selected budget: {rig.gb} GB. This does not specify device count, memory per device or interconnect.
+          Weight and KV estimates exclude runtime overhead, workspace, and other cache/state allocations. Runtime fit remains unverified.
+        </p>
+        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
+          <HugeiconsIcon icon={StarIcon} size={13} strokeWidth={1.9} aria-hidden="true" className="text-meta" />
+          A star marks an exact checkpoint referenced by an official deployment recipe.
+        </p>
+      </section>
+      <section className="border-t border-line py-5" aria-labelledby="recipes-title">
+        <h3 id="recipes-title" className="font-display text-[19px] font-semibold">Runtime recipes</h3>
+        <p className="mt-1 max-w-[76ch] text-[12.5px] text-muted">
+          Requirements apply only to each linked recipe and its configuration, not every way to run this model.
+          Check the upstream runtime version, context length, concurrency, KV cache and device topology.
+        </p>
         {displayRecipes.length > 0 ? (
           <div className="mt-4 divide-y divide-linesoft border-y border-line">
             {displayRecipes.map((recipe) => (
@@ -366,136 +503,6 @@ export function ModelDetailView({
           </div>
         )}
 
-        {entry.runReports.length > 0 ? (
-          <details className="motion-disclosure group/reports mt-3 border-y border-linesoft">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 marker:hidden">
-              <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="text-faint" />
-              <span className="flex-1 text-[12px] font-semibold">Akashic run reports · {entry.runReports.length}</span>
-              <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.8} aria-hidden="true" className="text-faint transition-transform group-open/reports:rotate-180" />
-            </summary>
-            <div className="disclosure-body">
-              <div className="disclosure-content">
-                <div className="divide-y divide-linesoft border-t border-linesoft">
-                {entry.runReports.map((report) => (
-                  <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
-                    <span>
-                      <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
-                      <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
-                    </span>
-                    <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
-                    <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
-                    <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
-                  </div>
-                ))}
-                </div>
-              </div>
-            </div>
-          </details>
-        ) : null}
-
-        <div className="mt-4 overflow-hidden rounded-[8px] border border-line bg-panel">
-          <div className="hidden grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid">
-            <span aria-hidden="true"><span className="sr-only">Compare</span></span>
-            <span><LexiconHint term="quantization" onLearn={onLearn}>Quant</LexiconHint></span>
-            <span><LexiconHint term="provider" onLearn={onLearn}>Provider and repository</LexiconHint></span>
-            <span>VRAM</span>
-            <span>Profile fit</span>
-            <span className="sr-only">Open repository</span>
-          </div>
-          <div className="divide-y divide-linesoft">
-            {artifacts.map((artifact) => {
-              const fits = rig.gb >= artifact.recVramGb;
-              const selected = checked.has(artifact.repo);
-              const disabled = !selected && compareLimitReached;
-              const recipeCheckpoint = recipeCheckpointByRepo.get(artifact.repo.toLowerCase());
-              return (
-                <div
-                  key={`${artifact.variant}-${artifact.repo}`}
-                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] md:items-center ${
-                    fits ? "bg-verifysoft" : "bg-alertsoft"
-                  }`}
-                >
-                  <label className="absolute flex h-10 w-10 cursor-pointer items-center justify-center md:static" title="Compare artifact">
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      disabled={disabled}
-                      onChange={(event) => onCheck(artifact.repo, event.target.checked)}
-                      aria-label={`Compare ${artifact.repo}`}
-                      className="disabled:cursor-not-allowed disabled:opacity-35"
-                    />
-                  </label>
-                  <div className="min-w-0 pl-11 md:pl-0">
-                    <span className="flex flex-wrap items-center gap-1.5 font-mono text-[13px] font-semibold">
-                      {artifact.format}
-                      {recipeCheckpoint ? (
-                        <span
-                          title={`Official checkpoint in ${recipeCheckpoint.recipe.title}`}
-                          className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[10px] font-semibold text-meta"
-                        >
-                          <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" className="recipe-star" />
-                          Recipe checkpoint
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {artifact.runtimes.map((runtime) => (
-                        <span key={runtime} className="rounded-[4px] bg-panel/70 px-1.5 py-px font-mono text-[10.5px] text-muted">
-                          {runtime}
-                        </span>
-                      ))}
-                    </span>
-                  </div>
-                  <div className="min-w-0 pl-11 md:pl-0">
-                    <span className="block text-[12.5px] font-semibold">{uploaderDisplay(artifact.repo)}</span>
-                    <span className="mt-0.5 block break-all font-mono text-[10.5px] text-muted">{artifact.repo}</span>
-                  </div>
-                  <div className="pl-11 md:pl-0">
-                    <span className="text-[11px] text-muted md:hidden">VRAM · </span>
-                    <span className="font-mono text-[13px] font-semibold">{artifact.recVramGb} GB</span>
-                    <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
-                      {artifact.vramEstimated ? "Estimated" : "Curated"}
-                    </span>
-                    {recipeCheckpoint?.variant.minimumVramGb ? (
-                      <span className="mt-0.5 block text-[10px] font-semibold text-meta">
-                        {recipeCheckpoint.recipe.runtime} recipe minimum · {recipeCheckpoint.variant.minimumVramGb} GB
-                      </span>
-                    ) : null}
-                  </div>
-                  <div
-                    key={`${artifact.repo}-${rig.gb}-${fits ? "fits" : "no"}`}
-                    className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${fits ? "text-verify" : "text-alert"}`}
-                  >
-                    <HugeiconsIcon
-                      icon={fits ? CheckmarkCircle02Icon : CancelCircleIcon}
-                      size={17}
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    />
-                    {fits ? `Fits ${rig.gb} GB` : `Needs ${artifact.recVramGb} GB`}
-                  </div>
-                  <a
-                    href={`https://huggingface.co/${artifact.repo}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Open ${artifact.repo} on Hugging Face`}
-                    title="Open on Hugging Face"
-                    className="absolute right-3 flex h-9 w-9 items-center justify-center rounded-[7px] text-muted hover:bg-panel hover:text-ink md:static"
-                  >
-                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} aria-hidden="true" />
-                  </a>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <p className="mt-2.5 text-[11.5px] text-muted">
-          Green fits the selected profile; red exceeds it. Estimates exclude runtime headroom.
-        </p>
-        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
-          <HugeiconsIcon icon={StarIcon} size={13} strokeWidth={1.9} aria-hidden="true" className="text-meta" />
-          A star marks an exact checkpoint referenced by an official deployment recipe.
-        </p>
       </section>
 
       {displayMaterialChanges.length > 0 ? (

@@ -30,3 +30,11 @@ describe("published catalog projections", () => {
     expect(summary.size).not.toHaveProperty("scores");
   });
 });
+
+it("preserves full artifact memory, provenance, and missing/zero benchmark values", () => {
+  const payload = publishableEntry(CATALOG_FIXTURES[0]);
+  payload.artifacts[0] = { ...payload.artifacts[0], trust: "vendor", confidence: "inferred", minVramGb: 328, recVramGb: 340,
+    measured: true, deltas: { ...payload.artifacts[0].deltas, mmlu: 0, gpqa: null } };
+  expect(hydratePublishedEntries([payload]).entries[0].artifacts[0]).toEqual(payload.artifacts[0]);
+  expect(hydratePublishedEntries([catalogSummary(payload)]).entries[0].artifacts[0].confidence).toBe("needs_review");
+});

@@ -1,7 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { BENCHES } from "@/lib/atlas/data";
-import { fitOf } from "@/lib/atlas/fit";
+import { fitOf, memoryEstimateLabel, memoryAssumptions } from "@/lib/atlas/fit";
 import { learnTermForFormat } from "@/lib/atlas/learn";
 import type { Artifact, RigProfile } from "@/lib/atlas/types";
 import { uploaderDisplay } from "@/lib/atlas/naming";
@@ -93,24 +93,15 @@ export function CompareDrawer({
                 </dl>
                 <dl className="mt-2.5 grid grid-cols-2 gap-3 border-t border-linesoft pt-2.5">
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">VRAM</dt>
-                    <dd className="mt-0.5 font-mono text-[13px]">{artifact.minVramGb}–{artifact.recVramGb} GB</dd>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Memory estimate</dt>
+                    <dd className="mt-0.5 font-mono text-[13px]">{memoryEstimateLabel(artifact)}<span className="mt-1 block font-sans text-[10px] text-muted">{memoryAssumptions(artifact)}</span></dd>
                   </div>
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Fit</dt>
+                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Runtime</dt>
                     <dd className="mt-0.5"><FitBadge fit={fit} /></dd>
                   </div>
                 </dl>
-                {artifacts.length > 1 ? (
-                  <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-linesoft pt-2.5">
-                    {BENCHES.map((bench) => (
-                      <div key={bench.key} className="flex items-center justify-between gap-2">
-                        <dt className="text-[11px] text-muted">{bench.label}</dt>
-                        <dd><DeltaChip delta={artifact.deltas[bench.key]} measured={artifact.measured} /></dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : null}
+
               </section>
             );
           })}
@@ -168,24 +159,35 @@ export function CompareDrawer({
                 {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top text-[12.5px]">{uploaderDisplay(artifact.repo)}</td>)}
               </tr>
               <tr>
-                <td className={labelCell}>VRAM</td>
-                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{artifact.minVramGb}–{artifact.recVramGb} GB</td>)}
+                <td className={labelCell}>Memory estimate</td>
+                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{memoryEstimateLabel(artifact)}<span className="mt-1 block max-w-[240px] whitespace-normal font-sans text-[10px] text-muted">{memoryAssumptions(artifact)}</span></td>)}
               </tr>
               <tr>
-                <td className={labelCell}>Fit</td>
+                <td className={labelCell}>Runtime</td>
                 {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><FitBadge fit={fitOf(artifact, rig)} /></td>)}
               </tr>
-              {artifacts.length > 1
-                ? BENCHES.map((bench) => (
-                    <tr key={bench.key}>
-                      <td className={labelCell}>{bench.label} Δ</td>
-                      {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><DeltaChip delta={artifact.deltas[bench.key]} measured={artifact.measured} /></td>)}
-                    </tr>
-                  ))
-                : null}
+
             </tbody>
           </table>
         </div>
+        <p className="mt-3 text-[11.5px] text-muted">
+          Runtime fit is unverified. Total memory does not establish runtime support, KV cache, context length, concurrency or device topology.
+        </p>
+        {artifacts.some((artifact) => BENCHES.some((bench) => Number.isFinite(artifact.deltas[bench.key]))) ? (
+          <details className="mt-2 border-t border-linesoft pt-2 text-[11.5px] text-muted">
+            <summary className="cursor-pointer">Unaligned benchmark evidence</summary>
+            <p className="mt-2">Evaluation protocols and BF16 references are not recorded. These deltas cannot be compared across artifacts.</p>
+            {artifacts.map((artifact) => (
+              <div key={artifact.repo} className="mt-2">
+                <p className="break-all font-mono">{artifact.repo}</p>
+                {BENCHES.filter((bench) => Number.isFinite(artifact.deltas[bench.key])).map((bench) => (
+                  <span key={bench.key} className="mr-3 inline-flex gap-1">{bench.label} <DeltaChip delta={artifact.deltas[bench.key]} measured={artifact.measured} /></span>
+                ))}
+              </div>
+            ))}
+          </details>
+        ) : <p className="mt-2 text-[11.5px] text-muted">No benchmark delta data for the selected artifacts. Missing results are not zero scores.</p>}
+
       </div>
     </div>
   );
