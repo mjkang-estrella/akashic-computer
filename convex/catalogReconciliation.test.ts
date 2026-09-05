@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { modelEntry } from "../test/catalogFixture";
 import { publishableEntry } from "../src/lib/atlas/published";
 import { classifyHuggingFaceRepo, compactClassification, type MonitoredSourceRule } from "../src/lib/atlas/huggingface";
-import { targetForParsed } from "./catalogReconciliation";
+import { targetForParsed, mergeParsedIntoPayload } from "./catalogReconciliation";
 import type { Doc } from "./_generated/dataModel";
 
 const creator: MonitoredSourceRule = { owner: "zai-org", role: "creator", familyIds: ["glm"] };
@@ -40,4 +40,14 @@ describe("exact model identity reconciliation", () => {
     expect(targetForParsed([flash], parsed("GLM-5.3-Flash-GGUF"), provider)).toBeNull();
     expect(targetForParsed([regular], parsed("My-Finetune", 753, ["zai-org/GLM-5.3"]), provider)).toBeNull();
   });
+});
+
+it("does not let a provider artifact change canonical architecture metadata", () => {
+  const original = publishableEntry(modelEntry({ slug: "flash", repo: "zai-org/GLM-5.3-Flash", paramsB: 321 }));
+  original.size.activeParamsB = 18;
+  original.size.isMoe = true;
+  const provider = { ...parsed("GLM-5.3-Flash-FP8", 321, ["zai-org/GLM-5.3-Flash"]), activeParamsB: 42 };
+  const updated = mergeParsedIntoPayload(original, provider, "artifact_provider");
+  expect(updated.size.activeParamsB).toBe(18);
+  expect(updated.size.isMoe).toBe(true);
 });
