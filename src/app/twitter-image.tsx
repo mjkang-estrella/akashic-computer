@@ -6,7 +6,7 @@ import {
   SOCIAL_IMAGE_SIZE,
 } from "@/components/brand/AkashicSocialImage";
 
-export const alt = "Akashic";
+export const alt = "Akashic — Open-weight models, made legible. Explore family, release, size, variant, and artifact.";
 export const size = SOCIAL_IMAGE_SIZE;
 export const contentType = "image/png";
 

@@ -23,21 +23,21 @@ const stixTwo = STIX_Two_Text({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://akashic.computer"),
-  title: "Akashic",
+  title: "Akashic — Open-weight models, made legible",
   description:
-    "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
+    "Discover open-weight AI for language, vision, audio, and beyond. Explore model families, downloadable weights, benchmarks, memory estimates, and runtime evidence.",
   openGraph: {
-    title: "Akashic",
+    title: "Akashic — Open-weight models, made legible",
     description:
-      "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
+      "Explore the open model landscape, from family to downloadable weights. Compare benchmarks, memory estimates, and runtime evidence.",
     siteName: "Akashic",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Akashic",
+    title: "Akashic — Open-weight models, made legible",
     description:
-      "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
+      "Explore the open model landscape, from family to downloadable weights. Compare benchmarks, memory estimates, and runtime evidence.",
   },
 };
 

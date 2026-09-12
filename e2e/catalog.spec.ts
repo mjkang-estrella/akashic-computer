@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("navigates through dedicated product routes", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Open-weight models, made legible." })).toBeVisible();
 
   await page.getByRole("link", { name: "Model", exact: true }).click();
   await expect(page).toHaveURL(/\/models$/);
@@ -57,6 +57,6 @@ test("shows official vLLM and SGLang recipes for an exact model match", async ({
 
 test("does not translate retired query-string tabs", async ({ page }) => {
   await page.goto("/?tab=model");
-  await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Open-weight models, made legible." })).toBeVisible();
   await expect(page).toHaveURL(/\?tab=model$/);
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
@@ -15,8 +16,10 @@ import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
 import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
 import type { ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
-import type { MaterialChange, RigProfile } from "@/lib/atlas/types";
+import type { MaterialChange } from "@/lib/atlas/types";
+import { MODEL_CATEGORIES } from "@/lib/atlas/taxonomy";
 import { FamilyLogo } from "./FamilyLogo";
+import { ModelPathExplorer } from "./ModelPathExplorer";
 
 const FEATURED_BENCHMARK_IDS = [
   "mmlu-pro",
@@ -29,6 +32,18 @@ const FEATURED_DOC_SLUGS = [
   "quantization",
   "memory-and-context",
 ] as const;
+
+const CATEGORY_DESCRIPTIONS = {
+  language: "Chat, code, reason, and use tools",
+  "vision-documents": "Understand images and read documents",
+  "image-generation": "Create and edit images",
+  "video-generation": "Turn prompts and images into video",
+  "audio-speech": "Transcribe, speak, and create sound",
+  retrieval: "Search, embed, and rerank information",
+  "3d-spatial": "Generate objects and understand space",
+  "world-models": "Model environments and their dynamics",
+  robotics: "Connect perception to physical action",
+} as const;
 
 interface CatalogHealth {
   level: "healthy" | "degraded" | "stale";
@@ -165,91 +180,6 @@ function CatalogStatus({
   );
 }
 
-function CatalogField({ entries }: { entries: ModelEntry[] }) {
-  const bars = useMemo(() => {
-    const recent = [...entries]
-      .sort((a, b) => b.timestamp - a.timestamp || b.size.paramsB - a.size.paramsB)
-      .slice(0, 28);
-    const maximum = Math.max(1, ...recent.map((entry) => entry.size.paramsB));
-    return recent.map((entry) => {
-      const normalized = Math.log10(entry.size.paramsB + 1) / Math.log10(maximum + 1);
-      const quantizations = new Set(entry.quantizations);
-      const tone = quantizations.has("NVFP4")
-        ? "bg-meta"
-        : quantizations.has("FP8")
-          ? "bg-verify"
-          : quantizations.has("INT4") || quantizations.has("Native INT4")
-            ? "bg-caution"
-            : "bg-ink";
-      return {
-        id: entry.slug,
-        height: 24 + normalized * 76,
-        tone,
-      };
-    });
-  }, [entries]);
-  const familyCount = useMemo(
-    () => new Set(entries.map((entry) => entry.family.id)).size,
-    [entries],
-  );
-  const formatCount = useMemo(
-    () => new Set(entries.flatMap((entry) => entry.quantizations)).size,
-    [entries],
-  );
-
-  return (
-    <figure
-      aria-label={`${entries.length} model sizes across ${familyCount} families and ${formatCount} weight formats`}
-      className="relative min-h-[248px] overflow-hidden border-y border-line py-5 lg:min-h-[296px] lg:border-y-0 lg:border-r lg:pr-10"
-    >
-      <figcaption className="sr-only">
-        Recent catalog entries shown by parameter scale. Bar colors indicate
-        available weight formats.
-      </figcaption>
-      <div className="pointer-events-none absolute inset-x-0 top-5 bottom-[58px] flex flex-col justify-between lg:right-10">
-        {Array.from({ length: 5 }, (_, index) => (
-          <span key={index} className="block border-t border-linesoft" />
-        ))}
-      </div>
-      <div
-        aria-hidden="true"
-        className="relative flex h-[166px] items-end gap-1.5 lg:h-[212px]"
-      >
-        {bars.map((bar, index) => (
-          <span
-            key={bar.id}
-            className={`catalog-field-bar min-w-1 flex-1 rounded-t-[2px] ${bar.tone}`}
-            style={{
-              height: `${bar.height}%`,
-              animationDelay: `${index * 12}ms`,
-            }}
-          />
-        ))}
-      </div>
-      <div className="mt-5 grid grid-cols-3 border-t border-line pt-3">
-        <span>
-          <strong className="block font-mono text-[13px] font-semibold">
-            {entries.length}
-          </strong>
-          <span className="mt-0.5 block text-[10.5px] text-muted">model sizes</span>
-        </span>
-        <span className="border-l border-linesoft pl-4">
-          <strong className="block font-mono text-[13px] font-semibold">
-            {familyCount}
-          </strong>
-          <span className="mt-0.5 block text-[10.5px] text-muted">families</span>
-        </span>
-        <span className="border-l border-linesoft pl-4">
-          <strong className="block font-mono text-[13px] font-semibold">
-            {formatCount}
-          </strong>
-          <span className="mt-0.5 block text-[10.5px] text-muted">weight formats</span>
-        </span>
-      </div>
-    </figure>
-  );
-}
-
 function HomeLoadingRows() {
   return (
     <div className="divide-y divide-linesoft border-y border-line" aria-hidden="true">
@@ -275,7 +205,6 @@ export function HomeView({
   loading,
   health,
   revision,
-  rig,
   onOpenModel,
   onViewModels,
   onViewBenchmarks,
@@ -288,7 +217,6 @@ export function HomeView({
   loading: boolean;
   health: CatalogHealth | null;
   revision: string;
-  rig: RigProfile;
   onOpenModel: (entry: ModelEntry) => void;
   onViewModels: () => void;
   onViewBenchmarks: () => void;
@@ -334,13 +262,6 @@ export function HomeView({
     }).slice(0, 5),
     [entries, materialChanges],
   );
-  const runnableEntries = useMemo(
-    () =>
-      entries.filter((entry) =>
-        entry.artifacts.some((artifact) => artifact.recVramGb <= rig.gb),
-      ).length,
-    [entries, rig.gb],
-  );
   const recentEntries = useMemo(
     () =>
       [...entries]
@@ -385,45 +306,71 @@ export function HomeView({
 
   return (
     <section className="pb-10 pt-6 sm:pt-8">
-      <header className="grid gap-6 border-b border-line pb-8 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
-        <div className="order-2 lg:order-1">
-          <CatalogField entries={entries} />
-        </div>
-        <div className="order-1 lg:order-2 lg:pl-2">
-          <h2 className="max-w-[18ch] text-balance font-display text-[36px] font-semibold leading-[1.08] sm:text-[44px] lg:text-[52px]">
-            Open-weight models, organized.
-          </h2>
-          <p className="mt-4 max-w-[58ch] text-[14.5px] leading-relaxed text-muted">
-            Browse current releases, quantized artifacts, VRAM estimates, and
-            creator-reported benchmark evidence without collapsing technical
-            tradeoffs into a single recommendation.
+      <header className="grid gap-8 border-b border-line pb-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
+        <div className="py-2 lg:py-8">
+          <p className="mb-5 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-muted">An atlas for open-weight AI</p>
+          <h1 className="max-w-[17ch] text-balance font-display text-[42px] font-semibold leading-[1.06] sm:text-[54px] xl:text-[64px]">
+            Open-weight models, made legible.
+          </h1>
+          <p className="mt-5 max-w-[49ch] text-[15px] leading-relaxed text-muted">
+            Explore language, vision, audio, and beyond. Find the releases and
+            downloadable weights, then understand their benchmarks, memory
+            estimates, and runtime evidence.
           </p>
-          <div className="mt-4">
-            <CatalogStatus
-              syncedAt={syncedAt}
-              loading={loading}
-              health={health}
-              revision={revision}
-            />
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link href="/models" className="group inline-flex min-h-11 items-center gap-2 rounded-[7px] bg-ink px-4 text-[13px] font-semibold text-paper hover:bg-ink/85">
+              Explore the models
+              <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link href="/benchmarks" className="inline-flex min-h-11 items-center gap-2 px-2 text-[13px] font-semibold text-muted hover:text-ink">
+              Compare benchmarks
+              <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" />
+            </Link>
           </div>
-          <div className="mt-4 grid border-y border-line sm:grid-cols-2">
-            <p className="flex min-h-12 items-center gap-2 py-2 text-[11.5px] text-muted sm:pr-4">
-              <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
-              {previousVisit === undefined
-                ? "Checking changes since your last visit"
-                : previousVisit === null
-                  ? "This is your first tracked catalog visit"
-                  : `${changesSinceVisit ?? 0} model ${changesSinceVisit === 1 ? "change" : "changes"} since your last visit`}
-            </p>
-            <p className="flex min-h-12 items-center gap-2 border-t border-linesoft py-2 text-[11.5px] text-muted sm:border-t-0 sm:border-l sm:pl-4">
-              <HugeiconsIcon icon={CubeIcon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
-              {loading
-                ? `Checking listed artifacts against ${rig.label}`
-                : `${rig.label}: ${runnableEntries} of ${entries.length} model sizes have an artifact estimated to fit`}
-            </p>
+          <div className="mt-7 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-t border-line pt-4 font-mono text-[12px]">
+            <span><strong className="font-semibold">{loading && !entries.length ? "—" : entries.length}</strong> <span className="text-muted">model sizes</span></span>
+            <span><strong className="font-semibold">{loading && !entries.length ? "—" : new Set(entries.map((entry) => entry.family.id)).size}</strong> <span className="text-muted">families</span></span>
+            <span><strong className="font-semibold">{loading && !entries.length ? "—" : new Set(entries.map((entry) => entry.category)).size}</strong> <span className="text-muted">categories</span></span>
           </div>
+          <div className="mt-2">
+            <CatalogStatus syncedAt={syncedAt} loading={loading} health={health} revision={revision} />
+          </div>
+          {previousVisit != null ? (
+            <p className="mt-1 flex items-center gap-2 text-[11.5px] text-muted">
+              <HugeiconsIcon icon={Clock01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
+              {changesSinceVisit ?? 0} model {changesSinceVisit === 1 ? "change" : "changes"} since your last visit
+            </p>
+          ) : null}
         </div>
+        <ModelPathExplorer entries={entries} loading={loading} />
       </header>
+
+      <section className="border-b border-line py-7" aria-labelledby="discovery-title">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="discovery-title" className="font-display text-[24px] font-semibold">What do you want to build?</h2>
+            <p className="mt-1 text-[13px] text-muted">Discover the model landscape by what it can do.</p>
+          </div>
+          <Link href="/models" className="inline-flex min-h-11 items-center gap-1.5 text-[12px] font-semibold text-meta hover:text-ink">Browse the full atlas <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" /></Link>
+        </header>
+        <div className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
+          {MODEL_CATEGORIES.map((category, index) => {
+            const count = entries.filter((entry) => entry.category === category.id).length;
+            const detail = CATEGORY_DESCRIPTIONS[category.id];
+            return (
+              <Link key={category.id} href={`/models?category=${category.id}`}
+                className="group flex min-h-[88px] items-center gap-3 border-b border-line px-3 py-4 hover:bg-panel">
+                <span className="self-start pt-1 font-mono text-[10px] text-faint">{String(index + 1).padStart(2, "0")}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-baseline gap-x-2"><span className="text-[13px] font-semibold group-hover:underline group-hover:underline-offset-4">{category.label}</span><span className="font-mono text-[10px] text-faint">{loading && !entries.length ? "—" : count} model sizes</span></span>
+                  <span className="mt-1 block text-[12px] text-muted">{detail}</span>
+                </span>
+                <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <nav aria-label="Start exploring" className="grid border-b border-line md:grid-cols-3">
         {[

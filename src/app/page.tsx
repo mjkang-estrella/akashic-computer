@@ -2,12 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { HomeView } from "@/components/atlas/HomeView";
-import { useAtlasUi } from "@/components/atlas/AtlasShell";
 import { useCatalog } from "@/components/atlas/CatalogProvider";
 
 export default function HomePage() {
   const router = useRouter();
-  const { rig } = useAtlasUi();
   const { entries, materialChanges, syncedAt, health, loading, revision } = useCatalog();
 
   return (
@@ -18,7 +16,6 @@ export default function HomePage() {
       loading={loading}
       health={health}
       revision={revision}
-      rig={rig}
       onOpenModel={(entry) => router.push(`/models/${entry.slug}`)}
       onViewModels={() => router.push("/models")}
       onViewBenchmarks={() => router.push("/benchmarks")}
