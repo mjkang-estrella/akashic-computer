@@ -1,3 +1,4 @@
+import { normalizeCatalogEntry } from "../src/lib/atlas/published";
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { convexValuesEqual } from "./catalogSnapshot";
@@ -7,7 +8,6 @@ import {
 } from "./catalogValues";
 import {
   catalogSummary,
-  type PublishedCatalogEntry,
 } from "../src/lib/atlas/published";
 import {
   SOURCE_FRESHNESS_MS,
@@ -139,7 +139,7 @@ export const rebuildPublishedSnapshot = internalMutation({
     );
     const entries = documents
       .sort((a, b) => b.updatedAt - a.updatedAt || a.slug.localeCompare(b.slug))
-      .map((document) => catalogSummary(document.payload as PublishedCatalogEntry));
+      .map((document) => catalogSummary(normalizeCatalogEntry(document.payload)));
     const nextChunks = Array.from(
       { length: Math.ceil(entries.length / SNAPSHOT_CHUNK_SIZE) },
       (_, index) => entries.slice(index * SNAPSHOT_CHUNK_SIZE, (index + 1) * SNAPSHOT_CHUNK_SIZE),
@@ -193,11 +193,20 @@ export const getBySlug = query({
   args: { slug: v.string() },
   returns: v.union(publishedCatalogEntryValue, v.null()),
   handler: async (ctx, args) => {
-    const document = await ctx.db
-      .query("catalogEntries")
-      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
-      .unique();
-    return document?.payload ?? null;
+    let slug = args.slug;
+    const visited = new Set<string>();
+    for (let depth = 0; depth < 8; depth += 1) {
+      if (visited.has(slug)) return null;
+      visited.add(slug);
+      const document = await ctx.db.query("catalogEntries")
+        .withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
+      if (document) return normalizeCatalogEntry(document.payload);
+      const alias = await ctx.db.query("catalogAliases")
+        .withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
+      if (!alias) return null;
+      slug = alias.canonicalSlug;
+    }
+    return null;
   },
 });
 

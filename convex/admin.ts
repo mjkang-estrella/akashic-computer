@@ -1,8 +1,8 @@
+import { normalizeCatalogEntry } from "../src/lib/atlas/published";
 import { action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { convexValuesEqual, scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
-import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
 
 const modelIntroductionArgs = {
   slug: v.string(),
@@ -77,7 +77,7 @@ export const upsertModelIntroduction = internalMutation({
       sourceUrl: args.sourceUrl,
       ...(args.sourceSha ? { sourceSha: args.sourceSha } : {}),
     };
-    const payload = document.payload as PublishedCatalogEntry;
+    const payload = normalizeCatalogEntry(document.payload);
     const changed = !convexValuesEqual(payload.introduction, introduction);
     const existing = await ctx.db
       .query("modelIntroductions")

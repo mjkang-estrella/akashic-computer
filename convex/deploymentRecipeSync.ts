@@ -1,3 +1,4 @@
+import { normalizeCatalogEntry } from "../src/lib/atlas/published";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery, type ActionCtx } from "./_generated/server";
@@ -10,7 +11,6 @@ import {
 } from "../src/lib/atlas/intelligence";
 import { parseSglangRecipe } from "../src/lib/atlas/sglangRecipes";
 import type { DeploymentRecipeProvider } from "../src/lib/atlas/types";
-import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
 import { upsertMaterialChange } from "./intelligence";
 import { scheduleCatalogSnapshotRefresh } from "./catalogSnapshot";
 import { parsedDeploymentRecipeValue } from "./catalogValues";
@@ -228,7 +228,7 @@ export const finalizeSync = internalMutation({
     let matchedEntries = 0;
     let changedEntries = 0;
     for (const entry of entries) {
-      const payload = entry.payload as PublishedCatalogEntry;
+      const payload = normalizeCatalogEntry(entry.payload);
       const repos = new Set([...entry.sourceRepos, ...payload.artifacts.map((artifact) => artifact.repo)]
         .map((repo) => repo.toLowerCase()));
       const matches = [...new Map(

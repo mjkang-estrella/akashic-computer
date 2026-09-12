@@ -9,7 +9,11 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as audit from "../audit.js";
+import type * as auditState from "../auditState.js";
+import type * as auditValues from "../auditValues.js";
 import type * as catalog from "../catalog.js";
+import type * as catalogIngestion from "../catalogIngestion.js";
 import type * as catalogReconciliation from "../catalogReconciliation.js";
 import type * as catalogSnapshot from "../catalogSnapshot.js";
 import type * as catalogValues from "../catalogValues.js";
@@ -33,7 +37,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  audit: typeof audit;
+  auditState: typeof auditState;
+  auditValues: typeof auditValues;
   catalog: typeof catalog;
+  catalogIngestion: typeof catalogIngestion;
   catalogReconciliation: typeof catalogReconciliation;
   catalogSnapshot: typeof catalogSnapshot;
   catalogValues: typeof catalogValues;

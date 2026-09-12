@@ -10,6 +10,20 @@ crons.daily(
   {},
 );
 
+crons.interval(
+  "recover interrupted catalog source jobs",
+  { minutes: 5 },
+  internal.audit.recoverSources,
+  {},
+);
+
+crons.interval(
+  "recover abandoned catalog webhook events",
+  { minutes: 5 },
+  internal.webhooks.recoverPending,
+  {},
+);
+
 crons.hourly(
   "synchronize official vLLM recipes",
   { minuteUTC: 15 },

@@ -1,8 +1,8 @@
+import { normalizeCatalogEntry } from "../src/lib/atlas/published";
 import { v } from "convex/values";
 import { internalMutation, query, type MutationCtx } from "./_generated/server";
 import { changeDateLabel } from "../src/lib/atlas/intelligence";
 import type { MaterialChange, MaterialChangeType, RunReport } from "../src/lib/atlas/types";
-import type { PublishedCatalogEntry } from "../src/lib/atlas/published";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -91,7 +91,7 @@ export async function upsertMaterialChange(
     .withIndex("by_slug", (q) => q.eq("slug", change.modelSlug))
     .unique();
   if (entry) {
-    const payload = entry.payload as PublishedCatalogEntry;
+    const payload = normalizeCatalogEntry(entry.payload);
     const materialChanges = [
       publicChange(change),
       ...(payload.materialChanges ?? []).filter((item) => item.id !== change.dedupeKey),
@@ -184,7 +184,7 @@ export const upsertRunReport = internalMutation({
       .withIndex("by_slug", (q) => q.eq("slug", args.modelSlug))
       .unique();
     if (!entry) throw new Error(`Unknown catalog model ${args.modelSlug}`);
-    const payload = entry.payload as PublishedCatalogEntry;
+    const payload = normalizeCatalogEntry(entry.payload);
     if (!payload.artifacts.some((artifact) => artifact.repo === args.artifactRepo)) {
       throw new Error(`Artifact ${args.artifactRepo} is not linked to ${args.modelSlug}`);
     }

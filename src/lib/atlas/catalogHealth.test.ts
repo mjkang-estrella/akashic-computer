@@ -44,10 +44,15 @@ describe("Hugging Face retry timing", () => {
     expect(hubRetryDelayMs("420", null, 1_000, 60_000, 2)).toBe(420_000);
   });
 
-  it("uses the rate-limit reset timestamp and caps excessive delays", () => {
+  it("uses the reset timestamp and never shortens server-directed delays", () => {
     const now = 1_000_000;
     expect(hubRetryDelayMs(null, String((now + 90_000) / 1000), now, 60_000, 0)).toBe(90_000);
-    expect(hubRetryDelayMs("7200", null, now, 60_000, 0)).toBe(30 * 60_000);
+    expect(hubRetryDelayMs("7200", null, now, 60_000, 0)).toBe(7_200_000);
+  });
+
+  it("supports the Hub RateLimit header", () => {
+    expect(hubRetryDelayMs(null, null, 0, 60_000, 0, '"api";r=0;t=420')).toBe(420_000);
+    expect(hubRetryDelayMs(null, null, 0, 60_000, 0, '"api";r=25;t=420')).toBe(60_000);
   });
 
   it("uses exponential fallback with a 30-second floor", () => {

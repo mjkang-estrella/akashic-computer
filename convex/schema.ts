@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { publishedCatalogEntryValue, publishedCatalogSummaryValue } from "./catalogValues";
+import { sourceAuditJobFields } from "./auditValues";
 
 const sourceFields = {
   sourceRepo: v.optional(v.string()),
@@ -274,6 +275,7 @@ export default defineSchema({
     missingCount: v.number(),
     lastSeenAt: v.number(),
     lastIngestedAt: v.optional(v.number()),
+    lastMissingAuditId: v.optional(v.id("syncRuns")),
   })
     .index("by_repo_id", ["repoId"])
     .index("by_repo_name", ["repoName"])
@@ -327,10 +329,18 @@ export default defineSchema({
     sourceOwners: v.optional(v.array(v.string())),
     sourcePaceMs: v.optional(v.number()),
     message: v.optional(v.string()),
+    auditVersion: v.optional(v.literal(2)),
+    completedSourceOwners: v.optional(v.array(v.string())),
+    cancelledAt: v.optional(v.number()),
   })
     .index("by_kind_started", ["kind", "startedAt"])
     .index("by_status", ["status"])
     .index("by_status_and_kind", ["status", "kind"]),
+
+  sourceAuditJobs: defineTable(sourceAuditJobFields)
+    .index("by_run_and_owner", ["runId", "owner"])
+    .index("by_run_and_status_and_next_wake", ["runId", "status", "nextWakeAt"])
+    .index("by_status_and_next_wake", ["status", "nextWakeAt"]),
 
   modelIntroductions: defineTable({
     slug: v.string(),
@@ -358,6 +368,15 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_family", ["familyId"])
     .index("by_updated", ["updatedAt"]),
+
+  catalogAliases: defineTable({
+    slug: v.string(),
+    canonicalSlug: v.string(),
+    createdAt: v.number(),
+    reason: v.literal("identity_repair"),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_canonical_slug", ["canonicalSlug"]),
 
   catalogState: defineTable({
     key: v.string(),

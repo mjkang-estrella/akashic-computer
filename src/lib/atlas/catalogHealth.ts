@@ -83,6 +83,7 @@ export function hubRetryDelayMs(
   now: number,
   fallbackMs: number,
   attempt: number,
+  rateLimit: string | null = null,
 ): number {
   let headerDelay: number | null = null;
   if (retryAfter) {
@@ -98,6 +99,14 @@ export function hubRetryDelayMs(
     const resetSeconds = Number(rateLimitReset);
     if (Number.isFinite(resetSeconds)) headerDelay = resetSeconds * 1000 - now;
   }
+  if (headerDelay === null && rateLimit) {
+    const resets = [...rateLimit.matchAll(/;\s*r=0\s*;\s*t=(\d+)/gi)]
+      .map((match) => Number(match[1]) * 1000);
+    if (resets.length) headerDelay = Math.max(...resets);
+  }
   const delay = headerDelay ?? fallbackMs * 2 ** Math.max(0, attempt);
-  return Math.min(MAX_RETRY_MS, Math.max(MIN_RETRY_MS, Math.ceil(delay)));
+  // Never retry before the upstream's explicit reset, even beyond our backoff cap.
+  return headerDelay !== null
+    ? Math.max(MIN_RETRY_MS, Math.ceil(delay))
+    : Math.min(MAX_RETRY_MS, Math.max(MIN_RETRY_MS, Math.ceil(delay)));
 }

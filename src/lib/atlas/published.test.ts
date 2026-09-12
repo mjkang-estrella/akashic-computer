@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG_FIXTURES } from "../../../test/catalogFixture";
-import { catalogSummary, hydratePublishedEntries, publishableEntry } from "./published";
+import { catalogSummary, hydratePublishedEntries, normalizeCatalogEntry, publishableEntry, type StoredCatalogEntry } from "./published";
 
 describe("published catalog projections", () => {
+  it("normalizes legacy evidence fields without changing supplied evidence", () => {
+    const legacy: StoredCatalogEntry = { ...publishableEntry(CATALOG_FIXTURES[0]) };
+    delete legacy.deploymentRecipes;
+    delete legacy.materialChanges;
+    delete legacy.runReports;
+    const normalized = normalizeCatalogEntry(legacy);
+    expect(normalized.deploymentRecipes).toEqual([]);
+    expect(normalized.materialChanges).toEqual([]);
+    expect(normalized.runReports).toEqual([]);
+    expect(legacy).not.toHaveProperty("runReports");
+    expect(normalizeCatalogEntry(normalized)).toEqual(normalized);
+  });
   it("hydrates canonical model identities and artifacts", () => {
     const payloads = CATALOG_FIXTURES.map(publishableEntry);
     const hydrated = hydratePublishedEntries(payloads);

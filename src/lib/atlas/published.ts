@@ -33,6 +33,23 @@ export interface PublishedCatalogEntry
   artifacts: PublishedArtifact[];
 }
 
+/** Persisted records may predate optional evidence features. */
+export type StoredCatalogEntry = Omit<PublishedCatalogEntry,
+  "deploymentRecipes" | "materialChanges" | "runReports"
+> & Partial<Pick<PublishedCatalogEntry,
+  "deploymentRecipes" | "materialChanges" | "runReports"
+>>;
+
+/** Normalize once when crossing the storage boundary, before domain logic. */
+export function normalizeCatalogEntry(entry: StoredCatalogEntry): PublishedCatalogEntry {
+  return {
+    ...entry,
+    deploymentRecipes: entry.deploymentRecipes ?? [],
+    materialChanges: entry.materialChanges ?? [],
+    runReports: entry.runReports ?? [],
+  };
+}
+
 export type PublishedCatalogSummary = Omit<
   PublishedCatalogEntry,
   "artifacts" | "benchmarkRefs" | "introduction" | "deploymentRecipes" | "materialChanges" | "runReports" | "size" | "release"

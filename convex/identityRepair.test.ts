@@ -4,15 +4,23 @@ import { expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { modelEntry, artifact } from "../test/catalogFixture";
-import { publishableEntry } from "../src/lib/atlas/published";
+import { publishableEntry, type StoredCatalogEntry } from "../src/lib/atlas/published";
 import { classifyHuggingFaceRepo, compactClassification } from "../src/lib/atlas/huggingface";
 const modules = import.meta.glob("./**/*.*s");
 
-it("repairs a stale normalized regular-to-Flash link and remains idempotent on reingestion", async () => {
+for (const mode of ["current", "legacy", "sole-legacy"] as const) {
+it(`repairs a stale normalized regular-to-Flash link with ${mode} data and remains idempotent`, async () => {
   const t = convexTest(schema, modules);
   const flash = publishableEntry(modelEntry({ slug: "glm-glm-5-3-flash-321b", familyId: "glm", familyName: "GLM",
     releaseName: "GLM 5.3 Flash", releaseId: "glm-5-3-flash", sizeLabel: "321B", paramsB: 321,
     repo: "zai-org/GLM-5.3-Flash", artifacts: [artifact("zai-org/GLM-5.3-Flash"), artifact("zai-org/GLM-5.3")] }));
+  const stored: StoredCatalogEntry = { ...flash };
+  if (mode !== "current") {
+    delete stored.deploymentRecipes;
+    delete stored.materialChanges;
+    delete stored.runReports;
+  }
+  if (mode === "sole-legacy") stored.artifacts = [artifact("zai-org/GLM-5.3")];
   await t.run(async (ctx) => {
     await ctx.db.insert("monitoredSources", { owner: "zai-org", ownerKey: "zai-org", displayName: "Z.ai", role: "creator", enabled: true, familyIds: ["glm"] });
     const familyId = await ctx.db.insert("modelFamilies", { slug: "glm", name: "GLM", vendor: "Z.ai", summary: "", modalities: [], tags: [] });
@@ -20,7 +28,7 @@ it("repairs a stale normalized regular-to-Flash link and remains idempotent on r
     const sizeId = await ctx.db.insert("modelSizes", { releaseId, slug: flash.slug, label: "321B", parameterCountB: 321 });
     const variantId = await ctx.db.insert("modelVariants", { sizeId, slug: "instruct", name: "Instruct", variantKind: "instruct" });
     await ctx.db.insert("artifacts", { variantId, huggingFaceRepo: "zai-org/GLM-5.3", format: "FP8", uploaderKind: "official", runtimeSupport: [], available: true, confidence: "verified" });
-    await ctx.db.insert("catalogEntries", { slug: flash.slug, familyId: "glm", releaseId: flash.release.id, sizeLabel: "321B", sourceRepos: flash.artifacts.map((a) => a.repo), updatedAt: 1, payload: flash, publishedAt: 1, sourceRevision: "old" });
+    await ctx.db.insert("catalogEntries", { slug: flash.slug, familyId: "glm", releaseId: flash.release.id, sizeLabel: "321B", sourceRepos: stored.artifacts.map((a) => a.repo), updatedAt: 1, payload: stored, publishedAt: 1, sourceRevision: "old" });
   });
   const classification = compactClassification(classifyHuggingFaceRepo({ id: "zai-org/GLM-5.3", author: "zai-org", sha: "new",
     pipeline_tag: "text-generation", siblings: [{ rfilename: "model.safetensors" }], safetensors: { parameters: { BF16: 753e9 } },
@@ -30,7 +38,8 @@ it("repairs a stale normalized regular-to-Flash link and remains idempotent on r
     const result = await t.mutation(internal.sync.applyRepoResult, { classification, sourceOwner: "zai-org", runId, now });
     expect(result).toMatchObject({ status: "published", slug: "glm-glm-5-3-753b" });
     const remaining = await t.query(api.catalog.getBySlug, { slug: flash.slug });
-    expect(remaining!.artifacts.map((a) => a.repo)).toEqual(["zai-org/GLM-5.3-Flash"]);
+    expect(remaining!.artifacts.map((a) => a.repo)).toEqual(mode === "sole-legacy" ? ["zai-org/GLM-5.3"] : ["zai-org/GLM-5.3-Flash"]);
+    if (mode === "sole-legacy") expect(remaining!.slug).toBe("glm-glm-5-3-753b");
     const regular = await t.query(api.catalog.getBySlug, { slug: "glm-glm-5-3-753b" });
     expect(regular!.artifacts.map((a) => a.repo)).toEqual(["zai-org/GLM-5.3"]);
   }
@@ -38,3 +47,5 @@ it("repairs a stale normalized regular-to-Flash link and remains idempotent on r
   expect(normalized.filter((a) => a.available)).toHaveLength(1);
   expect(normalized.filter((a) => !a.available)[0].confidence).toBe("needs_review");
 });
+
+}

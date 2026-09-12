@@ -2,6 +2,26 @@ import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { normalizeOwnerKey } from "../src/lib/atlas/huggingface";
+import { WEBHOOK_FRESHNESS_MS } from "../src/lib/atlas/catalogHealth";
+
+export const recoverPending = internalMutation({
+  args: {},
+  returns: v.object({ scheduled: v.number() }),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const pending = await ctx.db.query("webhookEvents")
+      .withIndex("by_status_and_received", (q) => q.eq("status", "pending").lte("receivedAt", now - WEBHOOK_FRESHNESS_MS))
+      .take(100);
+    let scheduled = 0;
+    for (const event of pending) {
+      if (event.nextRetryAt !== undefined && event.nextRetryAt > now) continue;
+      await ctx.db.patch(event._id, { nextRetryAt: now + WEBHOOK_FRESHNESS_MS });
+      await ctx.scheduler.runAfter(scheduled * 5_000, internal.sync.processWebhook, { eventId: event._id, attempt: 0 });
+      scheduled += 1;
+    }
+    return { scheduled };
+  },
+});
 
 export const receive = internalMutation({
   args: {

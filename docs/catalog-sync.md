@@ -6,6 +6,9 @@ audit for recovery. Model lists read lean summaries from
 Normalized family, release, size, variant, artifact, source, event, and run
 tables retain the fields used for reconciliation and diagnostics.
 
+See [Catalog architecture](catalog-architecture.md) for module boundaries,
+durable worker semantics, and how to add sources or upstream integrations.
+
 Official vLLM Recipes are checked hourly at minute 15. Official SGLang
 cookbooks are checked daily at 04:15 UTC because their source lives in the much
 larger SGLang monorepo. Revision comparisons make unchanged checks read-only.
@@ -82,6 +85,8 @@ idempotent no-op.
 - Later audits compare the Hub list SHA with `sourceRepositories.headSha` and
   hydrate only new or changed repositories. Replayed or unchanged webhook
   events exit before catalog reconciliation.
+  Listings explicitly request `expand=sha`; default Hub responses omit the
+  commit field and cannot support this comparison.
 - Known creator and provider repositories resolve through the indexed artifact,
   variant, and size graph. A family-wide catalog read is reserved for a genuinely
   new model identity that has no existing repository or `base_model` link.
@@ -212,9 +217,24 @@ when no enabled source is current. Failed sources keep their last known good
 entries.
 
 Hugging Face `429` and server errors use `Retry-After` or
-`X-RateLimit-Reset` when supplied. Other retries use bounded exponential delay.
+`X-RateLimit-Reset`, or an exhausted `RateLimit` bucket when supplied. Explicit
+server reset times are honored even when longer than the fallback backoff cap.
+Other retries use bounded exponential delay.
 The source record stores its failure count and next retry time so the Convex
 dashboard and homepage status show what is actually waiting.
+
+Audits use independent `sourceAuditJobs`, checkpointing each Hub page and
+repository. The five-minute recovery cron resumes abandoned jobs and expires
+superseded leases. After three repository failures, remaining repositories
+continue updating, but that source is failed and no removal sweep runs.
+Old sequential audits are safely replaced when an audit is started again.
+Pending webhooks abandoned for ten minutes are recovered by a separate cron,
+which respects scheduled retry times.
+
+Repository configuration is optional enrichment: missing or malformed JSON
+falls back to structured Hub metadata. LFS configurations use the immutable
+`resolve` endpoint. Rate limits and upstream server failures remain visible
+and retryable rather than being treated as missing configuration.
 
 Inspect freshness and failures with:
 
