@@ -1,4 +1,4 @@
-import { ingestRepository, repositoryIngestionArgs, repositoryIngestionResultValue } from "./catalogIngestion";
+import { CATALOG_INGESTION_VERSION, ingestRepository, repositoryIngestionArgs, repositoryIngestionResultValue } from "./catalogIngestion";
 import { createAudit, completeAuditSource } from "./auditState";
 import { normalizeCatalogEntry } from "../src/lib/atlas/published";
 import {
@@ -60,6 +60,7 @@ const sourceRepoResultValue = v.union(v.null(), v.object({
   headSha: v.optional(v.string()),
   weightManifestHash: v.optional(v.string()),
   weightsLastModifiedAt: v.optional(v.number()),
+  ingestionVersion: v.optional(v.literal(2)),
 }));
 
 export const sourceByOwner = internalQuery({
@@ -136,6 +137,7 @@ export const sourceRepoByName = internalQuery({
       headSha: repo.headSha,
       weightManifestHash: repo.weightManifestHash,
       weightsLastModifiedAt: repo.weightsLastModifiedAt,
+      ingestionVersion: repo.ingestionVersion,
     } : null;
   },
 });
@@ -154,6 +156,7 @@ export const sourceRepoById = internalQuery({
       headSha: repo.headSha,
       weightManifestHash: repo.weightManifestHash,
       weightsLastModifiedAt: repo.weightsLastModifiedAt,
+      ingestionVersion: repo.ingestionVersion,
     } : null;
   },
 });
@@ -271,11 +274,19 @@ export const removeRepository = internalMutation({
   },
   returns: v.object({ removed: v.boolean() }),
   handler: async (ctx, args) => {
+    if (args.eventId) {
+      const event = await ctx.db.get(args.eventId);
+      if (!event || event.status !== "pending") return { removed: false };
+    }
     const source = await ctx.db
       .query("sourceRepositories")
       .withIndex("by_repo_name", (q) => q.eq("repoName", args.repoName))
       .unique();
-    if (!source) return { removed: false };
+    if (!source) {
+      // A confirmed deletion of an untracked repository is a completed no-op.
+      if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
+      return { removed: false };
+    }
 
     if (args.runId && !args.explicit) {
       const run = await ctx.db.get(args.runId);
@@ -397,6 +408,7 @@ export const processWebhook = internalAction({
       const prior = await ctx.runQuery(internal.sync.sourceRepoById, { repoId: event.repoId });
       if (
         !event.scope.startsWith("repo.config") &&
+        prior?.ingestionVersion === CATALOG_INGESTION_VERSION &&
         prior?.headSha &&
         prior.headSha === normalized.sha &&
         prior.repoName === normalized.id &&

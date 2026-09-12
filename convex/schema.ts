@@ -276,6 +276,7 @@ export default defineSchema({
     lastSeenAt: v.number(),
     lastIngestedAt: v.optional(v.number()),
     lastMissingAuditId: v.optional(v.id("syncRuns")),
+    ingestionVersion: v.optional(v.literal(2)),
   })
     .index("by_repo_id", ["repoId"])
     .index("by_repo_name", ["repoName"])
@@ -341,6 +342,14 @@ export default defineSchema({
     .index("by_run_and_owner", ["runId", "owner"])
     .index("by_run_and_status_and_next_wake", ["runId", "status", "nextWakeAt"])
     .index("by_status_and_next_wake", ["status", "nextWakeAt"]),
+
+  sourceAuditLeases: defineTable({
+    runId: v.id("syncRuns"),
+    lane: v.number(),
+    jobId: v.optional(v.id("sourceAuditJobs")),
+    leaseToken: v.number(),
+    expiresAt: v.number(),
+  }).index("by_run_and_lane", ["runId", "lane"]),
 
   modelIntroductions: defineTable({
     slug: v.string(),

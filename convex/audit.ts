@@ -20,7 +20,10 @@ import {
 } from "./huggingFaceClient";
 import { sourceRule } from "./catalogReconciliation";
 import { completeAuditSource, createAudit } from "./auditState";
-import { ingestRepository } from "./catalogIngestion";
+import {
+  CATALOG_INGESTION_VERSION,
+  ingestRepository,
+} from "./catalogIngestion";
 import { ingestionClassificationValue } from "./catalogValues";
 import {
   AUDIT_LEASE_MS,
@@ -36,6 +39,32 @@ import {
 
 const leaseArgs = { jobId: v.id("sourceAuditJobs"), leaseToken: v.number() };
 
+function workerLane(run: Doc<"syncRuns">, owner: string) {
+  return Math.max(0, run.sourceOwners?.indexOf(owner) ?? 0) % AUDIT_CONCURRENCY;
+}
+
+async function workerLease(
+  ctx: MutationCtx,
+  job: Doc<"sourceAuditJobs">,
+  run: Doc<"syncRuns">,
+) {
+  return ctx.db
+    .query("sourceAuditLeases")
+    .withIndex("by_run_and_lane", (q) =>
+      q.eq("runId", job.runId).eq("lane", workerLane(run, job.owner)),
+    )
+    .unique();
+}
+
+async function releaseWorker(ctx: MutationCtx, job: Doc<"sourceAuditJobs">) {
+  const run = await ctx.db.get(job.runId);
+  if (!run) return;
+  const lease = await workerLease(ctx, job, run);
+  if (lease?.jobId === job._id && lease.leaseToken === job.leaseToken) {
+    await ctx.db.patch(lease._id, { jobId: undefined, expiresAt: 0 });
+  }
+}
+
 async function activeJob(
   ctx: MutationCtx,
   jobId: Id<"sourceAuditJobs">,
@@ -45,7 +74,9 @@ async function activeJob(
   if (!job || job.status !== "running" || job.leaseToken !== leaseToken)
     return null;
   const run = await ctx.db.get(job.runId);
-  return run?.status === "running" ? job : null;
+  if (run?.status !== "running") return null;
+  const lease = await workerLease(ctx, job, run);
+  return lease?.jobId === jobId && lease.leaseToken === leaseToken ? job : null;
 }
 
 async function continueJob(
@@ -55,6 +86,7 @@ async function continueJob(
   delay = 0,
 ) {
   const nextWakeAt = Date.now() + delay;
+  await releaseWorker(ctx, job);
   await ctx.db.patch(job._id, {
     ...patch,
     status: "pending",
@@ -74,6 +106,7 @@ async function completeJob(
 ) {
   const success = !error && job.counters.failed === 0;
   const now = Date.now();
+  await releaseWorker(ctx, job);
   await ctx.db.patch(job._id, {
     status: success ? "success" : "failed",
     completedAt: now,
@@ -118,22 +151,19 @@ export const claimSource = internalMutation({
       });
       return null;
     }
-    const active = await ctx.db
-      .query("sourceAuditJobs")
-      .withIndex("by_run_and_status_and_next_wake", (q) =>
-        q.eq("runId", job.runId).eq("status", "running").gt("nextWakeAt", now),
-      )
-      .take(AUDIT_CONCURRENCY);
-    if (active.length >= AUDIT_CONCURRENCY) {
+    // Read one small lease document, never a range of hot job payloads.
+    const slot = await workerLease(ctx, job, run);
+    if (slot && slot.expiresAt > now) {
+      const delay =
+        AUDIT_CAPACITY_DELAY_MS +
+        Math.max(0, run.sourceOwners?.indexOf(job.owner) ?? 0) * 127;
       await ctx.db.patch(jobId, {
         status: "pending",
-        nextWakeAt: now + AUDIT_CAPACITY_DELAY_MS,
+        nextWakeAt: now + delay,
       });
-      await ctx.scheduler.runAfter(
-        AUDIT_CAPACITY_DELAY_MS,
-        internal.audit.processSource,
-        { jobId },
-      );
+      await ctx.scheduler.runAfter(delay, internal.audit.processSource, {
+        jobId,
+      });
       return null;
     }
     const patch = {
@@ -141,6 +171,15 @@ export const claimSource = internalMutation({
       nextWakeAt: now + AUDIT_LEASE_MS,
       leaseToken: job.leaseToken + 1,
     };
+    const slotValue = {
+      runId: job.runId,
+      lane: workerLane(run, job.owner),
+      jobId,
+      leaseToken: patch.leaseToken,
+      expiresAt: patch.nextWakeAt,
+    };
+    if (slot) await ctx.db.patch(slot._id, slotValue);
+    else await ctx.db.insert("sourceAuditLeases", slotValue);
     await ctx.db.patch(jobId, patch);
     return { ...job, ...patch };
   },
@@ -331,6 +370,7 @@ export const retrySource = internalMutation({
       return null;
     }
     const nextWakeAt = now + Math.max(30_000, args.delayMs);
+    await releaseWorker(ctx, job);
     await ctx.db.patch(job._id, {
       status: "pending",
       nextWakeAt,
@@ -361,7 +401,21 @@ export const processSource = internalAction({
   args: { jobId: v.id("sourceAuditJobs") },
   returns: v.null(),
   handler: async (ctx, { jobId }): Promise<null> => {
-    const job = await ctx.runMutation(internal.audit.claimSource, { jobId });
+    let job: Doc<"sourceAuditJobs"> | null;
+    try {
+      job = await ctx.runMutation(internal.audit.claimSource, { jobId });
+    } catch (error) {
+      console.warn(
+        "Audit claim will retry",
+        error instanceof Error ? error.message : String(error),
+      );
+      await ctx.scheduler.runAfter(
+        AUDIT_CAPACITY_DELAY_MS,
+        internal.audit.processSource,
+        { jobId },
+      );
+      return null;
+    }
     if (!job) return null;
     const lease = { jobId, leaseToken: job.leaseToken };
     try {
@@ -392,7 +446,11 @@ export const processSource = internalAction({
         const prior = await ctx.runQuery(internal.sync.sourceRepoByName, {
           repoName: repo.id,
         });
-        if (prior?.headSha && prior.headSha === repo.sha) {
+        if (
+          prior?.ingestionVersion === CATALOG_INGESTION_VERSION &&
+          prior.headSha &&
+          prior.headSha === repo.sha
+        ) {
           await ctx.runMutation(internal.audit.checkpointRepository, {
             ...lease,
             repoName: repo.id,
@@ -454,9 +512,13 @@ export const recoverSources = internalMutation({
           lastError: "Audit is no longer active",
         });
       } else {
-        await ctx.scheduler.runAfter(0, internal.audit.processSource, {
-          jobId: job._id,
-        });
+        await ctx.scheduler.runAfter(
+          scheduled * 500,
+          internal.audit.processSource,
+          {
+            jobId: job._id,
+          },
+        );
         scheduled += 1;
       }
     }

@@ -27,9 +27,12 @@ and public reads. Adding a source should not require adding another audit loop.
 Each enabled source receives one job, with three phases: list one Hub page,
 process its repositories one at a time, then reconcile missing repositories.
 The job retains only the current page (at most 100 repositories), its cursor,
-position, counters, retry state, and lease token. Indexed claims bound upstream
-work to three source steps at a time. Changed repository steps are paced by one
-second; unchanged checkpoints continue immediately without upstream requests.
+position, counters, retry state, and lease token. Three indexed
+`sourceAuditLeases` bound upstream work to three source steps at a time. Each
+source uses a stable worker lane and claims one small lease document, avoiding
+a shared read range over frequently changing job payloads. Changed repository
+steps are paced by one second; unchanged checkpoints continue immediately
+without upstream requests.
 Source starts are staggered.
 
 A mutation claims a five-minute lease before an action makes HTTP requests.
@@ -37,7 +40,10 @@ Each checkpoint checks both the active run and lease token. Catalog writes and
 the repository checkpoint commit in the same transaction. Checkpoints schedule
 their continuation in that transaction, so progress cannot commit without its
 next worker. A five-minute recovery cron reschedules due jobs and expired
-leases. Late workers cannot overwrite a newer checkpoint.
+leases. Late workers cannot overwrite a newer checkpoint or write after
+another source takes their expired lane. Capacity deferrals and recovery
+starts are staggered; failed claim transactions retry without waiting for the
+recovery cron.
 
 Retries resume the same page or repository. After three failures, a bad
 repository is recorded and the worker continues through the organization.
@@ -62,6 +68,12 @@ live database. Read normalization supports records predating evidence arrays;
 ingestion writes the canonical payload as repositories change. New audit jobs
 and aliases use separate validated tables rather than overloading catalog
 payloads with operational state.
+
+Source repositories carry an optional ingestion version. Older versions
+rehydrate once even when their commit SHA is unchanged, so identity repairs
+and parser migrations cannot be bypassed by the normal fast path. Raise that
+version deliberately when an ingestion change needs existing sources
+reprocessed, and widen the schema validator before changing its value.
 
 ## Expansion
 

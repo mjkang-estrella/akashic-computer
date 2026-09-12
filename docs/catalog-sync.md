@@ -230,6 +230,8 @@ continue updating, but that source is failed and no removal sweep runs.
 Old sequential audits are safely replaced when an audit is started again.
 Pending webhooks abandoned for ten minutes are recovered by a separate cron,
 which respects scheduled retry times.
+Confirmed deletion of an untracked repository completes the webhook as a
+no-op instead of leaving a permanent pending event.
 
 Repository configuration is optional enrichment: missing or malformed JSON
 falls back to structured Hub metadata. LFS configurations use the immutable

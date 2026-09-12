@@ -29,6 +29,8 @@ import {
   type IngestedParsedRepo,
 } from "./catalogReconciliation";
 
+export const CATALOG_INGESTION_VERSION = 2 as const;
+
 export const repositoryIngestionArgs = {
   classification: ingestionClassificationValue,
   sourceOwner: v.string(),
@@ -383,6 +385,7 @@ export async function ingestRepository(
       .withIndex("by_repo_name", (q) => q.eq("repoName", repo.id))
       .first());
   const sourceValue = clean({
+    ingestionVersion: CATALOG_INGESTION_VERSION,
     repoId: args.repoKey ?? priorByName?.repoId ?? repo.id,
     repoName: repo.id,
     owner: repo.author,

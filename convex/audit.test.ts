@@ -45,6 +45,108 @@ async function setup(owners = ["Qwen"]) {
 }
 
 describe("resumable source audits", () => {
+  it("completes a recovered deletion webhook for an untracked repository", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.includes("author=")
+          ? Response.json([])
+          : new Response("", { status: 404 }),
+      ),
+    );
+    const { t } = await setup();
+    const eventId = await t.run((ctx) =>
+      ctx.db.insert("webhookEvents", {
+        dedupeKey: "deleted-unknown",
+        repoId: "Qwen/unknown",
+        repoName: "Qwen/unknown",
+        owner: "Qwen",
+        scope: "repo",
+        action: "delete",
+        status: "pending",
+        receivedAt: Date.now() - 11 * 60_000,
+      }),
+    );
+    expect(await t.mutation(internal.webhooks.recoverPending, {})).toEqual({
+      scheduled: 1,
+    });
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    expect(await t.run((ctx) => ctx.db.get(eventId))).toMatchObject({
+      status: "processed",
+      processedAt: expect.any(Number),
+    });
+    expect(
+      (await t.query(api.catalog.healthSummary, { now: Date.now() }))
+        .webhookStale,
+    ).toBe(false);
+  });
+
+  it("rehydrates legacy ingestion once before skipping an unchanged SHA", async () => {
+    const fetch = vi.fn(async (url: string) => {
+      if (url.includes("author="))
+        return Response.json([{ id: "Qwen/Qwen3-8B", sha: "commit" }]);
+      if (url.includes("/resolve/")) return new Response("", { status: 404 });
+      if (url.includes("/tree/")) return Response.json([]);
+      return Response.json({
+        id: "Qwen/Qwen3-8B",
+        author: "Qwen",
+        sha: "commit",
+        pipeline_tag: "text-generation",
+        siblings: [{ rfilename: "model.safetensors" }],
+        safetensors: { parameters: { BF16: 8e9 } },
+        cardData: { license: "apache-2.0" },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { t } = await setup();
+    const repoId = await t.run((ctx) =>
+      ctx.db.insert("sourceRepositories", {
+        repoId: "Qwen/Qwen3-8B",
+        repoName: "Qwen/Qwen3-8B",
+        owner: "Qwen",
+        headSha: "commit",
+        private: false,
+        gated: false,
+        disabled: false,
+        status: "published",
+        missingCount: 0,
+        lastSeenAt: Date.now() - 1,
+      }),
+    );
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    expect((await t.run((ctx) => ctx.db.get(repoId)))!.ingestionVersion).toBe(
+      2,
+    );
+    await t.mutation(internal.sync.startDailyAudit, {});
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    expect(
+      fetch.mock.calls.filter(([url]) =>
+        url.includes("/api/models/Qwen/Qwen3-8B?"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("fences an expired worker when another source takes its lane", async () => {
+    const { t, jobs } = await setup(["One", "Two", "Three", "Four"]);
+    vi.setSystemTime(Date.now() + 30_000);
+    const original = (await t.mutation(internal.audit.claimSource, {
+      jobId: jobs[0]._id,
+    }))!;
+    vi.setSystemTime(Date.now() + AUDIT_LEASE_MS + 1);
+    expect(
+      await t.mutation(internal.audit.claimSource, { jobId: jobs[3]._id }),
+    ).not.toBeNull();
+    await t.mutation(internal.audit.checkpointPage, {
+      jobId: jobs[0]._id,
+      leaseToken: original.leaseToken,
+      repositories: [{ id: "Four/stale", sha: "old" }],
+      nextCursor: null,
+    });
+    expect((await t.run((ctx) => ctx.db.get(jobs[0]._id)))!.phase).toBe(
+      "listing",
+    );
+  });
+
   it("continues after a poisoned repository and preserves records from an incomplete source", async () => {
     vi.stubGlobal(
       "fetch",
@@ -76,6 +178,7 @@ describe("resumable source audits", () => {
         repoId: "Qwen/healthy",
         repoName: "Qwen/healthy",
         headSha: "same",
+        ingestionVersion: 2,
       });
       return ctx.db.insert("sourceRepositories", {
         ...fields,
