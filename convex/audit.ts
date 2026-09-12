@@ -15,6 +15,7 @@ import {
 import {
   classifyWithWeightMetadata,
   fetchRepo,
+  hubRepositoryId,
   listReposPage,
   retryDelayForError,
 } from "./huggingFaceClient";
@@ -230,7 +231,14 @@ async function checkpointRepositoryStep(
     .withIndex("by_repo_name", (q) => q.eq("repoName", args.repoName))
     .first();
   if (prior)
-    await ctx.db.patch(prior._id, { lastSeenAt: Date.now(), missingCount: 0 });
+    await ctx.db.patch(prior._id, {
+      lastSeenAt: Date.now(),
+      missingCount: 0,
+      repoId:
+        (args.result === "unchanged"
+          ? job.repositories[job.offset]?.repoId
+          : undefined) ?? prior.repoId,
+    });
   const offset = job.offset + 1;
   const hasMore = offset < job.repositories.length;
   await continueJob(
@@ -280,6 +288,7 @@ export const applyRepository = internalMutation({
   args: {
     ...leaseArgs,
     repoName: v.string(),
+    repoId: v.optional(v.string()),
     classification: ingestionClassificationValue,
   },
   returns: v.null(),
@@ -295,7 +304,7 @@ export const applyRepository = internalMutation({
       classification: args.classification,
       sourceOwner: job.owner,
       runId: job.runId,
-      repoKey: args.repoName,
+      repoKey: args.repoId ?? job.repositories[job.offset]?.repoId,
       now: Date.now(),
       auditJobId: job._id,
       auditLeaseToken: job.leaseToken,
@@ -432,9 +441,16 @@ export const processSource = internalAction({
           );
         const page = await listReposPage(job.owner, job.cursor);
         const repositories = page.repositories
-          .map(normalizeHuggingFaceRepo)
+          .map((raw) => ({
+            ...normalizeHuggingFaceRepo(raw),
+            stableId: hubRepositoryId(raw),
+          }))
           .filter((repo) => repo.id && matchesSourceRules(repo.id, rule))
-          .map((repo) => ({ id: repo.id, sha: repo.sha }));
+          .map((repo) => ({
+            id: repo.id,
+            sha: repo.sha,
+            ...(repo.stableId ? { repoId: repo.stableId } : {}),
+          }));
         await ctx.runMutation(internal.audit.checkpointPage, {
           ...lease,
           repositories,
@@ -469,6 +485,7 @@ export const processSource = internalAction({
           await ctx.runMutation(internal.audit.applyRepository, {
             ...lease,
             repoName: repo.id,
+            repoId: response.repoId,
             classification,
           });
         }

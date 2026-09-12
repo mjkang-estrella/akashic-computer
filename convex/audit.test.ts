@@ -84,10 +84,13 @@ describe("resumable source audits", () => {
   it("rehydrates legacy ingestion once before skipping an unchanged SHA", async () => {
     const fetch = vi.fn(async (url: string) => {
       if (url.includes("author="))
-        return Response.json([{ id: "Qwen/Qwen3-8B", sha: "commit" }]);
+        return Response.json([
+          { _id: "hub-stable-id", id: "Qwen/Qwen3-8B", sha: "commit" },
+        ]);
       if (url.includes("/resolve/")) return new Response("", { status: 404 });
       if (url.includes("/tree/")) return Response.json([]);
       return Response.json({
+        _id: "hub-stable-id",
         id: "Qwen/Qwen3-8B",
         author: "Qwen",
         sha: "commit",
@@ -117,8 +120,15 @@ describe("resumable source audits", () => {
     expect((await t.run((ctx) => ctx.db.get(repoId)))!.ingestionVersion).toBe(
       2,
     );
+    expect((await t.run((ctx) => ctx.db.get(repoId)))!.repoId).toBe(
+      "hub-stable-id",
+    );
+    await t.run((ctx) => ctx.db.patch(repoId, { repoId: "Qwen/Qwen3-8B" }));
     await t.mutation(internal.sync.startDailyAudit, {});
     await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    expect((await t.run((ctx) => ctx.db.get(repoId)))!.repoId).toBe(
+      "hub-stable-id",
+    );
     expect(
       fetch.mock.calls.filter(([url]) =>
         url.includes("/api/models/Qwen/Qwen3-8B?"),
@@ -353,67 +363,93 @@ describe("resumable source audits", () => {
     expect((await t.run((ctx) => ctx.db.get(repoId)))!.missingCount).toBe(1);
   });
 
-  it("commits ingestion and progress atomically, making a checkpoint replay harmless", async () => {
-    const { t, runId, jobs } = await setup();
-    const jobId = jobs[0]._id;
-    const claim = (await t.mutation(internal.audit.claimSource, { jobId }))!;
-    await t.mutation(internal.audit.checkpointPage, {
-      jobId,
-      leaseToken: claim.leaseToken,
-      repositories: [{ id: "Qwen/Qwen3-8B", sha: "commit" }],
-      nextCursor: null,
-    });
-    const repoClaim = (await t.mutation(internal.audit.claimSource, {
-      jobId,
-    }))!;
-    const classification = compactClassification(
-      classifyHuggingFaceRepo(
-        {
-          id: "Qwen/Qwen3-8B",
-          author: "Qwen",
-          sha: "commit",
-          pipeline_tag: "text-generation",
-          siblings: [{ rfilename: "model.safetensors" }],
-          safetensors: { parameters: { BF16: 8e9 } },
-          cardData: { license: "apache-2.0" },
-        },
-        { owner: "Qwen", role: "creator", familyIds: ["qwen"] },
-      ),
-    );
-    const args = {
-      jobId,
-      leaseToken: repoClaim.leaseToken,
-      repoName: "Qwen/Qwen3-8B",
-      classification,
-    };
-    await t.mutation(internal.audit.applyRepository, args);
-    await t.mutation(internal.audit.applyRepository, args);
-    const job = (await t.run((ctx) => ctx.db.get(jobId)))!;
-    expect(job).toMatchObject({
-      phase: "missing",
-      counters: { changed: 1, published: 1 },
-    });
-    expect(
-      await t.run(async (ctx) => ctx.db.query("catalogEntries").take(10)),
-    ).toHaveLength(1);
-    await t.mutation(internal.sync.cancelRunningAudit, {
-      reason: "Operator cancelled",
-      now: Date.now(),
-    });
-    expect(
-      await t.mutation(internal.sync.finishAuditSource, {
-        runId,
-        owner: "Qwen",
-        success: true,
-        discovered: 1,
-        changed: 1,
-        published: 1,
-        skipped: 0,
+  it.each(["new", "existing stable ID"])(
+    "commits ingestion and progress atomically, making a checkpoint replay harmless (%s)",
+    async (storage) => {
+      const { t, runId, jobs } = await setup();
+      if (storage === "existing stable ID")
+        await t.run((ctx) =>
+          ctx.db.insert("sourceRepositories", {
+            repoId: "hub-stable-id",
+            repoName: "Qwen/Qwen3-8B",
+            owner: "Qwen",
+            headSha: "before",
+            private: false,
+            gated: false,
+            disabled: false,
+            status: "skipped",
+            missingCount: 0,
+            lastSeenAt: Date.now() - 1,
+          }),
+        );
+      const jobId = jobs[0]._id;
+      const claim = (await t.mutation(internal.audit.claimSource, { jobId }))!;
+      await t.mutation(internal.audit.checkpointPage, {
+        jobId,
+        leaseToken: claim.leaseToken,
+        repositories: [{ id: "Qwen/Qwen3-8B", sha: "commit" }],
+        nextCursor: null,
+      });
+      const repoClaim = (await t.mutation(internal.audit.claimSource, {
+        jobId,
+      }))!;
+      const classification = compactClassification(
+        classifyHuggingFaceRepo(
+          {
+            id: "Qwen/Qwen3-8B",
+            author: "Qwen",
+            sha: "commit",
+            pipeline_tag: "text-generation",
+            siblings: [{ rfilename: "model.safetensors" }],
+            safetensors: { parameters: { BF16: 8e9 } },
+            cardData: { license: "apache-2.0" },
+          },
+          { owner: "Qwen", role: "creator", familyIds: ["qwen"] },
+        ),
+      );
+      const args = {
+        jobId,
+        leaseToken: repoClaim.leaseToken,
+        repoName: "Qwen/Qwen3-8B",
+        classification,
+      };
+      await t.mutation(internal.audit.applyRepository, args);
+      await t.mutation(internal.audit.applyRepository, args);
+      if (storage === "existing stable ID")
+        expect(
+          await t.query(internal.sync.sourceRepoById, {
+            repoId: "hub-stable-id",
+          }),
+        ).toMatchObject({ repoName: "Qwen/Qwen3-8B", headSha: "commit" });
+      const job = (await t.run((ctx) => ctx.db.get(jobId)))!;
+      expect(job).toMatchObject({
+        phase: "missing",
+        counters: { changed: 1, published: 1 },
+      });
+      expect(
+        await t.run(async (ctx) => ctx.db.query("catalogEntries").take(10)),
+      ).toHaveLength(1);
+      await t.mutation(internal.sync.cancelRunningAudit, {
+        reason: "Operator cancelled",
         now: Date.now(),
-      }),
-    ).toBeNull();
-    expect((await t.run((ctx) => ctx.db.get(runId)))!.completedSources).toBe(0);
-  });
+      });
+      expect(
+        await t.mutation(internal.sync.finishAuditSource, {
+          runId,
+          owner: "Qwen",
+          success: true,
+          discovered: 1,
+          changed: 1,
+          published: 1,
+          skipped: 0,
+          now: Date.now(),
+        }),
+      ).toBeNull();
+      expect((await t.run((ctx) => ctx.db.get(runId)))!.completedSources).toBe(
+        0,
+      );
+    },
+  );
 
   it("continues a healthy source while another retries, without repeating its listing", async () => {
     const calls: string[] = [];

@@ -32,6 +32,7 @@ export const emptyAuditCounters = () => ({
 export const auditRepositoryValue = v.object({
   id: v.string(),
   sha: v.string(),
+  repoId: v.optional(v.string()),
 });
 export const sourceAuditJobFields = {
   runId: v.id("syncRuns"),

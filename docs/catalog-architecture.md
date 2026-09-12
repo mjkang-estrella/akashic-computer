@@ -59,6 +59,9 @@ once per run, and an update seen after the audit began prevents removal.
 
 The normalized family/release/size/variant/artifact graph resolves known
 repositories with indexes. A bounded family search handles new identities.
+Source records retain the Hub's stable repository ID when it is available;
+audit hydration and webhook updates use that identity to track renames, with
+repository-name lookup as a fallback for older records.
 Moving the sole artifact out of an incorrect derived entry retires that entry
 and stores an alias to its corrected identity, preserving existing URLs.
 Underlying source evidence remains in its original tables.

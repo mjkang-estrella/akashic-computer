@@ -10,6 +10,15 @@ import { AUDIT_PAGE_SIZE } from "./auditValues";
 
 type UnknownRecord = Record<string, unknown>;
 
+export function hubRepositoryId(data: unknown): string | undefined {
+  return data &&
+    typeof data === "object" &&
+    "_id" in data &&
+    typeof data._id === "string"
+    ? data._id
+    : undefined;
+}
+
 class HubRequestError extends Error {
   constructor(
     message: string,
@@ -83,7 +92,7 @@ export function retryDelayForError(
 
 export async function fetchRepo(
   repoName: string,
-): Promise<{ status: number; data?: unknown }> {
+): Promise<{ status: number; data?: unknown; repoId?: string }> {
   const encoded = repoName.split("/").map(encodeURIComponent).join("/");
   const response = await hubFetch(
     `https://huggingface.co/api/models/${encoded}?full=true&config=true&cardData=true`,
@@ -117,7 +126,11 @@ export async function fetchRepo(
       `Hugging Face config fetch failed for ${repoName}`,
     );
   }
-  return { status: response.status, data };
+  return {
+    status: response.status,
+    data,
+    ...(hubRepositoryId(data) ? { repoId: hubRepositoryId(data) } : {}),
+  };
 }
 
 async function fetchWeightMetadata(repoName: string, revision: string) {
