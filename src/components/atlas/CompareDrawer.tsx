@@ -1,20 +1,26 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { BENCHES } from "@/lib/atlas/data";
 import { fitOf, memoryEstimateLabel, memoryAssumptions } from "@/lib/atlas/fit";
 import { learnTermForFormat } from "@/lib/atlas/learn";
 import type { Artifact, RigProfile } from "@/lib/atlas/types";
+import type { ModelEntry } from "@/lib/atlas/models";
 import { uploaderDisplay } from "@/lib/atlas/naming";
 import { DeltaChip, FitBadge } from "./badges";
 import { LexiconHint } from "./LexiconHint";
 
 export function CompareDrawer({
   artifacts,
+  models,
+  planningHref,
   rig,
   onRemove,
   onClear,
 }: {
   artifacts: Artifact[];
+  models: Record<string, ModelEntry>;
+  planningHref: string;
   rig: RigProfile;
   onRemove: (repo: string) => void;
   onClear: () => void;
@@ -47,6 +53,7 @@ export function CompareDrawer({
             Clear <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.8} aria-hidden="true" />
           </button>
         </div>
+        <Link href={planningHref} className="mt-2 inline-flex min-h-11 items-center text-[12px] font-semibold underline underline-offset-4">Explore model size vs bpw →</Link>
 
         <div className="mt-3 divide-y divide-linesoft md:hidden">
           {artifacts.map((artifact, index) => {
@@ -54,7 +61,7 @@ export function CompareDrawer({
             return (
               <section key={artifact.repo} className="py-3 first:pt-0">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-display text-[13px] font-semibold">Artifact {index + 1}</span>
+                  <span className="font-display text-[13px] font-semibold">{models[artifact.repo]?.name ?? `Artifact ${index + 1}`}</span>
                   <button
                     type="button"
                     onClick={() => onRemove(artifact.repo)}
@@ -65,6 +72,7 @@ export function CompareDrawer({
                   </button>
                 </div>
                 <dl className="mt-1.5 space-y-1 text-[12.5px]">
+                  <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2"><dt className="text-muted">Scale</dt><dd>{models[artifact.repo]?.size.paramsB}B total{models[artifact.repo]?.size.activeParamsB ? ` · ${models[artifact.repo].size.activeParamsB}B active` : ""}</dd></div>
                   <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
                     <dt className="text-muted"><LexiconHint term="quantization">Quant</LexiconHint></dt>
                     <dd className="font-mono font-semibold">
@@ -119,7 +127,7 @@ export function CompareDrawer({
                 {artifacts.map((artifact) => (
                   <th key={artifact.repo} className="border-b border-line px-2.5 py-1.5 text-left">
                     <span className="flex items-center justify-between gap-2">
-                      <span className="font-display text-[13px] font-semibold">Artifact</span>
+                      <span className="font-display text-[13px] font-semibold">{models[artifact.repo]?.name ?? "Artifact"}</span>
                       <button
                         type="button"
                         onClick={() => onRemove(artifact.repo)}
@@ -134,6 +142,10 @@ export function CompareDrawer({
               </tr>
             </thead>
             <tbody>
+              <tr>
+                <td className={labelCell}>Parameters</td>
+                {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 text-[12px]">{models[artifact.repo]?.size.paramsB}B total{models[artifact.repo]?.size.activeParamsB ? ` · ${models[artifact.repo].size.activeParamsB}B active` : ""}</td>)}
+              </tr>
               <tr>
                 <td className={labelCell}>Repo</td>
                 {artifacts.map((artifact) => (

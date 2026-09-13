@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Activity01Icon,
@@ -17,6 +18,7 @@ import {
 import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
 import { fitOf, memoryRange } from "@/lib/atlas/fit";
+import { comparisonHref } from "@/lib/atlas/comparison";
 import { modelTransitionName } from "@/lib/atlas/motion";
 import type { RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
@@ -193,6 +195,10 @@ export function ModelDetailView({
             <dd className="mt-0.5 font-mono text-[13px] font-semibold">{rig.gb} GB VRAM</dd>
           </div>
         </dl>
+        {entry.category === "language" ? <Link href={comparisonHref(
+          { modelSlug: entry.slug, variant, bpw: "" },
+          { modelSlug: "", variant: "", bpw: "" }, "",
+        )} className="mt-4 inline-flex min-h-11 items-center text-[12px] font-semibold underline underline-offset-4">Compare model size and quantization →</Link> : null}
       </header>
 
       {entry.benchmarkRefs.length > 0 ? (

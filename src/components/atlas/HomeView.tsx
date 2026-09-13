@@ -326,6 +326,7 @@ export function HomeView({
               Compare benchmarks
               <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" />
             </Link>
+            <Link href="/compare" className="inline-flex min-h-11 items-center gap-2 px-2 text-[13px] font-semibold text-muted hover:text-ink">Model size vs precision →</Link>
           </div>
           <div className="mt-7 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-t border-line pt-4 font-mono text-[12px]">
             <span><strong className="font-semibold">{loading && !entries.length ? "—" : entries.length}</strong> <span className="text-muted">model sizes</span></span>

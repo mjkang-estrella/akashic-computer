@@ -18,6 +18,7 @@ import { DEFAULT_PRESET_ID, RIG_PRESETS } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
 import type { RigProfile } from "@/lib/atlas/types";
 import { findModelEntryForTarget } from "@/lib/atlas/models";
+import { comparisonHref } from "@/lib/atlas/comparison";
 import { CompareDrawer } from "./CompareDrawer";
 import { BenchmarkView } from "./BenchmarkView";
 import { FitBar } from "./FitBar";
@@ -54,16 +55,16 @@ export function AtlasShell({ children }: { children: ReactNode }) {
       .map((entry) => [entry.slug, { query: api.catalog.getBySlug, args: { slug: entry.slug } }]),
   ), [checked, entries]);
   const comparisonResults = useQueries(comparisonQueries);
-  const checkedArtifacts = useMemo(() => {
+  const comparisonSelections = useMemo(() => {
     const details = Object.values(comparisonResults).filter((value): value is PublishedCatalogEntry =>
       Boolean(value) && !(value instanceof Error),
     );
     const artifacts = new Map(
-      hydratePublishedEntries(details).entries.flatMap((entry) => entry.artifacts).map((artifact) => [artifact.repo, artifact]),
+      hydratePublishedEntries(details).entries.flatMap((entry) => entry.artifacts.map((artifact) => [artifact.repo, { artifact, model: entry }] as const)),
     );
     return [...checked].flatMap((repo) => {
-      const artifact = artifacts.get(repo);
-      return artifact ? [artifact] : [];
+      const selection = artifacts.get(repo);
+      return selection ? [selection] : [];
     });
   }, [checked, comparisonResults]);
 
@@ -94,6 +95,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
 
   const navigation = [
     { href: "/models", label: "Model", icon: CubeIcon, active: pathname.startsWith("/models") },
+    { href: "/compare", label: "Compare", icon: ChartColumnIcon, active: pathname.startsWith("/compare") },
     { href: "/benchmarks", label: "Benchmark", icon: ChartColumnIcon, active: pathname.startsWith("/benchmarks") },
     { href: "/docs", label: "Docs", icon: BookOpenTextIcon, active: pathname.startsWith("/docs") },
   ] as const;
@@ -120,15 +122,15 @@ export function AtlasShell({ children }: { children: ReactNode }) {
                 className="w-full min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
               />
             </label>
-            <nav aria-label="Primary" className="col-span-3 row-start-2 flex min-w-0 items-center gap-1 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:justify-end">
+            <nav aria-label="Primary" className="col-span-3 row-start-2 grid min-w-0 grid-cols-4 items-center lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:flex lg:justify-end lg:gap-1">
               {navigation.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   aria-current={item.active ? "page" : undefined}
-                  className={`relative flex min-h-11 items-center gap-1.5 px-3 py-1.5 text-[13.5px] font-semibold transition-colors after:absolute after:inset-x-3 after:-bottom-3 after:h-0.5 after:bg-ink after:transition-opacity lg:after:-bottom-[17px] ${item.active ? "text-ink after:opacity-100" : "text-muted after:opacity-0 hover:text-ink"}`}
+                  className={`relative flex min-h-11 items-center justify-center gap-1.5 py-1.5 text-[12px] font-semibold transition-colors after:absolute after:inset-x-3 after:-bottom-3 after:h-0.5 after:bg-ink after:transition-opacity sm:px-3 sm:text-[13.5px] lg:after:-bottom-[17px] ${item.active ? "text-ink after:opacity-100" : "text-muted after:opacity-0 hover:text-ink"}`}
                 >
-                  <HugeiconsIcon icon={item.icon} size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none" />
+                  <HugeiconsIcon icon={item.icon} size={16} strokeWidth={1.8} aria-hidden="true" className="hidden flex-none sm:block" />
                   {item.label}
                 </Link>
               ))}
@@ -165,9 +167,15 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               />
             )
           ) : children}
-          {checkedArtifacts.length > 0 ? (
+          {comparisonSelections.length > 0 && pathname !== "/compare" ? (
             <CompareDrawer
-              artifacts={checkedArtifacts}
+              artifacts={comparisonSelections.map((selection) => selection.artifact)}
+              models={Object.fromEntries(comparisonSelections.map(({ artifact, model }) => [artifact.repo, model]))}
+              planningHref={comparisonHref(
+                { modelSlug: comparisonSelections[0].model.slug, variant: comparisonSelections[0].artifact.variant, bpw: "" },
+                { modelSlug: comparisonSelections[1]?.model.slug ?? "", variant: comparisonSelections[1]?.artifact.variant ?? "", bpw: "" },
+                "",
+              )}
               rig={rig}
               onRemove={(repo) => toggleChecked(repo, false)}
               onClear={() => setChecked(new Set())}

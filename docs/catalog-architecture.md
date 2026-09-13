@@ -80,6 +80,27 @@ reprocessed, and widen the schema validator before changing its value.
 
 ## Expansion
 
+### Quantization comparison
+
+`src/lib/atlas/comparison.ts` owns scenario assumptions, decimal-GB uniform
+packing estimates and shareable URLs. `ComparisonRoute` presents two catalog
+models and their variants independently of their artifact repositories. This
+allows the same model to appear at two entered bitrates, or a larger model at
+lower bpw to be compared with a smaller model at higher bpw. Total MoE
+parameters determine the storage proxy; active parameters remain separate.
+
+Scenarios are planning assumptions, not published artifacts. They do not infer
+checkpoint availability, actual file size, quality or runtime fit. Model-detail
+and artifact-comparison links carry model/variant identity but leave bpw empty
+because the current artifact contract does not verify a specific bitrate.
+Future exact-checkpoint comparisons should add repository revision/file
+identity and bitrate provenance separately, retaining nominal planning values
+alongside measured artifact bytes and evaluation evidence. Do not overwrite
+catalog evidence with user-entered assumptions or substitute reference scores
+for quantized-checkpoint results.
+
+### Sources
+
 For another Hub organization, add its source rule and family metadata, sync
 configuration, and run an audit. Existing sources continue independently.
 For another upstream service, implement its transport and classifier, then
