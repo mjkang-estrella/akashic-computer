@@ -167,7 +167,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               />
             )
           ) : children}
-          {comparisonSelections.length > 0 && pathname !== "/compare" ? (
+          {comparisonSelections.length > 0 && pathname !== "/compare" && !pathname.startsWith("/docs") ? (
             <CompareDrawer
               artifacts={comparisonSelections.map((selection) => selection.artifact)}
               models={Object.fromEntries(comparisonSelections.map(({ artifact, model }) => [artifact.repo, model]))}

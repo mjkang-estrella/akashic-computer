@@ -100,6 +100,7 @@ function ComparisonWorkspace({ initialLeft, initialRight, initialBudget }: {
       <h1 className="mt-3 font-display text-[34px] font-semibold leading-tight sm:text-[46px]">More model or more precision?</h1>
       <p className="mt-4 max-w-[70ch] text-[15px] leading-relaxed text-muted">Compare a larger model at lower bpw with a smaller model at higher bpw. See the weight tradeoff, then check evidence for the tasks you care about.</p>
       <div className="mt-5 flex flex-wrap items-center gap-3">
+        <Link href="/docs/paths/quantization" className="inline-flex min-h-11 items-center text-[12px] font-semibold underline underline-offset-4">Learn how to compare checkpoints →</Link>
         {example ? <Link href={example} className="inline-flex min-h-11 items-center rounded-[7px] border border-line px-4 text-[12px] font-semibold hover:border-ink">Try GLM-5.3 2.75 vs Flash 3 bpw</Link> : null}
         <button type="button" onClick={async () => {
           try { await navigator.clipboard.writeText(new URL(href, window.location.origin).href); setCopyStatus("Link copied"); }

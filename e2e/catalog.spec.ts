@@ -14,7 +14,7 @@ test("navigates through dedicated product routes", async ({ page }) => {
 
   await page.getByRole("link", { name: "Docs", exact: true }).click();
   await expect(page).toHaveURL(/\/docs$/);
-  await expect(page.getByRole("heading", { name: "Technical guides to local models" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Learn how models run." })).toBeVisible();
 });
 
 test("keeps model filters in one URL-backed state", async ({ page }) => {

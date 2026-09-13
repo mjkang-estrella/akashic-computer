@@ -1,6 +1,8 @@
 "use client";
 
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
+import { STUDY_PATHS } from "@/lib/atlas/study";
 import { ArrowLeft01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import {
   type DocArticle,
@@ -55,6 +57,7 @@ export function DocsArticleView({
   const related = article.related
     .map((slug) => DOC_ARTICLES.find((candidate) => candidate.slug === slug))
     .filter((candidate): candidate is DocArticle => Boolean(candidate));
+  const paths = STUDY_PATHS.filter((path) => path.guides.includes(article.slug));
 
   return (
     <article className="pt-5">
@@ -164,6 +167,10 @@ export function DocsArticleView({
             </div>
           </section>
 
+          {paths.length ? <section className="border-b border-line py-7">
+            <h3 className="font-display text-[21px] font-semibold">Investigate this topic</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">{paths.map((path) => <Link key={path.slug} href={`/docs/paths/${path.slug}`} className="group rounded-[7px] border border-line bg-panel p-4 hover:border-ink"><p className="text-[13px] font-semibold group-hover:underline">{path.title} →</p><p className="mt-2 text-[12px] leading-relaxed text-muted">{path.outcome}</p></Link>)}</div>
+          </section> : null}
           <section className="py-7">
             <h3 className="font-display text-[21px] font-semibold">Continue reading</h3>
             <div className="mt-3 border-y border-line">
