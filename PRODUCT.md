@@ -22,7 +22,7 @@ Scholarly, calm, and exact. The interface should feel like a well-maintained tec
 
 ## Anti-references
 
-The homepage introduces Akashic through a concise SaaS-style landing page: a clear value proposition, a catalog entry point, a learning entry point, and one product preview. It should welcome visitors who do not yet know model names or terminology. Search, hardware settings, and detailed model selection belong in the product routes.
+The homepage introduces Akashic through a concise SaaS-style landing page: a clear value proposition, a catalog entry point, a learning entry point, and one product preview. Scrolling reveals a concrete comparison, question-led learning paths, and a closing catalog entry point. It should welcome visitors who do not yet know model names or terminology. Search, hardware settings, and detailed model selection belong in the product routes.
 
 Keep the product routes scholarly and practical. Avoid affiliate buying-guide language, generic SaaS dashboards, promotional AI leaderboards, universal "best model" claims, recommendation badges, ornamental card grids, decorative gradients, and hardware-first framing that hides the broader model ecosystem.
 

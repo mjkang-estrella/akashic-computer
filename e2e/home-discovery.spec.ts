@@ -40,10 +40,28 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("heading", { name: "Quantization without the shorthand", exact: true })).toBeVisible();
 
     await page.getByRole("link", { name: "Akashic home", exact: true }).click();
+    const tradeoff = page.getByRole("region", { name: "More model, or more precision?" });
+    await tradeoff.scrollIntoViewIfNeeded();
+    await expect(tradeoff.getByText("138.46 GB", { exact: true })).toBeVisible();
+    await tradeoff.getByRole("link", { name: "Compare these models", exact: true }).click();
+    await expect(page).toHaveURL(/\/compare\?.*leftBpw=2.75.*rightBpw=3/);
+    await expect(page.getByRole("region", { name: "Comparison tradeoffs" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Akashic home", exact: true }).click();
+    const learningPaths = page.getByRole("region", { name: "Understand what you’re running." });
+    await learningPaths.getByRole("link", { name: "Why does a model need so much memory?" }).click();
+    await expect(page).toHaveURL(/\/docs\/paths\/inference-memory$/);
+    await expect(page.getByRole("heading", { name: "Account for inference memory", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Akashic home", exact: true }).click();
     await page.getByRole("tabpanel", { name: "Discover", exact: true }).getByRole("link", { name: /^Explore / }).first().click();
     await expect(page).toHaveURL(new RegExp(`${modelHref}$`));
     await expect(page.getByRole("region", { name: "Available artifacts" })).toBeVisible();
     await page.getByRole("link", { name: "Akashic home", exact: true }).click();
+    const closing = page.getByRole("region", { name: "Find your next model." });
+    await closing.scrollIntoViewIfNeeded();
+    await expect(closing.getByRole("link", { name: "Open the catalog" })).toHaveAttribute("href", "/models");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole("link", { name: "Explore models", exact: true }).click();
     await expect(page).toHaveURL(/\/models$/);
     await expect(page.getByRole("searchbox", { name: "Search the Akashic catalog" })).toBeVisible();

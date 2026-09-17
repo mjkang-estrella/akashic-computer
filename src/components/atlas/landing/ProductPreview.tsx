@@ -3,20 +3,21 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, BookOpen02Icon, ChartColumnIcon, CubeIcon } from "@hugeicons/core-free-icons";
-import { glmComparisonHref, packedWeightGb } from "@/lib/atlas/comparison";
+import { ArrowRight01Icon, BookOpen02Icon } from "@hugeicons/core-free-icons";
 import type { DocArticle } from "@/lib/atlas/docsArticles";
 import { compareModelEntriesByRecency, type ModelEntry } from "@/lib/atlas/models";
 import { MODEL_CATEGORIES } from "@/lib/atlas/taxonomy";
 import { useCatalog } from "../CatalogProvider";
 import { FamilyLogo } from "../FamilyLogo";
+import { PRODUCT_DESTINATIONS, productTabClassName } from "../ProductNavigation";
+import { comparisonExample } from "./comparisonExample";
 
 type IntroGuide = Pick<DocArticle, "slug" | "title" | "readMinutes">;
 
 const PREVIEWS = [
-  { id: "discover", label: "Discover", icon: CubeIcon },
-  { id: "compare", label: "Compare", icon: ChartColumnIcon },
-  { id: "learn", label: "Learn", icon: BookOpen02Icon },
+  PRODUCT_DESTINATIONS.discover,
+  PRODUCT_DESTINATIONS.compare,
+  PRODUCT_DESTINATIONS.learn,
 ] as const;
 type PreviewId = typeof PREVIEWS[number]["id"];
 const numberLabel = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -77,15 +78,7 @@ function CatalogPreview({ entries, loading }: { entries: ModelEntry[]; loading: 
 }
 
 function ComparisonPreview({ entries, loading }: { entries: ModelEntry[]; loading: boolean }) {
-  const href = glmComparisonHref(entries);
-  const params = href ? new URLSearchParams(href.split("?")[1]) : null;
-  const scenarios = (["left", "right"] as const).flatMap((side) => {
-    const model = entries.find((entry) => entry.slug === params?.get(side));
-    const bpw = Number(params?.get(`${side}Bpw`));
-    const weights = model ? packedWeightGb(model.size.paramsB, bpw) : null;
-    return model && weights !== null ? [{ model, bpw, weights }] : [];
-  });
-  const maxWeights = Math.max(...scenarios.map((scenario) => scenario.weights));
+  const { href, scenarios, maxWeights } = comparisonExample(entries);
 
   return (
     <>
@@ -154,8 +147,8 @@ export function ProductPreview({ guides }: { guides: IntroGuide[] }) {
     <section aria-label="Explore Akashic" className="overflow-hidden rounded-[12px] border border-line bg-panel">
       <div role="tablist" aria-label="Product preview" className="grid grid-cols-3 border-b border-line bg-paper/50 px-2 sm:px-6">
         {PREVIEWS.map((preview, index) => (
-          <button key={preview.id} ref={(node) => { buttons.current[index] = node; }} type="button" role="tab" id={`preview-tab-${preview.id}`} aria-controls={`preview-panel-${preview.id}`} aria-selected={active === preview.id} tabIndex={active === preview.id ? 0 : -1} onClick={() => setActive(preview.id)} onKeyDown={(event) => moveTab(event, index)} className={`flex min-h-16 items-center justify-center gap-2 border-b-2 px-2 text-[13px] font-semibold transition-colors ${active === preview.id ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"}`}>
-            <HugeiconsIcon icon={preview.icon} size={17} strokeWidth={1.7} aria-hidden="true" className="hidden sm:block" />
+          <button key={preview.id} ref={(node) => { buttons.current[index] = node; }} type="button" role="tab" id={`preview-tab-${preview.id}`} aria-controls={`preview-panel-${preview.id}`} aria-selected={active === preview.id} tabIndex={active === preview.id ? 0 : -1} onClick={() => setActive(preview.id)} onKeyDown={(event) => moveTab(event, index)} className={productTabClassName(active === preview.id)}>
+            <HugeiconsIcon icon={preview.icon} size={17} strokeWidth={1.7} aria-hidden="true" className="flex-none" />
             {preview.label}
           </button>
         ))}

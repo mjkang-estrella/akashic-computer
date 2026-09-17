@@ -21,7 +21,7 @@ export function FitBar({
       <summary
         aria-label={`Hardware profile, ${selectedGb} GB VRAM`}
         title={`${selectedGb} GB VRAM`}
-        className="flex h-11 w-11 list-none cursor-pointer items-center justify-center rounded-full border border-line bg-panel text-muted transition-colors hover:border-ink hover:text-ink sm:h-9 sm:w-9 [&::-webkit-details-marker]:hidden"
+        className="flex h-11 w-11 list-none cursor-pointer items-center justify-center rounded-full border border-line bg-panel text-muted transition-colors hover:border-ink hover:text-ink [&::-webkit-details-marker]:hidden"
       >
         <HugeiconsIcon
           icon={UserCircleIcon}

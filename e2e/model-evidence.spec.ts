@@ -31,10 +31,10 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await page.screenshot({ path: testInfo.outputPath("comparison.png"), fullPage: true });
     await page.getByRole("button", { name: "Models", exact: true }).click();
     await expect(comparison.getByRole("heading", { name: "Compare artifacts · 2 selected" })).toBeVisible();
-    await page.getByRole("link", { name: "Docs", exact: true }).click();
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Learn", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Learn how models run." })).toBeVisible();
     await expect(comparison).toHaveCount(0);
-    await page.getByRole("link", { name: "Model", exact: true }).click();
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Discover", exact: true }).click();
     await expect(comparison.getByRole("heading", { name: "Compare artifacts · 2 selected" })).toBeVisible();
     await comparison.getByRole("button", { name: "Clear artifact comparison" }).click();
     await expect(comparison).toHaveCount(0);

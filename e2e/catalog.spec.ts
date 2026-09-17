@@ -1,21 +1,42 @@
 import { expect, test } from "@playwright/test";
 
-test("navigates through dedicated product routes", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Find your way through open-weight AI." })).toBeVisible();
+for (const width of [1440, 390]) {
+  test(`keeps navigation consistent across product routes at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Find your way through open-weight AI." })).toBeVisible();
+    const navigation = page.getByRole("navigation", { name: "Primary" });
+    await expect(navigation.getByRole("link")).toHaveText(["Discover", "Compare", "Benchmarks", "Learn"]);
+    const headerBounds = await page.getByRole("banner").boundingBox();
+    const navBounds = await navigation.boundingBox();
+    for (const link of await navigation.getByRole("link").all()) {
+      expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(64);
+      await expect(link.locator("svg")).toBeVisible();
+    }
 
-  await page.getByRole("link", { name: "Model", exact: true }).click();
-  await expect(page).toHaveURL(/\/models$/);
-  await expect(page.getByRole("heading", { name: "Models", exact: true })).toBeVisible();
+    for (const [label, href, heading] of [
+      ["Discover", "/models", "Models"],
+      ["Compare", "/compare", "More model or more precision?"],
+      ["Benchmarks", "/benchmarks", "Open model leaderboards"],
+      ["Learn", "/docs", "Learn how models run."],
+    ]) {
+      const link = navigation.getByRole("link", { name: label, exact: true });
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`${href}$`));
+      await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      await expect(link).toHaveAttribute("aria-current", "page");
+      expect(await page.getByRole("banner").boundingBox()).toEqual(headerBounds);
+      expect(await navigation.boundingBox()).toEqual(navBounds);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
 
-  await page.getByRole("link", { name: "Benchmark", exact: true }).click();
-  await expect(page).toHaveURL(/\/benchmarks$/);
-  await expect(page.getByRole("heading", { name: "Open model leaderboards" })).toBeVisible();
-
-  await page.getByRole("link", { name: "Docs", exact: true }).click();
-  await expect(page).toHaveURL(/\/docs$/);
-  await expect(page.getByRole("heading", { name: "Learn how models run." })).toBeVisible();
-});
+    const search = page.getByRole("searchbox", { name: "Search the Akashic catalog" });
+    await search.fill("glm");
+    await navigation.getByRole("link", { name: "Discover", exact: true }).click();
+    await expect(search).toHaveValue("");
+    await expect(page.getByRole("heading", { name: "Models", exact: true })).toBeVisible();
+  });
+}
 
 test("keeps model filters in one URL-backed state", async ({ page }) => {
   await page.goto("/models");

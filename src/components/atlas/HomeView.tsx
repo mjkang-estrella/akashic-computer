@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
 import { ProductPreview } from "./landing/ProductPreview";
+import { LandingSections } from "./landing/LandingSections";
 
 const INTRO_GUIDES = [
   "model-checkpoint-artifact-runtime",
@@ -36,6 +37,7 @@ export function HomeView() {
         </div>
       </section>
       <ProductPreview guides={guides} />
+      <LandingSections />
     </div>
   );
 }

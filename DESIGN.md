@@ -21,7 +21,7 @@ colors:
 typography:
   display:
     fontFamily: "STIX Two Text, Georgia, serif"
-    fontSize: "19px"
+    fontSize: "23px"
     fontWeight: 600
     lineHeight: 1
     letterSpacing: "normal"
@@ -156,7 +156,7 @@ The palette resembles archival paper and technical ink, with restrained semantic
 
 ### Hierarchy
 
-- **Display** (600, 19px, 1): Product identity only.
+- **Display** (600, 23px, 1): Product identity only.
 - **Title** (600, 15px, 1.25): Model names, family names, and important row identities.
 - **Family Title** (600, 25px, 1.25): The selected family page heading only.
 - **Body** (400, 13px, 1.5): Explanatory content and supporting interface copy. Prose should not exceed 72 characters per line.
@@ -213,8 +213,9 @@ Components are refined and restrained. Familiar controls should disappear into t
 
 ### Navigation
 
-- The homepage has a quiet brand-and-links header, a centered introduction, two entry points (Explore models and Start learning), and one tabbed product preview. Its display headline may scale from 44px to 80px; supporting introductory prose is 16–18px. The preview uses real catalog data and links into the product. Keep model pickers, search, hardware controls, feeds, and repeated feature sections off this introductory surface.
-- The product identity stays top-left with global search immediately beside it. Model, Benchmark, and Docs form the primary navigation, while the circular hardware profile control stays at the far right.
+- The homepage has a centered introduction, two entry points (Explore models and Start learning), and one tabbed product preview. Its display headline may scale from 44px to 80px; supporting introductory prose is 16–18px. The preview uses real catalog data and links into the product. Below it, two spacious sections explain a concrete comparison and introduce learning paths, followed by a compact catalog call to action. Use one short paragraph per feature and give the example more space than the copy. Keep model pickers, search, hardware controls, and feeds inside product routes.
+- Every route uses the same header width, 23px product identity, and primary navigation: Discover, Compare, Benchmarks, Learn. `ProductNavigation` owns the labels, icons, and shared 64px tab style used by both route links and the landing preview. Preserve link semantics for navigation and keyboard tab semantics for the preview. Icons remain visible on mobile, above the navigation labels when space is limited. The active route has an ink underline and `aria-current`.
+- Product routes add a separate search-and-hardware row below the shared header. Search and the hardware trigger have 44px targets. Entering a section clears the previous search; the primary navigation never shifts to accommodate tools.
 - Model is a reverse-chronological catalog with one row per release and parameter size. Compact company, size, variant, and quant filters replace the family rail; selecting a row opens a shareable detail view that groups variants and provider artifacts under the base model.
 - Search spans families, model-size entries, and artifacts. Selecting a model or artifact opens the corresponding model detail view.
 - The detail title identifies the model and size; variants switch the artifact set without creating duplicate catalog rows.
