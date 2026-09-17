@@ -105,7 +105,7 @@ Akashic Computer should feel like a carefully maintained reference work that hap
 
 The system uses a restrained paper-and-ink composition with editorial serif moments, utilitarian sans-serif controls, and monospaced data. Discovery owns the hierarchy. VRAM capacity, benchmark evidence, provenance, and runtime support annotate the catalog without turning into recommendations.
 
-The design explicitly rejects marketing-site composition, affiliate buying-guide language, generic SaaS dashboards, promotional AI leaderboards, ornamental card grids, decorative gradients, and hardware-first framing.
+The homepage uses a concise SaaS-style introduction within this paper-and-ink identity. Product routes retain the dense technical catalog composition. Across both, avoid affiliate buying-guide language, generic SaaS dashboards, promotional AI leaderboards, ornamental card grids, decorative gradients, and hardware-first framing.
 
 **Key Characteristics:**
 
@@ -213,6 +213,7 @@ Components are refined and restrained. Familiar controls should disappear into t
 
 ### Navigation
 
+- The homepage has a quiet brand-and-links header, a centered introduction, two entry points (Explore models and Start learning), and one tabbed product preview. Its display headline may scale from 44px to 80px; supporting introductory prose is 16–18px. The preview uses real catalog data and links into the product. Keep model pickers, search, hardware controls, feeds, and repeated feature sections off this introductory surface.
 - The product identity stays top-left with global search immediately beside it. Model, Benchmark, and Docs form the primary navigation, while the circular hardware profile control stays at the far right.
 - Model is a reverse-chronological catalog with one row per release and parameter size. Compact company, size, variant, and quant filters replace the family rail; selecting a row opens a shareable detail view that groups variants and provider artifacts under the base model.
 - Search spans families, model-size entries, and artifacts. Selecting a model or artifact opens the corresponding model detail view.
@@ -239,7 +240,7 @@ Components are refined and restrained. Familiar controls should disappear into t
 
 ### Don't:
 
-- **Don't** make Akashic Computer feel like a marketing site or affiliate buying guide.
+- **Don't** turn the catalog, comparison, or study routes into marketing pages or affiliate buying guides. The homepage is the introductory exception.
 - **Don't** introduce a generic SaaS dashboard or ornamental card grid.
 - **Don't** use decorative gradients, glassmorphism, colored side stripes, or gradient text.
 - **Don't** label one model or artifact as universally best or recommended.

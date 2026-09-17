@@ -1,84 +1,63 @@
 import { expect, test } from "@playwright/test";
 
 for (const width of [1440, 390]) {
-  test(`explores a model path and opens its exact variant at ${width}px`, async ({
-    page,
-  }, testInfo) => {
+  test(`introduces the product and connects each preview to its tools at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/");
-    const explorer = page.getByRole("region", {
-      name: "From model family to downloadable weights",
-    });
-    const family = explorer.getByRole("combobox", { name: /01 Family/ });
-    await expect(family).toBeVisible();
-    await family.selectOption("qwen");
-    const release = explorer.getByRole("combobox", { name: /02 Release/ });
-    const releaseOptions = await release
-      .locator("option")
-      .evaluateAll((options) =>
-        options.map((option) => (option as HTMLOptionElement).value),
-      );
-    expect(releaseOptions.length).toBeGreaterThan(1);
-    await release.selectOption(releaseOptions[1]);
-    const size = explorer.getByRole("combobox", { name: /03 Size/ });
-    const selectedSlug = await size.inputValue();
-    const variant = explorer.getByRole("combobox", { name: /04 Variant/ });
-    const selectedVariant = await variant.inputValue();
-    const inspect = explorer.getByRole("link", { name: "Inspect this model" });
-    await expect(inspect).toHaveAttribute(
-      "href",
-      `/models/${selectedSlug}?variant=${encodeURIComponent(selectedVariant)}`,
-    );
-    const formatButtons = explorer
-      .getByRole("button")
-      .filter({ hasNotText: "All formats" });
-    if (await formatButtons.count()) {
-      const firstFormat = formatButtons.first();
-      await firstFormat.click();
-      await expect(firstFormat).toHaveAttribute("aria-pressed", "true");
-      const format = await firstFormat.textContent();
-      for (const row of await explorer.getByRole("listitem").all()) {
-        await expect(row.getByText(format!, { exact: true })).toBeVisible();
-      }
-      await explorer
-        .getByRole("button", { name: "All formats", exact: true })
-        .click();
-    }
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath("homepage.png"),
-      fullPage: true,
-    });
-    await inspect.click();
-    await expect(page).toHaveURL(
-      new RegExp(`/models/${selectedSlug}\\?variant=`),
-    );
-    await expect(
-      page.getByRole("region", { name: "Available artifacts" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Find your way through open-weight AI.");
+    await expect(page.getByRole("link", { name: "Explore models", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Start learning", exact: true })).toHaveAttribute("href", "/docs");
+    await expect(page.getByRole("combobox")).toHaveCount(0);
+    await expect(page.getByRole("searchbox")).toHaveCount(0);
+
+    const discover = page.getByRole("tabpanel", { name: "Discover", exact: true });
+    const firstModel = discover.getByRole("link", { name: /^Explore / }).first();
+    await expect(firstModel).toBeVisible();
+    const modelHref = await firstModel.getAttribute("href");
+    await page.screenshot({ path: testInfo.outputPath("landing-discover.png"), fullPage: true });
+
+    await page.getByRole("tab", { name: "Discover", exact: true }).focus();
+    await page.keyboard.press("ArrowRight");
+    const compareTab = page.getByRole("tab", { name: "Compare", exact: true });
+    await expect(compareTab).toBeFocused();
+    await expect(compareTab).toHaveAttribute("aria-selected", "true");
+    const comparison = page.getByRole("tabpanel", { name: "Compare", exact: true });
+    await expect(comparison.getByText("258.96 GB", { exact: true })).toBeVisible();
+    await expect(comparison.getByText("120.5 GB", { exact: true })).toBeVisible();
+    await expect(comparison.getByText(/Estimated weights only/)).toBeVisible();
+    await expect(comparison.getByRole("link", { name: "Open this comparison" })).toHaveAttribute("href", /leftBpw=2.75.*rightBpw=3/);
+    await page.screenshot({ path: testInfo.outputPath("landing-compare.png"), fullPage: true });
+
+    await compareTab.press("End");
+    await expect(page.getByRole("tab", { name: "Learn", exact: true })).toBeFocused();
+    const learn = page.getByRole("tabpanel", { name: "Learn", exact: true });
+    await expect(learn.getByRole("link", { name: /Quantization without the shorthand/ })).toHaveAttribute("href", "/docs/quantization");
+    await page.screenshot({ path: testInfo.outputPath("landing-learn.png"), fullPage: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await learn.getByRole("link", { name: /Quantization without the shorthand/ }).click();
+    await expect(page.getByRole("heading", { name: "Quantization without the shorthand", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Akashic home", exact: true }).click();
+    await page.getByRole("tabpanel", { name: "Discover", exact: true }).getByRole("link", { name: /^Explore / }).first().click();
+    await expect(page).toHaveURL(new RegExp(`${modelHref}$`));
+    await expect(page.getByRole("region", { name: "Available artifacts" })).toBeVisible();
+    await page.getByRole("link", { name: "Akashic home", exact: true }).click();
+    await page.getByRole("link", { name: "Explore models", exact: true }).click();
+    await expect(page).toHaveURL(/\/models$/);
+    await expect(page.getByRole("searchbox", { name: "Search the Akashic catalog" })).toBeVisible();
     expect(errors).toEqual([]);
   });
 }
 
-test("use cases open the matching URL-backed catalog category", async ({
-  page,
-}) => {
+test("keeps the introduction and learning usable while catalog data loads", async ({ page }) => {
+  await page.routeWebSocket(/convex\.cloud/, () => {});
   await page.goto("/");
-  const discovery = page.getByRole("region", {
-    name: "Explore by capability",
-  });
-  await expect(
-    discovery.getByRole("link", { name: /Audio & Speech/ }),
-  ).toBeVisible();
-  await discovery.getByRole("link", { name: /Audio & Speech/ }).click();
-  await expect(page).toHaveURL(/\/models\?category=audio-speech$/);
-  await expect(
-    page.getByRole("button", { name: "Remove Audio & Speech filter" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore models", exact: true })).toBeVisible();
+  await expect(page.getByRole("status", { name: "", exact: true })).toContainText("Loading model preview");
+  await page.getByRole("tab", { name: "Learn", exact: true }).click();
+  await page.getByRole("tabpanel", { name: "Learn", exact: true }).getByRole("link", { name: /Quantization without the shorthand/ }).click();
+  await expect(page.getByRole("heading", { name: "Quantization without the shorthand", exact: true })).toBeVisible();
 });
