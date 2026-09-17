@@ -15,14 +15,12 @@ import { FamilyLogo } from "./FamilyLogo";
 function PathField({
   step,
   label,
-  hint,
   value,
   onChange,
   children,
 }: {
   step: string;
   label: string;
-  hint: string;
   value: string;
   onChange: (value: string) => void;
   children: ReactNode;
@@ -42,7 +40,6 @@ function PathField({
       >
         {children}
       </select>
-      <span className="mt-1 block text-[11px] text-muted">{hint}</span>
     </label>
   );
 }
@@ -62,16 +59,13 @@ export function ModelPathExplorer({
 
   return (
     <section
-      aria-labelledby="model-path-title"
+      aria-label="From model family to downloadable weights"
       className="min-w-0 rounded-[10px] border border-line bg-panel"
     >
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
         <h2 id="model-path-title" className="text-[13px] font-semibold">
-          From model family to downloadable weights
+          Choose a model
         </h2>
-        <span className="font-mono text-[10px] text-faint">
-          Try the atlas ↓
-        </span>
       </header>
       {!path ? (
         <div className="min-h-[370px] p-5" aria-busy={loading}>
@@ -98,7 +92,6 @@ export function ModelPathExplorer({
             <PathField
               step="01"
               label="Family"
-              hint="The model lineage"
               value={path.family.id}
               onChange={(familyId) => setSelection({ familyId })}
             >
@@ -111,7 +104,6 @@ export function ModelPathExplorer({
             <PathField
               step="02"
               label="Release"
-              hint="A generation in that family"
               value={path.release.id}
               onChange={(releaseId) =>
                 setSelection({ familyId: path.family.id, releaseId })
@@ -126,7 +118,6 @@ export function ModelPathExplorer({
             <PathField
               step="03"
               label="Size"
-              hint="Total & active parameters"
               value={path.entry.slug}
               onChange={(slug) =>
                 setSelection({
@@ -145,7 +136,6 @@ export function ModelPathExplorer({
             <PathField
               step="04"
               label="Variant"
-              hint="How the model was adapted"
               value={path.variant ?? ""}
               onChange={(variant) =>
                 setSelection({
@@ -173,10 +163,7 @@ export function ModelPathExplorer({
                 <span className="mr-2 font-mono text-[10px] font-normal text-faint">
                   05
                 </span>
-                Artifact{" "}
-                <span className="font-normal text-muted">
-                  · the published weights
-                </span>
+                Artifact
               </legend>
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {["", ...path.formats].map((format) => (

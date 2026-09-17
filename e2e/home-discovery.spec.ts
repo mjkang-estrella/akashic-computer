@@ -71,7 +71,7 @@ test("use cases open the matching URL-backed catalog category", async ({
 }) => {
   await page.goto("/");
   const discovery = page.getByRole("region", {
-    name: "What do you want to build?",
+    name: "Explore by capability",
   });
   await expect(
     discovery.getByRole("link", { name: /Audio & Speech/ }),

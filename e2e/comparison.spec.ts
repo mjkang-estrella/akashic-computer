@@ -6,23 +6,23 @@ for (const width of [1280, 390]) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/compare");
-    await page.getByRole("link", { name: "Try GLM-5.3 2.75 vs Flash 3 bpw" }).click();
+    await page.getByRole("link", { name: "Try GLM-5.3 vs Flash" }).click();
     const a = page.getByRole("region", { name: "Scenario A", exact: true });
     const b = page.getByRole("region", { name: "Scenario B", exact: true });
     // Live parameter counts retain more precision than the rounded 753B/321B labels.
     await expect(a.getByText("258.96 GB", { exact: true })).toBeVisible();
     await expect(b.getByText("120.5 GB", { exact: true })).toBeVisible();
     const tradeoffs = page.getByRole("region", { name: "Comparison tradeoffs" });
-    await expect(tradeoffs.getByText(/Scenario B allocates 9.09% more target bits/)).toBeVisible();
-    await expect(tradeoffs.getByText(/Quality verdict: unverified/)).toBeVisible();
+    await expect(tradeoffs.getByText(/Option B uses 9.09% more bits per weight/)).toBeVisible();
+    await expect(tradeoffs.getByText(/No quality verdict/)).toBeVisible();
     await expect(tradeoffs.getByText(/6.45 bpw/)).toBeVisible();
     await page.getByLabel("Weight budget (GB)", { exact: true }).fill("192");
     await expect(a.getByText("66.96 GB above the weight budget", { exact: true })).toBeVisible();
     await expect(b.getByText("71.5 GB left in the weight budget", { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("comparison-planner.png"), fullPage: true });
     await a.getByLabel("Target bits per weight A").fill("2.5");
-    await expect(page.getByRole("link", { name: "Comparison link", exact: true })).toHaveAttribute("href", /leftBpw=2.5.*budget=192/);
-    await page.getByRole("link", { name: "Comparison link", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Open saved view", exact: true })).toHaveAttribute("href", /leftBpw=2.5.*budget=192/);
+    await page.getByRole("link", { name: "Open saved view", exact: true }).click();
     await expect(page).toHaveURL(/leftBpw=2.5.*budget=192/);
     await page.reload();
     await expect(a.getByLabel("Target bits per weight A")).toHaveValue("2.5");

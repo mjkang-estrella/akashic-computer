@@ -9,7 +9,6 @@ import {
   BookOpen02Icon,
   ChartColumnIcon,
   Clock01Icon,
-  CubeIcon,
   RefreshIcon,
 } from "@hugeicons/core-free-icons";
 import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
@@ -308,25 +307,18 @@ export function HomeView({
     <section className="pb-10 pt-6 sm:pt-8">
       <header className="grid gap-8 border-b border-line pb-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
         <div className="py-2 lg:py-8">
-          <p className="mb-5 font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-muted">An atlas for open-weight AI</p>
           <h1 className="max-w-[17ch] text-balance font-display text-[42px] font-semibold leading-[1.06] sm:text-[54px] xl:text-[64px]">
             Open-weight models, made legible.
           </h1>
-          <p className="mt-5 max-w-[49ch] text-[15px] leading-relaxed text-muted">
-            Explore language, vision, audio, and beyond. Find the releases and
-            downloadable weights, then understand their benchmarks, memory
-            estimates, and runtime evidence.
+          <p className="mt-5 max-w-[46ch] text-[15px] leading-relaxed text-muted">
+            Find a model, its downloadable weights, and the evidence needed to run it.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link href="/models" className="group inline-flex min-h-11 items-center gap-2 rounded-[7px] bg-ink px-4 text-[13px] font-semibold text-paper hover:bg-ink/85">
               Explore the models
               <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
             </Link>
-            <Link href="/benchmarks" className="inline-flex min-h-11 items-center gap-2 px-2 text-[13px] font-semibold text-muted hover:text-ink">
-              Compare benchmarks
-              <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" />
-            </Link>
-            <Link href="/compare" className="inline-flex min-h-11 items-center gap-2 px-2 text-[13px] font-semibold text-muted hover:text-ink">Model size vs precision →</Link>
+            <Link href="/compare" className="inline-flex min-h-11 items-center gap-2 px-2 text-[13px] font-semibold text-muted hover:text-ink">Compare size vs precision →</Link>
           </div>
           <div className="mt-7 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-t border-line pt-4 font-mono text-[12px]">
             <span><strong className="font-semibold">{loading && !entries.length ? "—" : entries.length}</strong> <span className="text-muted">model sizes</span></span>
@@ -346,22 +338,18 @@ export function HomeView({
         <ModelPathExplorer entries={entries} loading={loading} />
       </header>
 
-      <section className="border-b border-line py-7" aria-labelledby="discovery-title">
+      <section className="border-b border-line py-8" aria-labelledby="discovery-title">
         <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="discovery-title" className="font-display text-[24px] font-semibold">What do you want to build?</h2>
-            <p className="mt-1 text-[13px] text-muted">Discover the model landscape by what it can do.</p>
-          </div>
-          <Link href="/models" className="inline-flex min-h-11 items-center gap-1.5 text-[12px] font-semibold text-meta hover:text-ink">Browse the full atlas <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" /></Link>
+          <h2 id="discovery-title" className="font-display text-[24px] font-semibold">Explore by capability</h2>
+          <Link href="/models" className="inline-flex min-h-11 items-center gap-1.5 text-[12px] font-semibold text-meta hover:text-ink">All models <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" /></Link>
         </header>
         <div className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
-          {MODEL_CATEGORIES.map((category, index) => {
+          {MODEL_CATEGORIES.map((category) => {
             const count = entries.filter((entry) => entry.category === category.id).length;
             const detail = CATEGORY_DESCRIPTIONS[category.id];
             return (
               <Link key={category.id} href={`/models?category=${category.id}`}
-                className="group flex min-h-[88px] items-center gap-3 border-b border-line px-3 py-4 hover:bg-panel">
-                <span className="self-start pt-1 font-mono text-[10px] text-faint">{String(index + 1).padStart(2, "0")}</span>
+                className="group flex min-h-[80px] items-center gap-3 border-b border-line px-3 py-4 hover:bg-panel">
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-baseline gap-x-2"><span className="text-[13px] font-semibold group-hover:underline group-hover:underline-offset-4">{category.label}</span><span className="font-mono text-[10px] text-faint">{loading && !entries.length ? "—" : count} model sizes</span></span>
                   <span className="mt-1 block text-[12px] text-muted">{detail}</span>
@@ -373,61 +361,18 @@ export function HomeView({
         </div>
       </section>
 
-      <nav aria-label="Start exploring" className="grid border-b border-line md:grid-cols-3">
-        {[
-          {
-            label: "Browse model releases",
-            detail: "Families, sizes, and quantizations",
-            icon: CubeIcon,
-            onClick: onViewModels,
-          },
-          {
-            label: "Compare benchmark evidence",
-            detail: "Official creator-reported results",
-            icon: ChartColumnIcon,
-            onClick: onViewBenchmarks,
-          },
-          {
-            label: "Understand model mechanics",
-            detail: "Quantization, MoE, and memory",
-            icon: BookOpen02Icon,
-            onClick: () => onOpenDoc("quantization"),
-          },
-        ].map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onClick={item.onClick}
-            className="group flex min-h-[72px] items-center gap-3 border-b border-linesoft py-3 text-left last:border-b-0 hover:bg-panel md:border-r md:border-b-0 md:px-5 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
-          >
-            <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.7} aria-hidden="true" className="flex-none text-faint group-hover:text-ink" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-semibold">{item.label}</span>
-              <span className="mt-0.5 block text-[11px] text-muted">{item.detail}</span>
-            </span>
-            <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
-          </button>
-        ))}
-      </nav>
-
       {visibleChanges.length > 0 ? (
         <section className="border-b border-line py-7" aria-labelledby="material-changes-title">
-          <header className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h3 id="material-changes-title" className="font-display text-[22px] font-semibold">
-                Material changes
-              </h3>
-              <p className="mt-0.5 max-w-[68ch] text-[12px] text-muted">
-                Weight, artifact, runtime, and official recipe changes. Documentation-only commits are excluded.
-              </p>
-            </div>
-            <span className="font-mono text-[10.5px] text-faint">Evidence-linked</span>
+          <header>
+            <h3 id="material-changes-title" className="font-display text-[22px] font-semibold">
+              Material changes
+            </h3>
           </header>
           <div className="mt-4 divide-y divide-linesoft border-y border-line">
             {visibleChanges.map(({ change, entry }, index) => (
               <div
                 key={change.id}
-                className={`${index >= 3 ? "hidden sm:grid" : "grid"} gap-2 py-3.5 sm:grid-cols-[108px_minmax(180px,0.7fr)_minmax(260px,1.3fr)_auto] sm:items-center sm:gap-5`}
+                className={`${index >= 3 ? "hidden sm:grid" : "grid"} gap-2 py-3.5 sm:grid-cols-[108px_minmax(180px,0.7fr)_minmax(220px,1.3fr)_auto] sm:items-center sm:gap-5`}
               >
                 <span className="font-mono text-[11px] text-faint">{change.dateLabel}</span>
                 <button
@@ -439,7 +384,6 @@ export function HomeView({
                 </button>
                 <span className="min-w-0">
                   <span className="block text-[12.5px] font-semibold">{change.title}</span>
-                  <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">{change.summary}</span>
                 </span>
                 {change.sourceUrls[0] ? (
                   <a
@@ -463,14 +407,9 @@ export function HomeView({
       <div className="grid gap-8 pt-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.85fr)] xl:gap-12">
         <section aria-labelledby="recent-models-title" className="min-w-0">
           <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 id="recent-models-title" className="font-display text-[22px] font-semibold">
-                New models
-              </h3>
-              <p className="mt-0.5 text-[12px] text-muted">
-                Recently published model-size releases.
-              </p>
-            </div>
+            <h3 id="recent-models-title" className="font-display text-[22px] font-semibold">
+              New models
+            </h3>
             <SectionLink onClick={onViewModels}>View all models</SectionLink>
           </header>
 
@@ -570,12 +509,12 @@ export function HomeView({
 
         <section aria-labelledby="benchmark-pulse-title" className="min-w-0">
           <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="flex flex-wrap items-baseline gap-2">
               <h3 id="benchmark-pulse-title" className="font-display text-[22px] font-semibold">
-                Benchmark pulse
+                Benchmarks
               </h3>
-              <p className="mt-0.5 text-[12px] text-muted">
-                {benchmarkCoverage.benchmarkCount} comparable benchmarks across {benchmarkCoverage.modelCount} catalog models.
+              <p className="font-mono text-[10px] text-faint">
+                {benchmarkCoverage.benchmarkCount} tests · {benchmarkCoverage.modelCount} models
               </p>
             </div>
             <SectionLink onClick={onViewBenchmarks}>View all benchmarks</SectionLink>
@@ -701,15 +640,10 @@ export function HomeView({
 
       <section className="mt-12 border-t border-line pt-8" aria-labelledby="understand-title">
         <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-          <div>
             <h3 id="understand-title" className="font-display text-[22px] font-semibold">
-              Understand the catalog
+              Learn the system
             </h3>
-            <p className="mt-0.5 text-[12px] text-muted">
-              Build the vocabulary needed to evaluate local-model options.
-            </p>
-          </div>
-          <SectionLink onClick={onViewDocs}>Read the docs</SectionLink>
+          <SectionLink onClick={onViewDocs}>All study paths</SectionLink>
         </header>
         <div className="mt-3 grid border-y border-line md:grid-cols-3">
           {featuredDocs.map((article) => (
@@ -733,9 +667,6 @@ export function HomeView({
               </span>
               <span className="mt-2 block max-w-[52ch] text-[12.5px] leading-relaxed text-muted">
                 {article.summary}
-              </span>
-              <span className="mt-3 block font-mono text-[10.5px] text-faint">
-                {article.readMinutes} min read
               </span>
             </button>
           ))}
