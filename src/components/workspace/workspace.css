@@ -663,54 +663,6 @@
   appearance: none;
   cursor: default;
 }
-.ac-composer-options {
-  position: relative;
-  color: #6b6557;
-}
-.ac-composer-options > summary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 7px;
-  cursor: pointer;
-  list-style: none;
-}
-.ac-composer-options > summary::-webkit-details-marker {
-  display: none;
-}
-.ac-composer-options > summary:hover {
-  background: #f2efe5;
-}
-.ac-options-popover {
-  position: absolute;
-  bottom: 44px;
-  left: 0;
-  width: 210px;
-  padding: 14px;
-  background: #fffdf8;
-  border: 1px solid #ddd6c4;
-  border-radius: 10px;
-  z-index: 5;
-  font-size: 13px;
-}
-.ac-options-popover label {
-  display: block;
-  margin-bottom: 6px;
-}
-.ac-options-popover select {
-  width: 100%;
-  padding: 7px;
-  background: #f7f5ee;
-  border: 1px solid #ddd6c4;
-  border-radius: 5px;
-}
-.ac-options-popover p {
-  font-size: 11px;
-  color: #6b6557;
-  margin: 10px 0 0;
-}
 .ac-send {
   margin-left: auto;
   background: #1c1a14 !important;
@@ -881,9 +833,6 @@
   }
   .ac-chat-welcome h1 {
     font-size: 25px;
-  }
-  .ac-options-popover {
-    left: -90px;
   }
   .ac-icon-button {
     width: 40px;

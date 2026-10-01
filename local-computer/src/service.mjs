@@ -27,14 +27,14 @@ export const schemas = {
     session_id: z.string().uuid(),
     text: z.string().min(1).max(16000),
     idempotency_key: z.string().min(8).max(100),
-    max_tokens: z.number().int().min(128).max(8192).default(2048),
+    max_tokens: z.number().int().min(128).max(8192).default(8192),
   }),
   get_job: z.object({ job_id: z.string().uuid() }),
   cancel_job: z.object({ job_id: z.string().uuid() }),
   delegate_task: z.object({
     brief: z.string().min(1).max(16000),
     idempotency_key: z.string().min(8).max(100),
-    max_tokens: z.number().int().min(128).max(8192).default(4096),
+    max_tokens: z.number().int().min(128).max(8192).default(8192),
   }),
 };
 export class Service {

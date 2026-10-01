@@ -46,7 +46,7 @@ Model-facing operations remain `open_workspace`, `delegate_task`, `get_task_stat
 
 - One inference job runs per controller across local and account work.
 - The local agent can list devices, inspect read-only health, and list models. It cannot execute arbitrary shell commands, install models, or change services.
-- Maximum six model rounds, six tool calls per round, and 8192 output tokens. The default budget is 4096 in the UI.
+- Maximum six model rounds, six tool calls per round, and 8192 output tokens. The UI always uses the maximum 8192-token budget.
 - Last 12 non-partial messages, bounded to 48,000 characters, form context. Inference requests time out after three minutes.
 - Local state uses atomic file replacement and retains partial output. Restarted jobs become interrupted; they are not replayed automatically.
 - Cloud job IDs are durable idempotency keys. Reconnect reconciles prior receipts before claiming work. An unknown execution is interrupted, not repeated.

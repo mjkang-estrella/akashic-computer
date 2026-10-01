@@ -54,7 +54,7 @@ export class Store {
     if (!j) throw new Error("Job not found");
     return j;
   }
-  enqueue(sessionId, text, key, maxTokens = 2048, metadata = {}) {
+  enqueue(sessionId, text, key, maxTokens = 8192, metadata = {}) {
     const s = this.session(sessionId);
     if (typeof text !== "string" || !text.trim() || text.length > 16000)
       throw new Error("Message must contain 1–16000 characters");

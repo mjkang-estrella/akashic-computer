@@ -122,7 +122,7 @@ export const write = internalMutation({
       throw new Error("Conversation not found");
     const text = a.text || "",
       key = a.key || "",
-      maxTokens = a.maxTokens ?? 4096;
+      maxTokens = a.maxTokens ?? 8192;
     if (
       !text.trim() ||
       text.length > 16000 ||

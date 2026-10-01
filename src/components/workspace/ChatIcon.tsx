@@ -7,7 +7,6 @@ export function ChatIcon({
     | "search"
     | "send"
     | "stop"
-    | "settings"
     | "copy"
     | "check"
     | "close"
@@ -43,13 +42,6 @@ export function ChatIcon({
         fill="currentColor"
         stroke="none"
       />
-    ),
-    settings: (
-      <>
-        <path d="M3 7h5m4 0h9M3 17h9m4 0h5" />
-        <circle cx="10" cy="7" r="2" />
-        <circle cx="14" cy="17" r="2" />
-      </>
     ),
     copy: (
       <>

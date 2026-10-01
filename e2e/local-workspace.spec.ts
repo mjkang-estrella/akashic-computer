@@ -29,7 +29,7 @@ test("chat layout renders safe Markdown and keeps mobile controls usable", async
   page,
 }) => {
   const id = "b8244db9-a3e1-4881-84ac-441855494a81";
-  const sent: string[] = [];
+  const sent: { text: string; max_tokens: number }[] = [];
   await page.route("**/api/*", async (route) => {
     const op = new URL(route.request().url()).pathname.split("/").at(-1);
     let data: unknown = {};
@@ -68,7 +68,7 @@ test("chat layout renders safe Markdown and keeps mobile controls usable", async
         ],
       };
     if (op === "send_message") {
-      sent.push(route.request().postDataJSON().text);
+      sent.push(route.request().postDataJSON());
       data = { jobId: "job", status: "queued" };
     }
     await route.fulfill({ json: data });
@@ -118,7 +118,9 @@ test("chat layout renders safe Markdown and keeps mobile controls usable", async
   await input.pressSequentially("Line two");
   await input.press("Enter");
   await expect.poll(() => sent.length).toBe(1);
-  expect(sent[0]).toBe("Line one\nLine two");
+  expect(sent[0].text).toBe("Line one\nLine two");
+  expect(sent[0].max_tokens).toBe(8192);
+  await expect(page.getByLabel("Generation settings")).toHaveCount(0);
   const composer = await page.locator(".ac-composer").boundingBox();
   expect(composer!.y + composer!.height).toBeLessThanOrEqual(844);
   expect(
