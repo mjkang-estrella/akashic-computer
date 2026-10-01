@@ -20,6 +20,7 @@ import { fitOf, memoryRange } from "@/lib/atlas/fit";
 import { modelTransitionName } from "@/lib/atlas/motion";
 import type { RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
+import { RunningModelLink } from "../workspace/RunningModelLink";
 import { FamilyLogo } from "./FamilyLogo";
 
 export function ModelDetailView({
@@ -264,7 +265,7 @@ export function ModelDetailView({
           <details className="motion-disclosure group/reports mt-3 border-y border-linesoft">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 marker:hidden">
               <HugeiconsIcon icon={Activity01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="text-faint" />
-              <span className="flex-1 text-[12px] font-semibold">Akashic run reports · {entry.runReports.length}</span>
+              <span className="flex-1 text-[12px] font-semibold">Akashic Computer run reports · {entry.runReports.length}</span>
               <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.8} aria-hidden="true" className="text-faint transition-transform group-open/reports:rotate-180" />
             </summary>
             <div className="disclosure-body">
@@ -346,7 +347,7 @@ export function ModelDetailView({
                   </div>
                   <div className="min-w-0 pl-11 md:pl-0">
                     <span className="block text-[12.5px] font-semibold">{uploaderDisplay(artifact.repo)}</span>
-                    <span className="mt-0.5 block break-all font-mono text-[10.5px] text-muted">{artifact.repo}</span>
+                    <span className="mt-0.5 block break-all font-mono text-[10.5px] text-muted">{artifact.repo}</span><RunningModelLink repo={artifact.repo}/>
                     {artifact.confidence !== "verified" ? <span className="text-[10px] text-caution">Model link unverified</span> : null}
                   </div>
                   <div className="pl-11 md:pl-0">
@@ -498,7 +499,7 @@ export function ModelDetailView({
           <div className="mt-4 border-y border-linesoft py-3">
             <p className="text-[12px] font-semibold">No exact official deployment recipe match</p>
             <p className="mt-0.5 max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
-              Absence means unverified, not unsupported. Akashic only attaches recipes through exact artifact IDs.
+              Absence means unverified, not unsupported. Akashic Computer only attaches recipes through exact artifact IDs.
             </p>
           </div>
         )}

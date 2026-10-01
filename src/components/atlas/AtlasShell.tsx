@@ -13,6 +13,7 @@ import {
   CubeIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
+import { AccountControl, connectedWorkspaceEnabled } from "../AccountControl";
 import { AkashicMark } from "@/components/brand/AkashicMark";
 import { DEFAULT_PRESET_ID, RIG_PRESETS } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
@@ -96,6 +97,8 @@ export function AtlasShell({ children }: { children: ReactNode }) {
     { href: "/models", label: "Model", icon: CubeIcon, active: pathname.startsWith("/models") },
     { href: "/benchmarks", label: "Benchmark", icon: ChartColumnIcon, active: pathname.startsWith("/benchmarks") },
     { href: "/docs", label: "Docs", icon: BookOpenTextIcon, active: pathname.startsWith("/docs") },
+    { href: "/workspace", label: "Workspace", icon: CubeIcon, active: pathname.startsWith("/workspace") },
+    { href: "/computers", label: "Computers", icon: CubeIcon, active: pathname.startsWith("/computers") },
   ] as const;
   const wide = !query.trim() && (pathname === "/" || pathname === "/models");
 
@@ -104,9 +107,9 @@ export function AtlasShell({ children }: { children: ReactNode }) {
       <div className="min-h-screen pb-28">
         <header className="border-b border-line bg-paper">
           <div className="mx-auto grid w-full max-w-[1440px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-3 lg:grid-cols-[auto_minmax(280px,420px)_minmax(0,1fr)_auto] lg:gap-x-5">
-            <Link href="/" aria-label="Akashic home" className="flex min-h-11 items-center gap-2.5 text-left sm:min-h-9">
+            <Link href="/" aria-label="Akashic Computer home" className="flex min-h-11 items-center gap-2.5 text-left sm:min-h-9">
               <AkashicMark className="flex-none text-ink" />
-              <span className="font-display text-[19px] font-semibold leading-none">Akashic</span>
+              <span className="font-display text-[19px] font-semibold leading-none">Akashic Computer</span>
             </Link>
             <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-[7px] border border-line bg-panel px-3 py-1.5 sm:min-h-9">
               <HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
@@ -115,13 +118,13 @@ export function AtlasShell({ children }: { children: ReactNode }) {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={pathname.startsWith("/benchmarks") ? "Search benchmarks or models..." : "Search models, families, artifacts..."}
-                aria-label="Search the Akashic catalog"
+                aria-label="Search the Akashic Computer catalog"
                 aria-controls="search-results"
                 className="w-full min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
               />
             </label>
-            <nav aria-label="Primary" className="col-span-3 row-start-2 flex min-w-0 items-center gap-1 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:justify-end">
-              {navigation.map((item) => (
+            <nav aria-label="Primary" className="col-span-3 row-start-2 flex flex-wrap min-w-0 items-center gap-1 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:justify-end">
+              {navigation.filter(item=>connectedWorkspaceEnabled||!["/workspace","/computers"].includes(item.href)).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -132,7 +135,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
                   {item.label}
                 </Link>
               ))}
-            </nav>
+            <AccountControl /></nav>
             <div className="col-start-3 row-start-1 justify-self-end lg:col-start-4">
               <FitBar
                 presetId={presetId}

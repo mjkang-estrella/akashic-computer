@@ -170,7 +170,7 @@ export const DOC_ARTICLES: DocArticle[] = [
         title: "How to read an MoE specification",
         paragraphs: [
           "Look for both total and active parameter counts, the number of routed experts, the number selected per token, and whether shared experts are always active. Then inspect the runtime's support for that architecture rather than assuming generic MoE support is enough.",
-          "When only one parameter number is shown, verify whether it is total or active before estimating memory. Akashic displays the total count first and the active count in parentheses to preserve that distinction.",
+          "When only one parameter number is shown, verify whether it is total or active before estimating memory. Akashic Computer displays the total count first and the active count in parentheses to preserve that distinction.",
         ],
         bullets: [
           "Total parameters: stored capacity.",

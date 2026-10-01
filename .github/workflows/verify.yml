@@ -18,9 +18,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm ci --prefix local-computer
+      - run: npm run typecheck --prefix local-computer
+      - run: npm run build --prefix local-computer
+      - run: npm test --prefix local-computer
       - run: npm run typecheck
       - run: npm test
       - run: npm run lint
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e

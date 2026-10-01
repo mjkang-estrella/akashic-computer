@@ -23,13 +23,13 @@ export function AkashicSocialImage() {
       <span
         style={{
           fontFamily: "STIX Two Text",
-          fontSize: 132,
+          fontSize: 84,
           fontWeight: 700,
           lineHeight: 1,
           letterSpacing: 0,
         }}
       >
-        Akashic
+        Akashic Computer
       </span>
     </div>
   );

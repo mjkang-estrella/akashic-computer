@@ -16,6 +16,7 @@ export default defineConfig({
     url: "http://localhost:3100",
     env: {
       ...process.env,
+      NEXT_PUBLIC_CONNECTED_WORKSPACE: "true",
       NEXT_PUBLIC_CONVEX_URL:
         process.env.E2E_CONVEX_URL ?? "https://artful-nightingale-491.convex.cloud",
     },
@@ -24,5 +25,6 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
 });
