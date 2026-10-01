@@ -393,7 +393,7 @@ function LocalApp() {
 async function boot() {
   if (embedded) {
     bridge = new App(
-      { name: "Akashic Computer", version: "0.2.2" },
+      { name: "Akashic Computer", version: "0.3.0" },
       {},
       { autoResize: true },
     );

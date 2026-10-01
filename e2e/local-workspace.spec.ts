@@ -25,6 +25,108 @@ test.beforeAll(async () => {
 test.afterAll(
   async () => new Promise<void>((resolve) => server.close(() => resolve())),
 );
+test("chat layout renders safe Markdown and keeps mobile controls usable", async ({
+  page,
+}) => {
+  const id = "b8244db9-a3e1-4881-84ac-441855494a81";
+  const sent: string[] = [];
+  await page.route("**/api/*", async (route) => {
+    const op = new URL(route.request().url()).pathname.split("/").at(-1);
+    let data: unknown = {};
+    if (op === "get_connection") data = { connected: false };
+    if (op === "get_overview")
+      data = {
+        hosts: [],
+        model: { status: "online", models: [{ id: "Local model" }] },
+      };
+    if (op === "list_sessions")
+      data = [{ id, title: "Layout check", mode: "chat" }];
+    if (op === "get_session")
+      data = {
+        id,
+        title: "Layout check",
+        mode: "chat",
+        messages: [
+          {
+            role: "user",
+            content: "Explain the result and include a code example.",
+          },
+          {
+            role: "assistant",
+            content:
+              "**Local execution** keeps inference on your computer.\n\n- Read device health\n- Run a bounded task\n\n```python\nprint(17 * 19)\n```\n\n| Model | Status |\n| --- | --- |\n| Local | Ready |\n\n<script>window.untrusted=true</script>\n\n![tracking](https://example.org/pixel.png)",
+          },
+        ],
+        jobs: [
+          {
+            id: "job",
+            status: "succeeded",
+            rounds: 1,
+            events: [],
+            usage: { completion_tokens: 80 },
+          },
+        ],
+      };
+    if (op === "send_message") {
+      sent.push(route.request().postDataJSON().text);
+      data = { jobId: "job", status: "queued" };
+    }
+    await route.fulfill({ json: data });
+  });
+  await page.goto(url);
+  await page.getByRole("button", { name: "Layout check", exact: true }).click();
+  await expect(page.locator(".ac-markdown strong")).toHaveText(
+    "Local execution",
+  );
+  await expect(page.locator(".ac-code-block pre")).toContainText(
+    "print(17 * 19)",
+  );
+  await expect(
+    page.getByRole("button", { name: "Copy code", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".ac-markdown table")).toBeVisible();
+  await expect(
+    page.locator(".ac-markdown img,.ac-markdown script"),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Collapse sidebar", exact: true })
+    .click();
+  await expect(page.locator(".ac-workspace")).toHaveAttribute(
+    "data-collapsed",
+    "true",
+  );
+  await page
+    .getByRole("button", { name: "Toggle conversations", exact: true })
+    .click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "Toggle conversations", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Conversations" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Toggle conversations", exact: true }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("dialog", { name: "Conversations" }),
+  ).toBeHidden();
+  const input = page.getByRole("textbox", { name: "Message your local model" });
+  await input.fill("Line one");
+  await input.press("Shift+Enter");
+  await input.pressSequentially("Line two");
+  await input.press("Enter");
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]).toBe("Line one\nLine two");
+  const composer = await page.locator(".ac-composer").boundingBox();
+  expect(composer!.y + composer!.height).toBeLessThanOrEqual(844);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
 test("streaming preserves scroll position while allowing bottom following", async ({
   page,
 }) => {

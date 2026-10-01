@@ -20,7 +20,7 @@ export function ApplicationShell({ children }: { children: ReactNode }) {
     );
   return (
     <>
-      <header className="flex flex-wrap items-center gap-5 border-b border-line bg-paper px-5 py-4">
+      <header className="ac-app-header flex flex-wrap items-center gap-5 border-b border-line bg-paper px-5 py-4">
         <Link
           href="/"
           className="flex items-center gap-2 font-display text-[19px] font-semibold"

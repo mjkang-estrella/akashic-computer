@@ -1,24 +1,64 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { WorkspaceProps } from "./types";
-
-const active = (status: string) =>
-  ["queued", "running", "cancelling"].includes(status);
+import { ChatIcon } from "./ChatIcon";
+import { SessionChat } from "./SessionChat";
 const memory = (bytes?: number) =>
   bytes === undefined ? "—" : `${(bytes / 1073741824).toFixed(1)} GiB`;
 export function Workspace(p: WorkspaceProps) {
-  const [text, setText] = useState("");
-  const [mode, setMode] = useState<"chat" | "agent">("chat");
-  const [deployment, setDeployment] = useState("");
-  const [budget, setBudget] = useState(4096);
+  const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [now, setNow] = useState(() => Date.now());
-  const transcript = useRef<HTMLDivElement>(null);
-  const followOutput = useRef(true);
+  const [search, setSearch] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    sidebar.current
+      ?.querySelector<HTMLButtonElement>(".ac-sidebar-close")
+      ?.focus();
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMobileOpen(false);
+      requestAnimationFrame(() =>
+        root.current
+          ?.querySelector<HTMLButtonElement>(".ac-sidebar-toggle")
+          ?.focus(),
+      );
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [mobileOpen]);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 700px)");
+    const resize = () => {
+      setIsMobile(media.matches);
+      const el = root.current;
+      if (el)
+        el.style.setProperty(
+          "--ac-viewport-height",
+          `${Math.max(260, (window.visualViewport?.height || window.innerHeight) - el.getBoundingClientRect().top)}px`,
+        );
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", resize);
+    const header = document.querySelector("header");
+    const observer = new ResizeObserver(resize);
+    if (header) observer.observe(header);
+    return () => {
+      window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
+      observer.disconnect();
+    };
   }, []);
   const connected = (id: string) => {
     const c = p.connectors.find((c) => c.id === id);
@@ -27,22 +67,6 @@ export function Workspace(p: WorkspaceProps) {
   const available = p.deployments.filter(
     (d) => d.status === "online" && connected(d.connectorId),
   );
-  const selected =
-    p.current?.deploymentId ||
-    deployment ||
-    (available.some((d) => d.id === p.preferredDeploymentId)
-      ? p.preferredDeploymentId
-      : undefined) ||
-    available[0]?.id ||
-    "";
-  const job = p.jobs.find((j) => active(j.status));
-  useEffect(() => {
-    followOutput.current = true;
-  }, [p.current?.id]);
-  useEffect(() => {
-    const el = transcript.current;
-    if (el && followOutput.current) el.scrollTop = el.scrollHeight;
-  }, [p.current?.id, p.messages.length, job?.output]);
   async function perform(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -54,329 +78,285 @@ export function Workspace(p: WorkspaceProps) {
       setBusy(false);
     }
   }
+  function closeMobile() {
+    setMobileOpen(false);
+    requestAnimationFrame(() =>
+      root.current
+        ?.querySelector<HTMLButtonElement>(".ac-sidebar-toggle")
+        ?.focus(),
+    );
+  }
+  function toggleSidebar() {
+    if (isMobile) {
+      setMobileOpen((v) => !v);
+    } else setCollapsed((v) => !v);
+  }
+  function select(id: string) {
+    p.onSelect(id);
+    if (isMobile) closeMobile();
+  }
+  function newSession() {
+    setSearch("");
+    p.onNew();
+    if (isMobile) closeMobile();
+  }
   return (
-    <div className="ac-workspace">
-      <aside className="ac-sessions" aria-label="Conversations">
-        <button className="ac-primary" onClick={p.onNew}>
-          New session
-        </button>
-        <p className="ac-label">
-          {p.legacy ? "Device-only sessions" : "Account conversations"}
-        </p>
-        {p.sessions.map((s) => (
+    <div
+      ref={root}
+      className="ac-workspace"
+      data-view={p.view}
+      data-collapsed={collapsed}
+      data-mobile-open={mobileOpen}
+      onKeyDown={(e) => {
+        if (!mobileOpen) return;
+        if (e.key === "Tab") {
+          const items = sidebar.current?.querySelectorAll<HTMLElement>(
+            "button:not([disabled]),input,summary,a[href]",
+          );
+          if (!items?.length) return;
+          const first = items[0],
+            last = items[items.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }}
+    >
+      {mobileOpen && (
+        <button
+          className="ac-sidebar-scrim"
+          tabIndex={-1}
+          aria-label="Close conversations"
+          onClick={closeMobile}
+        />
+      )}
+      <aside
+        ref={sidebar}
+        id="ac-conversations"
+        className="ac-sessions"
+        aria-label="Conversations"
+        role={isMobile ? "dialog" : undefined}
+        aria-modal={isMobile && mobileOpen ? true : undefined}
+      >
+        <div className="ac-sidebar-header">
           <button
-            key={s.id}
-            className={`ac-session ${p.current?.id === s.id ? "selected" : ""}`}
-            aria-pressed={p.current?.id === s.id}
-            onClick={() => p.onSelect(s.id)}
+            className="ac-new-chat"
+            onClick={newSession}
+            title="New chat"
+            aria-label="New session"
           >
-            {s.title}
+            <ChatIcon name="new" />
+            <span className="ac-new-label">New chat</span>
           </button>
-        ))}
-        {!p.sessions.length && !p.loading && (
-          <p className="ac-muted">Your conversations will appear here.</p>
-        )}
-        <p className="ac-boundary">
-          {p.legacy
-            ? "Stored on this computer. Not uploaded to your account."
-            : "Prompts and results sync through Convex. Your connected computer runs the model."}
-        </p>
+          <button
+            className="ac-icon-button ac-sidebar-close"
+            aria-label={isMobile ? "Close conversations" : "Collapse sidebar"}
+            onClick={isMobile ? closeMobile : () => setCollapsed((v) => !v)}
+          >
+            <ChatIcon name={isMobile ? "close" : "sidebar"} />
+          </button>
+        </div>
+        <div className="ac-sidebar-body">
+          <label className="ac-chat-search">
+            <ChatIcon name="search" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search chats"
+              aria-label="Search conversations"
+            />
+          </label>
+          <p className="ac-label ac-history-label">Your chats</p>
+          <div className="ac-session-list">
+            {p.sessions
+              .filter((s) =>
+                s.title.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((s) => (
+                <button
+                  key={s.id}
+                  className={`ac-session ${p.current?.id === s.id ? "selected" : ""}`}
+                  aria-current={p.current?.id === s.id ? "page" : undefined}
+                  title={s.title}
+                  onClick={() => select(s.id)}
+                >
+                  {s.title}
+                </button>
+              ))}
+            {!p.sessions.length && !p.loading && (
+              <p className="ac-muted ac-sidebar-empty">
+                Your conversations will appear here.
+              </p>
+            )}
+            {search &&
+              !p.sessions.some((s) =>
+                s.title.toLowerCase().includes(search.toLowerCase()),
+              ) && (
+                <p className="ac-muted ac-sidebar-empty">
+                  No matching conversations.
+                </p>
+              )}
+          </div>
+        </div>
+        <details className="ac-sidebar-privacy">
+          <summary>
+            <ChatIcon name="info" />
+            {p.legacy ? "Device-only history" : "Account history"}
+          </summary>
+          <p>
+            {p.legacy
+              ? "Stored on this computer. Not uploaded to your account."
+              : "Prompts and results sync through Convex. Your connected computer runs the model."}
+          </p>
+        </details>
       </aside>
-      <section className="ac-main">
-        {(error || p.notice) && (
-          <p role="alert" className="ac-notice">
-            {error || p.notice}
-          </p>
-        )}
-        {p.loading && (
-          <p role="status" className="ac-muted">
-            Loading your workspace…
-          </p>
-        )}
+      <section
+        className="ac-main"
+        inert={isMobile && mobileOpen ? true : undefined}
+      >
         {p.view === "computers" ? (
           <>
-            <div className="ac-heading">
-              <h1>Your computers</h1>
-              {p.onRefresh && (
-                <button
-                  className="ac-secondary"
-                  onClick={() => void perform(p.onRefresh!)}
-                >
-                  Refresh
-                </button>
-              )}
+            <div className="ac-computer-toolbar">
+              <button
+                className="ac-icon-button ac-sidebar-toggle"
+                aria-label="Toggle conversations"
+                aria-controls="ac-conversations"
+                aria-expanded={isMobile ? mobileOpen : !collapsed}
+                onClick={toggleSidebar}
+              >
+                <ChatIcon name="sidebar" />
+              </button>
             </div>
-            <p className="ac-muted">
-              Observed health, running models, and enrolled controllers.
-              Inference stays on your fleet.
-            </p>
-            {p.connectionPanel}
-            {p.connectors.map((c) => (
-              <div className="ac-connector" key={c.id}>
-                <div>
-                  <strong>{c.name}</strong>
-                  <p className="ac-muted">
-                    {c.revoked
-                      ? "Revoked"
-                      : connected(c.id)
-                        ? "Connected"
-                        : "Controller offline"}{" "}
-                    ·{" "}
-                    {c.lastSeenAt
-                      ? new Date(c.lastSeenAt).toLocaleString()
-                      : "Waiting for first heartbeat"}
-                  </p>
-                </div>
-                {p.onRevoke && !c.revoked && (
+            {(error || p.notice) && (
+              <p role="alert" className="ac-notice">
+                {error || p.notice}
+              </p>
+            )}
+            {p.loading && (
+              <p role="status" className="ac-muted">
+                Loading your workspace…
+              </p>
+            )}
+            <>
+              <div className="ac-heading">
+                <h1>Your computers</h1>
+                {p.onRefresh && (
                   <button
                     className="ac-secondary"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Disconnect ${c.name}? Active cloud work will be interrupted.`,
-                        )
-                      )
-                        void perform(() => p.onRevoke!(c.id));
-                    }}
+                    disabled={busy}
+                    onClick={() => void perform(p.onRefresh!)}
                   >
-                    Disconnect
+                    Refresh
                   </button>
                 )}
               </div>
-            ))}
-            <div className="ac-devices">
-              {p.devices.map((d) => (
-                <article className="ac-device" key={d.id}>
-                  <div className="ac-heading">
-                    <h2>{d.name}</h2>
-                    <span className="ac-status">
-                      {d.state === "retired" || d.state === "planned"
-                        ? d.state
-                        : d.connectorId && !connected(d.connectorId)
-                          ? "controller offline"
-                          : d.status}
-                    </span>
-                  </div>
-                  <p className="ac-muted">{d.group || d.role}</p>
-                  <p>{d.hardware || "Hardware not reported"}</p>
-                  {d.memoryTotal !== undefined && (
-                    <>
-                      <progress
-                        max={100}
-                        value={
-                          100 * (1 - (d.memoryAvailable || 0) / d.memoryTotal)
-                        }
-                        aria-label="Used system memory"
-                      />
-                      <p className="ac-data">
-                        {memory(d.memoryAvailable)}{" "}
-                        {d.role === "controller" ? "free" : "available"} /{" "}
-                        {memory(d.memoryTotal)}
-                      </p>
-                    </>
-                  )}
-                  {d.note && <p className="ac-notice">{d.note}</p>}
-                  <p className="ac-muted">
-                    {d.observedAt
-                      ? `Observed ${new Date(d.observedAt).toLocaleString()}`
-                      : "Inventory only; not directly observed"}
-                  </p>
-                </article>
-              ))}
-            </div>
-            {!p.devices.length && !p.loading && (
-              <p className="ac-empty">
-                Connect your Mac controller to bring its fleet into this
-                account.
+              <p className="ac-muted">
+                Observed health, running models, and enrolled controllers.
+                Inference stays on your fleet.
               </p>
-            )}
-            <h2>Model deployments</h2>
-            {p.deployments.map((d) => (
-              <div className="ac-deployment" key={d.id}>
-                <strong>{d.model}</strong>
-                <span>
-                  {connected(d.connectorId) ? d.status : "controller offline"}
-                </span>
-              </div>
-            ))}
-          </>
-        ) : (
-          <>
-            <div className="ac-heading">
-              <h1>{p.current?.title || "Start a local-model conversation"}</h1>
-              {p.legacy && <span className="ac-status">Device only</span>}
-            </div>
-            <div
-              className="ac-transcript"
-              ref={transcript}
-              onScroll={(e) => {
-                const el = e.currentTarget;
-                followOutput.current =
-                  el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-              }}
-              aria-label="Conversation transcript"
-            >
-              {!p.messages.length && !p.loading && (
-                <div className="ac-empty">
-                  <p>
-                    Choose a running model and send a message. Fleet agent mode
-                    can inspect your enrolled computers using read-only tools.
-                  </p>
-                  {!available.length && (
-                    <p>
-                      No running deployment is connected. Open Computers to
-                      connect your controller.
+              {p.connectionPanel}
+              {p.connectors.map((c) => (
+                <div className="ac-connector" key={c.id}>
+                  <div>
+                    <strong>{c.name}</strong>
+                    <p className="ac-muted">
+                      {c.revoked
+                        ? "Revoked"
+                        : connected(c.id)
+                          ? "Connected"
+                          : "Controller offline"}{" "}
+                      ·{" "}
+                      {c.lastSeenAt
+                        ? new Date(c.lastSeenAt).toLocaleString()
+                        : "Waiting for first heartbeat"}
                     </p>
+                  </div>
+                  {p.onRevoke && !c.revoked && (
+                    <button
+                      className="ac-secondary"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Disconnect ${c.name}? Active cloud work will be interrupted.`,
+                          )
+                        )
+                          void perform(() => p.onRevoke!(c.id));
+                      }}
+                    >
+                      Disconnect
+                    </button>
                   )}
                 </div>
-              )}
-              {p.messages.map((m) => (
-                <article className={`ac-message ${m.role}`} key={m.id}>
-                  <p className="ac-label">
-                    {m.role === "user" ? "You" : "Local model"}
-                    {m.partial ? " · partial" : ""}
-                  </p>
-                  <div className="ac-message-text">{m.content}</div>
-                </article>
               ))}
-              {job && (
-                <article className="ac-message">
-                  <p role="status" className="ac-label">
-                    {job.leaseUntil && job.leaseUntil < now
-                      ? "Connection interrupted; awaiting reconciliation"
-                      : job.status}
-                  </p>
-                  <div className="ac-message-text">
-                    {job.output || "Waiting for the connected computer…"}
-                  </div>
-                  <p className="ac-data">
-                    {job.events
-                      ?.map((e) => `${e.tool}: ${e.status}`)
-                      .join(" · ")}
-                  </p>
-                  <button
-                    className="ac-secondary"
-                    disabled={job.status === "cancelling" || busy}
-                    onClick={() => void perform(() => p.onCancel(job.id))}
-                  >
-                    {job.status === "cancelling" ? "Cancelling…" : "Stop job"}
-                  </button>
-                </article>
-              )}
-              {!job &&
-                p.jobs.slice(0, 1).map((j) => (
-                  <div className="ac-receipt" key={j.id}>
-                    <p>
-                      {j.status} · {j.rounds} local rounds ·{" "}
-                      {j.completionTokens} output tokens
-                    </p>
-                    {j.error && <p role="alert">{j.error}</p>}
-                    {p.onShare &&
-                      p.messages.some((m) => m.role === "assistant") && (
-                        <button
-                          className="ac-secondary"
-                          onClick={() =>
-                            void perform(() =>
-                              p.onShare!(
-                                p.messages
-                                  .filter((m) => m.role === "assistant")
-                                  .at(-1)!.content,
-                              ),
-                            )
+              <div className="ac-devices">
+                {p.devices.map((d) => (
+                  <article className="ac-device" key={d.id}>
+                    <div className="ac-heading">
+                      <h2>{d.name}</h2>
+                      <span className="ac-status">
+                        {d.state === "retired" || d.state === "planned"
+                          ? d.state
+                          : d.connectorId && !connected(d.connectorId)
+                            ? "controller offline"
+                            : d.status}
+                      </span>
+                    </div>
+                    <p className="ac-muted">{d.group || d.role}</p>
+                    <p>{d.hardware || "Hardware not reported"}</p>
+                    {d.memoryTotal !== undefined && (
+                      <>
+                        <progress
+                          max={100}
+                          value={
+                            100 * (1 - (d.memoryAvailable || 0) / d.memoryTotal)
                           }
-                        >
-                          Send result to ChatGPT
-                        </button>
-                      )}
-                  </div>
-                ))}
-            </div>
-            <form
-              className="ac-composer"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!text.trim() || busy || job) return;
-                followOutput.current = true;
-                void perform(async () => {
-                  await p.onSend(
-                    text,
-                    p.current?.mode || mode,
-                    selected,
-                    budget,
-                  );
-                  setText("");
-                });
-              }}
-            >
-              <div className="ac-controls">
-                <label>
-                  Mode
-                  <select
-                    value={p.current?.mode || mode}
-                    disabled={!!p.current}
-                    onChange={(e) =>
-                      setMode(e.target.value as "chat" | "agent")
-                    }
-                  >
-                    <option value="chat">Direct chat</option>
-                    <option value="agent">Fleet agent · read only</option>
-                  </select>
-                </label>
-                <label>
-                  Running model
-                  <select
-                    value={selected}
-                    disabled={!!p.current}
-                    onChange={(e) => setDeployment(e.target.value)}
-                  >
-                    {!available.length && (
-                      <option value="">No connected model</option>
+                          aria-label="Used system memory"
+                        />
+                        <p className="ac-data">
+                          {memory(d.memoryAvailable)}{" "}
+                          {d.role === "controller" ? "free" : "available"} /{" "}
+                          {memory(d.memoryTotal)}
+                        </p>
+                      </>
                     )}
-                    {available.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.model}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Output limit
-                  <select
-                    value={budget}
-                    onChange={(e) => setBudget(Number(e.target.value))}
-                  >
-                    <option value={2048}>2k tokens</option>
-                    <option value={4096}>4k tokens</option>
-                    <option value={8192}>8k tokens</option>
-                  </select>
-                </label>
+                    {d.note && <p className="ac-notice">{d.note}</p>}
+                    <p className="ac-muted">
+                      {d.observedAt
+                        ? `Observed ${new Date(d.observedAt).toLocaleString()}`
+                        : "Inventory only; not directly observed"}
+                    </p>
+                  </article>
+                ))}
               </div>
-              <label className="ac-prompt-label">
-                Message
-                <textarea
-                  aria-label="Message your local model"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  maxLength={16000}
-                  placeholder="What would you like to work on?"
-                  rows={3}
-                />
-              </label>
-              <div className="ac-heading">
-                <span className="ac-muted">
-                  {p.legacy
-                    ? "Last 12 messages form the context."
-                    : "Synced through your account. No cloud model fallback."}
-                </span>
-                <button
-                  className="ac-primary"
-                  disabled={busy || !!job || !selected || !text.trim()}
-                >
-                  {busy ? "Sending…" : "Send message"}
-                </button>
-              </div>
-            </form>
+              {!p.devices.length && !p.loading && (
+                <p className="ac-empty">
+                  Connect your Mac controller to bring its fleet into this
+                  account.
+                </p>
+              )}
+              <h2>Model deployments</h2>
+              {p.deployments.map((d) => (
+                <div className="ac-deployment" key={d.id}>
+                  <strong>{d.model}</strong>
+                  <span>
+                    {connected(d.connectorId) ? d.status : "controller offline"}
+                  </span>
+                </div>
+              ))}
+            </>
           </>
+        ) : (
+          <SessionChat
+            p={p}
+            available={available}
+            now={now}
+            onToggleSidebar={toggleSidebar}
+            sidebarExpanded={isMobile ? mobileOpen : !collapsed}
+          />
         )}
       </section>
     </div>

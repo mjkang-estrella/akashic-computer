@@ -15,7 +15,7 @@ import { schemas } from "./service.mjs";
 const config = loadConfig();
 const token = readFileSync(join(stateDir, "token"), "utf8").trim();
 const server = new McpServer(
-  { name: "akashic-local", version: "0.2.2" },
+  { name: "akashic-local", version: "0.3.0" },
   {
     instructions:
       "Open Akashic Computer for independent conversations with the local model. Panel interactions do not require your reasoning. Delegate only when requested; read results only when the user wants them in this conversation. Never poll continuously. The local agent has read-only fleet tools, not arbitrary shell access.",

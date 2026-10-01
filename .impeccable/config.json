@@ -1,0 +1,44 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-radius",
+        "value": "20px",
+        "files": [
+          "src/components/workspace/workspace.css"
+        ],
+        "createdAt": "2026-10-01T19:14:43.251Z",
+        "reason": "Agent: rounded user bubbles and mobile composer implement the requested ChatGPT UI reference; catalog controls retain their existing scale."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "24px",
+        "files": [
+          "src/components/workspace/workspace.css"
+        ],
+        "createdAt": "2026-10-01T19:14:43.286Z",
+        "reason": "Agent: rounded desktop chat composer implements the requested ChatGPT UI reference; this is scoped to the conversation surface."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "20px",
+        "files": [
+          "src/components/workspace/Workspace.css"
+        ],
+        "createdAt": "2026-10-01T19:15:28.545Z",
+        "reason": "Agent: same conversation stylesheet resolved with different filename casing by the hook; rounded chat bubbles follow the user's ChatGPT reference."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "24px",
+        "files": [
+          "src/components/workspace/Workspace.css"
+        ],
+        "createdAt": "2026-10-01T19:15:28.579Z",
+        "reason": "Agent: same conversation stylesheet resolved with different filename casing by the hook; rounded composer follows the user's ChatGPT reference."
+      }
+    ]
+  }
+}

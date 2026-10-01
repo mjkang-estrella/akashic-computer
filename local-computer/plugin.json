@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "akashic-local",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Model discovery, connected computers, and independent local AI conversations.",
   "author": {
     "name": "MJ Kang"
