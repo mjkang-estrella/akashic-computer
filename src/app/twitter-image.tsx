@@ -6,7 +6,7 @@ import {
   SOCIAL_IMAGE_SIZE,
 } from "@/components/brand/AkashicSocialImage";
 
-export const alt = "Akashic";
+export const alt = "Akashic Computer";
 export const size = SOCIAL_IMAGE_SIZE;
 export const contentType = "image/png";
 

@@ -308,6 +308,9 @@ const runReportValue = v.object({
 });
 
 export const publishedCatalogEntryValue = v.object({
+  // Legacy local snapshots used this field before deploymentRecipes. Preserve
+  // their source evidence; current readers and writers use deploymentRecipes.
+  recipeReferences: v.optional(v.array(v.any())),
   ...summaryFields,
   artifacts: v.array(publishedArtifactValue),
   release: v.object({

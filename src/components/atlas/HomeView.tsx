@@ -158,7 +158,7 @@ function CatalogStatus({
           </>
         ) : null}
         <span className="sm:col-span-2">
-          Delayed sources keep their last known good entries while Akashic retries them independently.
+          Delayed sources keep their last known good entries while Akashic Computer retries them independently.
         </span>
       </div>
     </details>

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T18:23:14.582Z",
+  "title": "Design System: Akashic Computer",
+  "extensions": {
+    "shadows": [],
+    "breakpoints": [
+      {
+        "name": "mobile-local-workspace",
+        "value": "700px"
+      },
+      {
+        "name": "compact-local-workspace",
+        "value": "1150px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-selected",
+      "description": "Selected action in the existing ink and paper palette.",
+      "html": "<button class=\"primary\">Send</button>",
+      "css": ".primary{background:#1c1a14;color:#f7f5ee;border:0;border-radius:7px;padding:6px 12px;font:13px Arial,sans-serif}"
+    },
+    {
+      "name": "Reading panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A flat framed surface for content.",
+      "html": "<section class=\"panel\">Local model</section>",
+      "css": ".panel{background:#fffdf8;color:#1c1a14;border:1px solid #ddd6c4;border-radius:10px;padding:14px 16px;font:13px Arial,sans-serif}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Technical Catalog",
+    "overview": "Preserve warm paper, dark ink, thin rules, serif identity, and clear technical metadata. The personal workspace adds sessions and fleet observations without changing the public catalog design.",
+    "rules": [
+      {
+        "name": "The Evidence Color Rule",
+        "body": "Semantic colors communicate observed status, confidence, or constraints.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Catalog Rule",
+        "body": "Static panels do not use shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Keep enabled text readable against paper surfaces.",
+      "Distinguish observations from inventory."
+    ],
+    "donts": [
+      "Do not invent live health or model readiness."
+    ]
+  }
+}

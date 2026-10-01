@@ -1,5 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
+import { workspaceTables } from "./workspaceSchema";
 import { publishedCatalogEntryValue, publishedCatalogSummaryValue } from "./catalogValues";
 
 const sourceFields = {
@@ -10,6 +12,8 @@ const sourceFields = {
 };
 
 export default defineSchema({
+  ...authTables,
+  ...workspaceTables,
   modelFamilies: defineTable({
     slug: v.string(),
     name: v.string(),
@@ -90,6 +94,7 @@ export default defineSchema({
     .index("by_slug", ["slug"]),
 
   artifacts: defineTable({
+    aliases: v.optional(v.array(v.string())),
     variantId: v.id("modelVariants"),
     huggingFaceRepo: v.string(),
     format: v.string(),
@@ -227,7 +232,7 @@ export default defineSchema({
 
   monitoredSources: defineTable({
     owner: v.string(),
-    ownerKey: v.string(),
+    ownerKey: v.optional(v.string()),
     displayName: v.string(),
     role: v.union(
       v.literal("creator"),
@@ -249,6 +254,15 @@ export default defineSchema({
     .index("by_enabled", ["enabled"]),
 
   sourceRepositories: defineTable({
+    ingestionVersion: v.optional(v.number()),
+    lastMissingAuditId: v.optional(v.string()),
+    weightDatePolicyVersion: v.optional(v.number()),
+    cardData: v.optional(v.any()),
+    config: v.optional(v.any()),
+    aliases: v.optional(v.array(v.string())),
+    baseModels: v.optional(v.array(v.string())),
+    files: v.optional(v.array(v.any())),
+    tags: v.optional(v.array(v.string())),
     repoId: v.string(),
     repoName: v.string(),
     owner: v.string(),
@@ -280,6 +294,7 @@ export default defineSchema({
     .index("by_owner", ["owner"]),
 
   webhookEvents: defineTable({
+    payload: v.optional(v.any()),
     dedupeKey: v.string(),
     repoId: v.string(),
     repoName: v.string(),
@@ -306,7 +321,10 @@ export default defineSchema({
     .index("by_status_and_received", ["status", "receivedAt"]),
 
   syncRuns: defineTable({
-    kind: v.union(v.literal("webhook"), v.literal("audit")),
+    auditVersion: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    completedSourceOwners: v.optional(v.array(v.string())),
+    kind: v.union(v.literal("webhook"), v.literal("audit"), v.literal("seed")),
     sourceOwner: v.optional(v.string()),
     status: v.union(
       v.literal("running"),
@@ -373,7 +391,7 @@ export default defineSchema({
   catalogSnapshotChunks: defineTable({
     snapshotKey: v.string(),
     chunk: v.number(),
-    entries: v.array(publishedCatalogSummaryValue),
+    entries: v.array(v.union(publishedCatalogSummaryValue, publishedCatalogEntryValue)),
   }).index("by_snapshot_and_chunk", ["snapshotKey", "chunk"]),
 
   catalogSnapshotState: defineTable({
