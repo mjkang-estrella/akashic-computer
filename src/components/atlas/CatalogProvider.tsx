@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { ConvexProvider, ConvexReactClient, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { ModelEntry } from "@/lib/atlas/models";
 import {
@@ -97,24 +97,24 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
 
 const configuredConvexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convexUrl = absoluteHttpUrl(configuredConvexUrl);
-const convexClient = convexUrl ? new ConvexReactClient(convexUrl) : null;
+
 export function CatalogProvider({ children }: { children: ReactNode }) {
-  if (!convexClient) {
+  if (!convexUrl) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-[760px] items-center px-5 py-16">
         <section role="alert" className="w-full border-y border-line py-8">
           <h1 className="font-display text-[28px] font-semibold">Catalog unavailable</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            Akashic requires a valid NEXT_PUBLIC_CONVEX_URL. No bundled catalog is used.
+            Akashic Computer requires a valid NEXT_PUBLIC_CONVEX_URL. No bundled catalog is used.
           </p>
         </section>
       </main>
     );
   }
   return (
-    <ConvexProvider client={convexClient}>
+    <>
       <RemoteCatalogProvider>{children}</RemoteCatalogProvider>
-    </ConvexProvider>
+    </>
   );
 }
 

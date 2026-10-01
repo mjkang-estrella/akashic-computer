@@ -1,0 +1,15 @@
+{
+  "name": "akashic-local",
+  "version": "0.2.2",
+  "description": "Model discovery, connected computers, and independent local AI conversations.",
+  "author": {
+    "name": "MJ Kang"
+  },
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Akashic Computer",
+    "shortDescription": "Your models, your computers",
+    "defaultPrompt": "Open Akashic Computer."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "plugins": [], "incremental": false },
+  "include": ["web/**/*.tsx", "../src/components/workspace/Workspace.tsx", "../src/components/workspace/types.ts"],
+  "exclude": ["node_modules", "dist"]
+}

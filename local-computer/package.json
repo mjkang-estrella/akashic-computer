@@ -1,0 +1,28 @@
+{
+  "name": "akashic-local",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "setup": "node src/setup.mjs",
+    "build": "node src/build.mjs",
+    "package": "node src/package.mjs",
+    "install:service": "node src/install-service.mjs",
+    "mcp": "node src/mcp.mjs",
+    "test": "node --test test/*.test.mjs",
+    "connect": "node src/connect.mjs",
+    "typecheck": "tsc --noEmit --project tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.2",
+    "@modelcontextprotocol/ext-apps": "^1.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

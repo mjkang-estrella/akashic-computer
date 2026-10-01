@@ -1,12 +1,18 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { auth } from "./auth";
+import { connectorHttp } from "./connectorHttp";
 import {
   acceptedWebhookEvent,
   webhookDedupeKey,
 } from "../src/lib/atlas/huggingface";
 
 const http = httpRouter();
+auth.addHttpRoutes(http);
+for (const path of ["enroll", "enrollment-status", "heartbeat", "claim", "progress", "client-read", "client-write"]) {
+  http.route({ path: `/connector/${path}`, method: "POST", handler: connectorHttp });
+}
 
 function secureEqual(actual: string | null, expected: string): boolean {
   if (!actual || actual.length !== expected.length) return false;
