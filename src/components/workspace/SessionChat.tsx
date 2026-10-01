@@ -19,7 +19,6 @@ export function SessionChat({
   const [text, setText] = useState("");
   const [mode, setMode] = useState<"chat" | "agent">("chat");
   const [deployment, setDeployment] = useState("");
-  const [budget, setBudget] = useState(4096);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showJump, setShowJump] = useState(false);
@@ -236,7 +235,7 @@ export function SessionChat({
             if (!text.trim() || busy || job || !selected) return;
             followOutput.current = true;
             void perform(async () => {
-              await p.onSend(text, p.current?.mode || mode, selected, budget);
+              await p.onSend(text, p.current?.mode || mode, selected, 8192);
               setText("");
               input.current?.focus();
             });
@@ -279,27 +278,6 @@ export function SessionChat({
                 <option value="agent">Fleet agent</option>
               </select>
             </div>
-            <details className="ac-composer-options">
-              <summary
-                aria-label="Generation settings"
-                title="Generation settings"
-              >
-                <ChatIcon name="settings" />
-              </summary>
-              <div className="ac-options-popover">
-                <label htmlFor="ac-budget">Output limit</label>
-                <select
-                  id="ac-budget"
-                  value={budget}
-                  onChange={(e) => setBudget(Number(e.target.value))}
-                >
-                  <option value={2048}>2k tokens</option>
-                  <option value={4096}>4k tokens</option>
-                  <option value={8192}>8k tokens</option>
-                </select>
-                <p>Fleet agent uses read-only tools.</p>
-              </div>
-            </details>
             {job ? (
               <button
                 type="button"
