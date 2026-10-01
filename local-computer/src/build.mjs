@@ -28,7 +28,8 @@ writeFileSync(
     )
     .replace(
       '<script type="module" src="/app.js"></script>',
-      () => `<script>${readFileSync(root + "dist/app.js", "utf8").replaceAll("</script", "<\\/script")}</script>`,
+      () =>
+        `<script>${readFileSync(root + "dist/app.js", "utf8").replaceAll("</script", "<\\/script")}</script>`,
     ),
 );
 const widget = readFileSync(root + "dist/widget.html", "utf8");
@@ -46,6 +47,18 @@ await build({
   format: "cjs",
   target: "node22",
   outfile: root + "dist/mcp.cjs",
+  banner: {
+    js: 'const __import_meta_url = require("node:url").pathToFileURL(__filename).href;',
+  },
+  define: { "import.meta.url": "__import_meta_url" },
+});
+await build({
+  entryPoints: [root + "src/server.mjs"],
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  target: "node22",
+  outfile: root + "dist/controller.cjs",
   banner: {
     js: 'const __import_meta_url = require("node:url").pathToFileURL(__filename).href;',
   },

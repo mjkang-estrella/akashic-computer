@@ -20,8 +20,13 @@ except Exception: pass
 print(json.dumps({'hostname':platform.node(),'os':platform.system(),'architecture':platform.machine(),'memory':mem,'load':list(os.getloadavg()),'uptime':run(['uptime','-p']),'disks':run(['df','-h','/']),'gpu':run(['nvidia-smi','--query-gpu=name,utilization.gpu,temperature.gpu','--format=csv,noheader']),'containers':run(['docker','ps','--format','{{.Names}} | {{.Status}}']),'failedUnits':run(['systemctl','--failed','--no-pager','--no-legend','--plain'])}))`;
 
 export class Fleet {
-  constructor(config) {
+  constructor(config, options = {}) {
     this.config = config;
+    this.platform = options.platform || os.platform();
+    this.controllerId =
+      config.controllerDeviceId ||
+      (this.platform === "darwin" ? "local-mac" : os.hostname());
+    this.execute = options.execute || exec;
     this.cache = new Map();
     this.pending = new Map();
   }
@@ -29,7 +34,37 @@ export class Fleet {
     return inventory(this.config);
   }
   async inspect(id, fresh = false) {
-    if (id === "local-mac")
+    if (id === this.controllerId && this.platform === "linux") {
+      const host = this.hosts().find((h) => h.id === id) || {
+        id,
+        role: "controller",
+        state: "observed",
+      };
+      try {
+        const { stdout } = await this.execute("python3", ["-c", probe], {
+          timeout: 30000,
+          maxBuffer: 100000,
+        });
+        const data = JSON.parse(stdout);
+        return {
+          ...host,
+          ...data,
+          status:
+            data.failedUnits && data.failedUnits !== "unavailable"
+              ? "degraded"
+              : "online",
+          observedAt: new Date().toISOString(),
+        };
+      } catch {
+        return {
+          ...host,
+          status: "degraded",
+          observedAt: new Date().toISOString(),
+          error: "Local system observation failed.",
+        };
+      }
+    }
+    if (id === this.controllerId)
       return {
         id,
         status: "online",
@@ -81,7 +116,7 @@ export class Fleet {
           "-c",
           "'" + probe.replaceAll("'", "'\\''") + "'",
         );
-        const { stdout } = await exec("ssh", args, {
+        const { stdout } = await this.execute("ssh", args, {
           timeout: 30000,
           maxBuffer: 100000,
         });
@@ -111,10 +146,10 @@ export class Fleet {
     return task;
   }
   async snapshot(fresh = false) {
-    const hosts = await Promise.all([
-      ...this.hosts().map((h) => this.inspect(h.id, fresh)),
-      this.inspect("local-mac"),
-    ]);
+    const ids = new Set([...this.hosts().map((h) => h.id), this.controllerId]);
+    const hosts = await Promise.all(
+      [...ids].map((id) => this.inspect(id, fresh)),
+    );
     return {
       hosts,
       capturedAt: new Date().toISOString(),

@@ -9,4 +9,4 @@ For an explicit request to delegate, call delegate_task with a concise task-spec
 
 Read get_task_status when the user asks for progress. Read get_task_result only when the user wants that result in the current conversation. Do not transfer conversation history or other local sessions to the local model. Never silently substitute a cloud model.
 
-The controller must run on this computer. A local install does not make it available in cloud ChatGPT or on other devices. Report connection failures rather than inventing health observations.
+The desktop companion must run on this computer. In client mode it sends jobs through the account relay to the always-on controller. Device-only history stays on this computer. A local install does not make it available in cloud ChatGPT or on other devices. Report connection failures rather than inventing health observations.

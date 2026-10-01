@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { Workspace } from "../../src/components/workspace/Workspace";
@@ -102,6 +102,8 @@ function LocalApp() {
   const [view, setView] = useState<"work" | "computers">("work");
   const [account, setAccount] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [clientOnly, setClientOnly] = useState(false);
+  const storageChosen = useRef(false);
   const [id, setId] = useState<string | null>(null);
   const [data, setData] = useState(initial);
   const [error, setError] = useState("");
@@ -110,8 +112,19 @@ function LocalApp() {
   const [token, setToken] = useState("");
   const refresh = useCallback(async () => {
     try {
-      const connection = await call<{ connected: boolean }>("get_connection");
+      const connection = await call<{
+        connected: boolean;
+        clientOnly?: boolean;
+      }>("get_connection");
       setConnected(connection.connected);
+      setClientOnly(!!connection.clientOnly);
+      if (!storageChosen.current) {
+        storageChosen.current = true;
+        if (connection.clientOnly && connection.connected) {
+          setAccount(true);
+          return;
+        }
+      }
       if (account && connection.connected) {
         const [o, s, c] = await Promise.all([
           call<RawOverview>("account_overview"),
@@ -319,12 +332,15 @@ function LocalApp() {
             aria-label="Conversation storage"
             value={account ? "account" : "local"}
             onChange={(e) => {
+              storageChosen.current = true;
               setId(null);
               setData(initial);
               setAccount(e.target.value === "account");
             }}
           >
-            <option value="local">Device only</option>
+            <option value="local">
+              {clientOnly ? "Device-only history" : "Device only"}
+            </option>
             <option value="account" disabled={!connected}>
               Account · this controller
             </option>
@@ -336,7 +352,12 @@ function LocalApp() {
         view={view}
         legacy={!account}
         loading={loading}
-        notice={error}
+        notice={
+          error ||
+          (clientOnly && !account
+            ? "Device-only history is read-only here. Choose Account to run jobs on your controller."
+            : "")
+        }
         onNew={() => {
           setId(null);
           setView("work");
@@ -393,7 +414,7 @@ function LocalApp() {
 async function boot() {
   if (embedded) {
     bridge = new App(
-      { name: "Akashic Computer", version: "0.3.1" },
+      { name: "Akashic Computer", version: "0.4.0" },
       {},
       { autoResize: true },
     );

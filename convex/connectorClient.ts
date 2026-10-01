@@ -8,11 +8,45 @@ export const read = internalQuery({
       v.literal("overview"),
       v.literal("sessions"),
       v.literal("session"),
+      v.literal("job"),
     ),
     conversationId: v.optional(v.id("conversations")),
+    jobId: v.optional(v.id("workspaceJobs")),
   },
   handler: async (ctx, a) => {
     const c = await credentialConnector(ctx, a.credentialHash);
+    if (a.operation === "job") {
+      if (!a.jobId) throw new Error("Job required");
+      const j = await ctx.db.get(a.jobId);
+      if (!j || j.connectorId !== c._id || j.ownerId !== c.ownerId)
+        throw new Error("Job not found");
+      const output = await ctx.db
+        .query("jobOutput")
+        .withIndex("by_job", (q) => q.eq("jobId", j._id))
+        .unique();
+      const messages = await ctx.db
+        .query("workspaceMessages")
+        .withIndex("by_job", (q) => q.eq("jobId", j._id))
+        .take(2);
+      const deployment = await ctx.db.get(j.deploymentId);
+      return {
+        id: `cloud:${j._id}`,
+        sessionId: j.conversationId,
+        status: j.status === "completed" ? "succeeded" : j.status,
+        output:
+          messages.find((m) => m.role === "assistant")?.content ||
+          output?.content ||
+          "",
+        events: output?.events || [],
+        rounds: j.rounds,
+        error: j.error,
+        model: j.model || deployment?.model,
+        usage: {
+          prompt_tokens: j.promptTokens,
+          completion_tokens: j.completionTokens,
+        },
+      };
+    }
     if (a.operation === "overview")
       return {
         connectors: [
@@ -76,6 +110,7 @@ export const write = internalMutation({
       v.literal("create"),
       v.literal("send"),
       v.literal("cancel"),
+      v.literal("delegate"),
     ),
     conversationId: v.optional(v.id("conversations")),
     jobId: v.optional(v.id("workspaceJobs")),
@@ -87,6 +122,84 @@ export const write = internalMutation({
   },
   handler: async (ctx, a) => {
     const c = await credentialConnector(ctx, a.credentialHash);
+    if (a.operation === "delegate") {
+      const text = a.text || "",
+        key = a.key || "",
+        maxTokens = a.maxTokens ?? 8192;
+      if (
+        !text.trim() ||
+        text.length > 16000 ||
+        key.length < 8 ||
+        key.length > 100 ||
+        !Number.isInteger(maxTokens) ||
+        maxTokens < 128 ||
+        maxTokens > 8192
+      )
+        throw new Error("Invalid message");
+      const scopedKey = `delegate:${key}`;
+      const old = await ctx.db
+        .query("workspaceJobs")
+        .withIndex("by_owner_key", (q) =>
+          q.eq("ownerId", c.ownerId).eq("key", scopedKey),
+        )
+        .unique();
+      if (old) {
+        if (
+          old.connectorId !== c._id ||
+          old.prompt !== text ||
+          old.maxTokens !== maxTokens
+        )
+          throw new Error("Request key conflict");
+        return {
+          jobId: `cloud:${old._id}`,
+          sessionId: old.conversationId,
+          status: old.status,
+        };
+      }
+      const deployments = await ctx.db
+        .query("deployments")
+        .withIndex("by_connector", (q) => q.eq("connectorId", c._id))
+        .take(100);
+      const d = deployments.find(
+        (d) => d.status === "online" && d.ownerId === c.ownerId,
+      );
+      if (!d) throw new Error("No running deployment");
+      const conversationId = await ctx.db.insert("conversations", {
+        ownerId: c.ownerId,
+        connectorId: c._id,
+        deploymentId: d._id,
+        title: text.slice(0, 58),
+        mode: "agent",
+        updatedAt: Date.now(),
+      });
+      const jobId = await ctx.db.insert("workspaceJobs", {
+        ownerId: c.ownerId,
+        connectorId: c._id,
+        conversationId,
+        deploymentId: d._id,
+        key: scopedKey,
+        prompt: text,
+        maxTokens,
+        status: "queued",
+        rounds: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        lastSequence: 0,
+      });
+      await ctx.db.insert("workspaceMessages", {
+        ownerId: c.ownerId,
+        conversationId,
+        jobId,
+        role: "user",
+        content: text,
+        partial: false,
+      });
+      return {
+        jobId: `cloud:${jobId}`,
+        sessionId: conversationId,
+        status: "queued",
+      };
+    }
     if (a.operation === "create") {
       if (!a.deploymentId) throw new Error("Deployment required");
       const d = await ctx.db.get(a.deploymentId);

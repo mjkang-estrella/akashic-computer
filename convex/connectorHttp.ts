@@ -58,6 +58,7 @@ export const connectorHttp = httpAction(async (ctx, request) => {
           credentialHash,
           devices: body.devices,
           deployments: body.deployments,
+          ...(body.name ? { name: body.name } : {}),
         }),
       );
     if (op === "claim")

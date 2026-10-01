@@ -48,7 +48,7 @@ try {
 const store = new Store(stateDir);
 const fleet = new Fleet(config);
 const runner = new Runner(store, fleet, config);
-const service = new Service(store, fleet, runner);
+const service = new Service(store, fleet, runner, config);
 const relay = new CloudRelay(store, fleet, runner, config);
 relay.start();
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -83,7 +83,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 403, { error: "Invalid origin" });
   const url = new URL(req.url, `http://${expectedHost}`);
   if (req.method === "GET" && url.pathname === "/healthz")
-    return send(res, 200, { status: "ok", version: "0.2.2" });
+    return send(res, 200, { status: "ok", version: "0.4.0" });
   if (req.method === "POST" && url.pathname === "/api/login") {
     let body = "";
     for await (const chunk of req) {
