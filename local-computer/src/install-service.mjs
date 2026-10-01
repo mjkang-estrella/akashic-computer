@@ -1,15 +1,58 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { stateDir, loadConfig } from "./config.mjs";
-if (process.platform !== "darwin")
-  throw new Error(
-    "This installer targets the Mac control computer. On Linux, supervise npm start with your user service manager.",
-  );
+import { systemdUnit } from "./systemd-unit.mjs";
 loadConfig();
 const root = fileURLToPath(new URL("../", import.meta.url));
+if (process.platform === "linux") {
+  const dir = join(homedir(), ".config/systemd/user");
+  mkdirSync(dir, { recursive: true });
+  const entry = existsSync(join(root, "dist/controller.cjs"))
+    ? join(root, "dist/controller.cjs")
+    : join(root, "src/server.mjs");
+  writeFileSync(
+    join(dir, "akashic-computer.service"),
+    systemdUnit({ node: process.execPath, entry, root, stateDir }),
+    { mode: 0o600 },
+  );
+  if (process.argv.includes("--write-only")) {
+    console.log("Prepared Linux user service without starting it.");
+    process.exit(0);
+  }
+  const linger = execFileSync(
+    "loginctl",
+    ["show-user", userInfo().username, "-p", "Linger", "--value"],
+    { encoding: "utf8" },
+  ).trim();
+  if (linger !== "yes")
+    throw new Error(
+      "Enable user lingering before installing an always-on controller: sudo loginctl enable-linger " +
+        userInfo().username,
+    );
+  execFileSync("systemctl", ["--user", "daemon-reload"]);
+  execFileSync("systemd-analyze", [
+    "--user",
+    "verify",
+    join(dir, "akashic-computer.service"),
+  ]);
+  execFileSync("systemctl", [
+    "--user",
+    "enable",
+    "--now",
+    "akashic-computer.service",
+  ]);
+  console.log(
+    "Akashic Computer controller enabled as a persistent Linux user service.",
+  );
+  process.exit(0);
+}
+if (process.platform !== "darwin")
+  throw new Error(
+    "Service installation supports macOS and Linux.",
+  );
 const label = "computer.akashic.local";
 const destination = join(homedir(), "Library/LaunchAgents", label + ".plist");
 const xml = (s) =>

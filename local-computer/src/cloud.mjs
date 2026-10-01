@@ -62,6 +62,7 @@ export class CloudRelay {
     if (
       this.busy ||
       this.stopped ||
+      this.config.relayEnabled === false ||
       !this.paired() ||
       Date.now() < this.nextAttempt
     )
@@ -100,7 +101,13 @@ export class CloudRelay {
             ? { artifactRepo: this.config.artifactRepo }
             : {}),
         }));
-        await this.request("heartbeat", { devices, deployments });
+        await this.request("heartbeat", {
+          devices,
+          deployments,
+          ...(this.config.controllerName
+            ? { name: this.config.controllerName }
+            : {}),
+        });
         this.lastHeartbeat = Date.now();
         this.failures = 0;
         this.nextAttempt = 0;

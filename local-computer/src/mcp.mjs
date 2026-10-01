@@ -8,14 +8,13 @@ import {
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
 import { stateDir, loadConfig } from "./config.mjs";
-import { schemas } from "./service.mjs";
+import { schemas, jobIdSchema } from "./service.mjs";
 
 const config = loadConfig();
 const token = readFileSync(join(stateDir, "token"), "utf8").trim();
 const server = new McpServer(
-  { name: "akashic-local", version: "0.3.1" },
+  { name: "akashic-local", version: "0.4.0" },
   {
     instructions:
       "Open Akashic Computer for independent conversations with the local model. Panel interactions do not require your reasoning. Delegate only when requested; read results only when the user wants them in this conversation. Never poll continuously. The local agent has read-only fleet tools, not arbitrary shell access.",
@@ -178,7 +177,7 @@ server.registerTool(
   {
     description:
       "Read a local delegated task status on request. Does not return its transcript. Do not repeatedly poll during a ChatGPT turn.",
-    inputSchema: { job_id: z.string().uuid() },
+    inputSchema: { job_id: jobIdSchema },
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -204,7 +203,7 @@ server.registerTool(
   {
     description:
       "Bring the selected local task result into this conversation only when the user requests it. Returns the answer and provenance, not internal tool observations.",
-    inputSchema: { job_id: z.string().uuid() },
+    inputSchema: { job_id: jobIdSchema },
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,

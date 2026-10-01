@@ -1,6 +1,6 @@
 # Connected Akashic Computer workspace
 
-The catalog remains public at `/`. `/workspace` and `/computers` use GitHub sign-in and the same Convex deployment. The website never connects to a user's localhost. The Mac controller connects outward to Convex and uses its existing LAN model endpoint and SSH inventory.
+The catalog remains public at `/`. `/workspace` and `/computers` use GitHub sign-in and the same Convex deployment. The website never connects to a user's localhost. The always-on controller connects outward to Convex and uses its existing LAN model endpoint and SSH inventory.
 
 ## Deploy and authenticate
 
@@ -24,7 +24,7 @@ Deploy additive backend changes before enabling the frontend flag. Convex Auth i
 ## Connect the controller
 
 1. Sign into `/computers` and create a connection code.
-2. On the Mac, from `local-computer`, run the exact `npm run connect -- --site … --code …` command shown on the page.
+2. On the controller, from `local-computer`, run the exact `npm run connect -- --site … --code …` command shown on the page.
 3. Confirm the displayed computer name in the signed-in website.
 4. The controller stores its credential in `~/.local/share/akashic-local/cloud.json` with owner-only permissions. The database stores only its hash.
 5. The running controller registers inventory and models within fifteen seconds. Enrollment codes expire after ten minutes and can be used once.

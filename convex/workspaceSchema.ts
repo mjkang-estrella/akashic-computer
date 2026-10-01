@@ -79,7 +79,9 @@ export const workspaceTables = {
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     partial: v.boolean(),
-  }).index("by_conversation", ["conversationId"]),
+  })
+    .index("by_conversation", ["conversationId"])
+    .index("by_job", ["jobId"]),
   workspaceJobs: defineTable({
     ownerId: v.id("users"),
     connectorId: v.id("connectors"),

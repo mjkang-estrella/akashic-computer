@@ -38,9 +38,19 @@ codex plugin marketplace add ~/.local/share/akashic-local/marketplace
 codex plugin add akashic-local@akashic-personal
 ```
 
-The displayed name is **Akashic Computer**. Open a fresh local chat if tools do not refresh, enable the plugin, and ask to open Akashic Computer. The package contains a self-contained stdio server and the same React workspace used by the website. The controller must be running.
+The displayed name is **Akashic Computer**. Open a fresh local chat if tools do not refresh, enable the plugin, and ask to open Akashic Computer. The package contains a self-contained stdio server and the same React workspace used by the website. The desktop companion must be running. It can run as a client of an always-on Linux controller.
 
-Model-facing operations remain `open_workspace`, `delegate_task`, `get_task_status`, and `get_task_result`. Existing delegation remains device-only for compatibility. App-only account operations use connector-scoped cloud records. UI interaction never automatically requests ChatGPT reasoning or updates its model context.
+Model-facing operations remain `open_workspace`, `delegate_task`, `get_task_status`, and `get_task_result`. Delegation remains device-only on a controller. In client mode, it submits account jobs to the remote controller and returns an opaque `cloud:` job ID; status and result tools accept both old local IDs and new account IDs. App-only account operations use connector-scoped cloud records. UI interaction never automatically requests ChatGPT reasoning or updates its model context.
+
+## Always-on Linux controller
+
+Node 22+, Python 3, SSH access to the enrolled machines, and outbound HTTPS to Convex are required. `npm run build` also produces `dist/controller.cjs`, which runs without an on-device npm install. Keep the other `dist` files beside it for the loopback UI. Copy the fleet inventory and apply the same private `hostOverrides`.
+
+Set `controllerDeviceId` to the inventory ID, `controllerName` to the displayed account name, and `relayEnabled: true` in the Linux controller's private config. Run `npm run install:service` to create and start `akashic-computer.service` in the user's systemd manager. User lingering must already be enabled for operation after logout and at boot. The installer reports the administrator command if it is missing. `--write-only` prepares the unit without starting it.
+
+A Mac with `relayEnabled: false` becomes a client. It does not inspect LAN devices, claim jobs, or start inference. The panel defaults to Account; Device-only history remains readable. Delegation uses the same account relay as the website. Keep its existing local state and plugin identifier.
+
+When moving an existing connection, stop the old relay before copying `cloud.json` and the cloud execution receipts from `state.json`. Keep the same connector identity to preserve account conversations. Never run two relays with the same credential. Existing SSH keys and endpoint secrets stay on their original machines; provision access separately if the destination does not already have it. See the [Zima migration record](../docs/zima-controller.md) for deployment and rollback.
 
 ## Safety and recovery
 

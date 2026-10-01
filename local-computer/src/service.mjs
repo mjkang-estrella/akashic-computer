@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { cloudCall, cloudConfig } from "./cloud.mjs";
+export const jobIdSchema = z.union([
+  z.string().uuid(),
+  z.string().regex(/^cloud:[a-z0-9]+$/),
+]);
 export const schemas = {
   get_connection: z.object({}),
   account_overview: z.object({}),
@@ -29,8 +33,8 @@ export const schemas = {
     idempotency_key: z.string().min(8).max(100),
     max_tokens: z.number().int().min(128).max(8192).default(8192),
   }),
-  get_job: z.object({ job_id: z.string().uuid() }),
-  cancel_job: z.object({ job_id: z.string().uuid() }),
+  get_job: z.object({ job_id: jobIdSchema }),
+  cancel_job: z.object({ job_id: jobIdSchema }),
   delegate_task: z.object({
     brief: z.string().min(1).max(16000),
     idempotency_key: z.string().min(8).max(100),
@@ -38,10 +42,13 @@ export const schemas = {
   }),
 };
 export class Service {
-  constructor(store, fleet, runner) {
+  constructor(store, fleet, runner, config = {}, options = {}) {
     this.store = store;
     this.fleet = fleet;
     this.runner = runner;
+    this.clientOnly = config.relayEnabled === false;
+    this.cloudCall = options.request || cloudCall;
+    this.cloudConfig = options.paired || cloudConfig;
   }
   async call(name, raw) {
     if (!schemas[name]) throw new Error("Unknown operation");
@@ -49,25 +56,32 @@ export class Service {
     switch (name) {
       case "get_connection":
         return {
-          connected: !!cloudConfig(),
-          site: cloudConfig()?.site || null,
+          connected: !!this.cloudConfig(),
+          site: this.cloudConfig()?.site || null,
+          clientOnly: this.clientOnly,
         };
       case "account_overview":
-        return cloudCall("client-read", { operation: "overview" });
+        return this.cloudCall("client-read", { operation: "overview" });
       case "account_sessions":
-        return cloudCall("client-read", { operation: "sessions" });
+        return this.cloudCall("client-read", { operation: "sessions" });
       case "account_session":
-        return cloudCall("client-read", {
+        return this.cloudCall("client-read", {
           operation: "session",
           conversationId: a.id,
         });
       case "account_create":
-        return cloudCall("client-write", { operation: "create", ...a });
+        return this.cloudCall("client-write", { operation: "create", ...a });
       case "account_send":
-        return cloudCall("client-write", { operation: "send", ...a });
+        return this.cloudCall("client-write", { operation: "send", ...a });
       case "account_cancel":
-        return cloudCall("client-write", { operation: "cancel", ...a });
+        return this.cloudCall("client-write", { operation: "cancel", ...a });
       case "get_overview": {
+        if (this.clientOnly)
+          return {
+            hosts: [],
+            model: { models: [], status: "client-only" },
+            activeJobs: 0,
+          };
         const [fleet, model] = await Promise.all([
           this.fleet.snapshot(a.fresh),
           this.fleet.models(),
@@ -88,6 +102,10 @@ export class Service {
             messageCount: messages.length,
           }));
       case "create_session":
+        if (this.clientOnly)
+          throw new Error(
+            "This device is a client. Use Account to run jobs on the controller.",
+          );
         return this.store.createSession(a.title, a.mode);
       case "get_session":
         return {
@@ -97,6 +115,10 @@ export class Service {
           ),
         };
       case "send_message": {
+        if (this.clientOnly)
+          throw new Error(
+            "Device-only history is read-only here. Use an Account conversation.",
+          );
         const job = this.store.enqueue(
           a.session_id,
           a.text,
@@ -107,10 +129,27 @@ export class Service {
         return { jobId: job.id, status: job.status };
       }
       case "get_job":
+        if (a.job_id.startsWith("cloud:"))
+          return this.cloudCall("client-read", {
+            operation: "job",
+            jobId: a.job_id.slice(6),
+          });
         return this.store.job(a.job_id);
       case "cancel_job":
+        if (a.job_id.startsWith("cloud:"))
+          return this.cloudCall("client-write", {
+            operation: "cancel",
+            jobId: a.job_id.slice(6),
+          });
         return this.runner.cancel(a.job_id);
       case "delegate_task": {
+        if (this.clientOnly)
+          return this.cloudCall("client-write", {
+            operation: "delegate",
+            text: a.brief,
+            key: a.idempotency_key,
+            maxTokens: a.max_tokens,
+          });
         const old = this.store.data.jobs.find(
           (j) => j.delegationKey === a.idempotency_key,
         );

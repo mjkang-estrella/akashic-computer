@@ -62,6 +62,7 @@ const deploymentValue = v.object({
 });
 export const heartbeat = internalMutation({
   args: {
+    name: v.optional(v.string()),
     credentialHash: v.string(),
     devices: v.array(deviceValue),
     deployments: v.array(deploymentValue),
@@ -70,7 +71,12 @@ export const heartbeat = internalMutation({
     const c = await credentialConnector(ctx, a.credentialHash);
     if (a.devices.length > 200 || a.deployments.length > 100)
       throw new Error("Inventory too large.");
-    await ctx.db.patch(c._id, { lastSeenAt: Date.now() });
+    if (a.name && a.name.length > 100)
+      throw new Error("Controller name too long.");
+    await ctx.db.patch(c._id, {
+      lastSeenAt: Date.now(),
+      ...(a.name ? { name: a.name } : {}),
+    });
     const current = await ctx.db
       .query("devices")
       .withIndex("by_connector", (q) => q.eq("connectorId", c._id))

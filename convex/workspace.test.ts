@@ -230,3 +230,91 @@ describe("account workspace", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("controller relocation", () => {
+  it("renames the connector while retaining account and deployment identities", async () => {
+    const { t, ids } = await setup();
+    await t.mutation(internal.connector.heartbeat, {
+      credentialHash: "a".repeat(64),
+      name: "ZimaBoard controller",
+      devices: [],
+      deployments: [
+        { localId: "local-model", model: "local-model", status: "online" },
+      ],
+    });
+    const result = await t.query(internal.connectorClient.read, {
+      credentialHash: "a".repeat(64),
+      operation: "overview",
+    });
+    expect(result).toMatchObject({
+      connectors: [{ id: ids.connector, name: "ZimaBoard controller" }],
+      deployments: [{ _id: ids.deployment }],
+    });
+  });
+  it("delegates atomically, deduplicates retries, and confines results and cancellation", async () => {
+    const { t, owner } = await setup();
+    const request = {
+      credentialHash: "a".repeat(64),
+      operation: "delegate" as const,
+      text: "Inspect Zima",
+      key: "delegation-test",
+      maxTokens: 512,
+    };
+    const first = await t.mutation(internal.connectorClient.write, request);
+    expect(await t.mutation(internal.connectorClient.write, request)).toEqual(
+      first,
+    );
+    await expect(
+      t.mutation(internal.connectorClient.write, {
+        ...request,
+        text: "Changed",
+      }),
+    ).rejects.toThrow(/conflict/);
+    const claim = await t.mutation(internal.connector.claim, {
+      credentialHash: request.credentialHash,
+      leaseId: "zima-lease",
+    });
+    const jobId = claim!.job._id;
+    await expect(
+      t.query(internal.connectorClient.read, {
+        credentialHash: "b".repeat(64),
+        operation: "job",
+        jobId,
+      }),
+    ).rejects.toThrow(/not found/);
+    await expect(
+      t.mutation(internal.connectorClient.write, {
+        credentialHash: "b".repeat(64),
+        operation: "cancel",
+        jobId,
+      }),
+    ).rejects.toThrow(/not found/);
+    await t.mutation(internal.connector.progress, {
+      credentialHash: request.credentialHash,
+      jobId,
+      leaseId: "zima-lease",
+      sequence: 1,
+      content: "Zima observed",
+      events: [],
+      rounds: 2,
+      promptTokens: 15,
+      completionTokens: 20,
+      status: "completed",
+    });
+    expect(
+      await t.query(internal.connectorClient.read, {
+        credentialHash: request.credentialHash,
+        operation: "job",
+        jobId,
+      }),
+    ).toMatchObject({
+      id: `cloud:${jobId}`,
+      status: "succeeded",
+      output: "Zima observed",
+      usage: { prompt_tokens: 15, completion_tokens: 20 },
+    });
+    expect(await owner.query(api.workspace.listConversations, {})).toHaveLength(
+      1,
+    );
+  });
+});
