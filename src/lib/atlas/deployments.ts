@@ -35,6 +35,7 @@ export const runtimeSchema = z.object({
   archiveUrl: httpUrl.optional(), archiveSha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict();
 export const settingsSchema = z.object({
+  device: shortText.optional(),
   contextTokens: tokens, concurrency: z.number().int().min(1).max(256),
   cacheK: cacheSchema, cacheV: cacheSchema, draftCacheK: cacheSchema, draftCacheV: cacheSchema,
   mtp: z.enum(["off", "draft-mtp", "unknown"]), draftMax: z.number().int().min(0).max(32),
@@ -93,10 +94,14 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(stable(value));
 }
 export function deploymentMatchKey(d: DeploymentConfiguration) {
-  const { name: _name, revision: _rev, ...computer } = d.computer;
-  void _name; void _rev;
-  return stableJson({ buildKey: d.buildKey, runtime: d.runtime, computer, settings: d.settings });
+  return stableJson({ buildKey: d.buildKey, runtime: d.runtime, computer: performanceComputer(d.computer), settings: d.settings });
 }
+/** Profile bookkeeping and memory observations do not identify a different processor. */
+export function performanceComputer(p: ComputerProfile) {
+  return { platform: p.platform, cpu: p.cpu, devices: p.devices, backends: [...p.backends].sort(), environment: p.environment, topology: p.topology,
+    pools: p.pools.map((pool) => ({ kind: pool.kind, deviceIds: [...pool.deviceIds].sort() })) };
+}
+export function decimalGbToBytes(value: string): number { return Math.round(Number(value) * 1e9); }
 export function compatibilityNotes(d: DeploymentConfiguration): string[] {
   const notes: string[] = [];
   if (d.runtime.platform !== "unknown" && d.computer.platform !== "unknown" && d.runtime.platform !== d.computer.platform)

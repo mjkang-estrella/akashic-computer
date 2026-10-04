@@ -244,6 +244,7 @@ export default defineSchema({
     .index("by_owner_and_external_id", ["ownerId", "externalId"])
     .index("by_build_and_published", ["buildKey", "published"])
     .index("by_owner_and_build", ["ownerId", "buildKey"])
+    .index("by_owner_and_model", ["ownerId", "modelSlug"])
     .index("by_published_and_consent", ["published", "consentAt"]),
 
   monitoredSources: defineTable({

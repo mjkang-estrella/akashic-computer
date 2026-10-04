@@ -10,10 +10,13 @@ export function ArtifactBuildPicker({ repo, modelSlug, modelName, onAdd }: {
   onAdd?: (build: ArtifactBuild, slug: string, label: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const { results, status, loadMore } = usePaginatedQuery(api.artifactBuilds.list, open ? { repo } : "skip", { initialNumItems: 20 });
+  const [includeHistory, setIncludeHistory] = useState(false);
+  const { results, status, loadMore } = usePaginatedQuery(api.artifactBuilds.list, open ? { repo, includeHistory } : "skip", { initialNumItems: 20 });
   const { selections, add } = useDeploymentComparison();
   return <details className="border-t border-line py-3" onToggle={(e) => setOpen(e.currentTarget.open)}>
     <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">Choose exact files · {repo}</summary>
+    <label className="flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={includeHistory} onChange={(e) => setIncludeHistory(e.target.checked)} />Include recorded revisions and their evidence</label>
+    {includeHistory ? <p className="text-xs text-muted">Use the revision named by your evidence. A newer repository commit does not replace a saved file pin. Unrecorded revisions need catalog metadata before exact evidence can attach.</p> : null}
     {status === "LoadingFirstPage" && open ? <p role="status">Loading pinned files…</p> : null}
     {open && status === "Exhausted" && !results.length ? <p className="text-sm text-muted">
       Exact file metadata is not available yet. The repository entry remains a planning estimate.

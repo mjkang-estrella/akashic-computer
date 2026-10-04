@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { computerSchema, computerTemplates, type ComputerProfile, type WorkloadProfile } from "@/lib/atlas/deployments";
+import { computerSchema, computerTemplates, decimalGbToBytes, type ComputerProfile, type WorkloadProfile } from "@/lib/atlas/deployments";
+import { memoryBytesLabel } from "@/lib/atlas/memory";
 export function ComputerEditor({ profile, onChange }: { profile: ComputerProfile; onChange: (p: ComputerProfile) => void }) {
   const pool = profile.pools[0];
   const updateMemory = (field: "capacityBytes" | "usableBytes" | "accessibleBytes", text: string) => {
@@ -21,6 +22,7 @@ export function ComputerEditor({ profile, onChange }: { profile: ComputerProfile
       <label key={key}>{["Physical capacity (GiB)", "Usable system memory (GiB)", "GPU-addressable limit (GiB)"][i]}
         <input type="number" min="0" step="0.01" placeholder="Unknown" value={pool?.[key] === undefined ? "" : pool[key]! / 2 ** 30}
           onChange={(e) => updateMemory(key, e.target.value)} />
+        <span className="text-xs text-muted">{memoryBytesLabel(pool?.[key])}</span>
       </label>)}
     <label>Memory pool<select value={pool?.kind ?? "host"} onChange={(e) => onChange({ ...profile, source: "manual",
       pools: [{ ...(pool ?? { id: "memory", label: "Memory", deviceIds: [] }), kind: e.target.value as "host" | "unified" | "device" }, ...profile.pools.slice(1)] })}>
@@ -58,7 +60,7 @@ export function WorkloadEditor({ profile, onChange }: { profile: WorkloadProfile
       {["general", "coding", "reasoning", "long-context", "other"].map((s) => <option key={s}>{s}</option>)}
     </select></label>
     <label>Total memory ceiling (GB)<input type="number" min="1" step="1" value={profile.totalMemoryBytes / 1e9}
-      onChange={(e) => onChange({ ...profile, totalMemoryBytes: Number(e.target.value) * 1e9 })} /></label>
+      onChange={(e) => { if (Number(e.target.value) > 0) onChange({ ...profile, totalMemoryBytes: decimalGbToBytes(e.target.value) }); }} /><span className="text-xs text-muted">{memoryBytesLabel(profile.totalMemoryBytes)}</span></label>
     <label>Target context (tokens)<input type="number" min="1" value={profile.contextTokens}
       onChange={(e) => onChange({ ...profile, contextTokens: Number(e.target.value) })} /></label>
     <label>Concurrency<input type="number" min="1" max="256" value={profile.concurrency} onChange={(e) => onChange({ ...profile, concurrency: Number(e.target.value) })} /></label>
@@ -66,7 +68,7 @@ export function WorkloadEditor({ profile, onChange }: { profile: WorkloadProfile
       <option value="on">On</option><option value="off">Off</option><option value="unknown">Unknown</option>
     </select></label>
     <label>OS / other-use reserve (GB)<input type="number" min="0" step="0.1" placeholder="Unknown" value={profile.reserveBytes === undefined ? "" : profile.reserveBytes / 1e9}
-      onChange={(e) => onChange({ ...profile, reserveBytes: e.target.value ? Number(e.target.value) * 1e9 : undefined })} /></label>
+      onChange={(e) => onChange({ ...profile, reserveBytes: e.target.value ? decimalGbToBytes(e.target.value) : undefined })} /><span className="text-xs text-muted">{memoryBytesLabel(profile.reserveBytes)}</span></label>
     <label>Desired decode (tok/s)<input type="number" min="0.1" step="0.1" placeholder="Optional" value={profile.desiredDecodeTps ?? ""}
       onChange={(e) => onChange({ ...profile, desiredDecodeTps: e.target.value ? Number(e.target.value) : undefined })} /></label>
     <label>Desired TTFT (seconds)<input type="number" min="0.01" step="0.01" placeholder="Optional" value={profile.desiredTtftSeconds ?? ""}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseEvidenceImport, compareEvidence, fidelityLabel, decodeMedian, type EvidenceReport } from "./evidence";
+import { parseEvidenceImport, compareEvidence, fidelityLabel, decodeMedian, performanceSummary, evidenceAssessments, type EvidenceReport } from "./evidence";
+import { deploymentMatchKey, decimalGbToBytes, workloadSchema } from "./deployments";
 import { fixtureReport } from "../../../test/deploymentFixture";
 describe("evidence boundaries", () => {
   it("retains a system snapshot and refuses to reinterpret it as a peak", () => {
@@ -31,6 +32,32 @@ describe("evidence boundaries", () => {
     b.trials![0].promptTokens = 43225;
     expect(compareEvidence(fixtureReport, b).reasons).toContain("Prompt cases, filled context, output lengths or cached tokens differ");
   });
+  it("retains short and long workload speeds, largest input and setup snapshots regardless of reference order", () => {
+    const short = structuredClone(fixtureReport), long = structuredClone(fixtureReport);
+    short.trials![0].decodeTps = 74.9650;
+    short.memory = [{ kind: "snapshot", scope: "system", bytes: 54735187968, method: "Setup observation" }];
+    long.id = "long"; long.protocol.id = "long";
+    long.trials![0] = { caseId: "long", promptTokens: 43225, generatedTokens: 512, decodeTps: 51.3652, prefillSeconds: 57.4154, finishReason: "length" };
+    const summary = performanceSummary([short, long]);
+    expect(summary.reports.map(decodeMedian)).toEqual([74.9650, 51.3652]);
+    expect(summary.largestInput).toBe(43225);
+    expect(summary.memory[0].observation.bytes).toBe(54735187968);
+    expect(summary.sortableDecode).toBeNull();
+    expect(performanceSummary([long, short]).largestInput).toBe(43225);
+    short.trials![0].finishReason = "error";
+    expect(decodeMedian(short)).toBeNull();
+  });
+  it("keeps performance attached after bookkeeping changes but detaches for driver/device changes", () => {
+    const a = fixtureReport.deployment!, b = structuredClone(a);
+    b.computer.name = "Saved Framework"; b.computer.revision++;
+    b.computer.source = "manual"; b.computer.observedAt = 123;
+    b.computer.pools[0].label = "My RAM"; b.computer.pools[0].usableBytes = 125 * 2 ** 30;
+    expect(deploymentMatchKey(a)).toBe(deploymentMatchKey(b));
+    b.computer.environment = { driver: "Different driver" };
+    expect(deploymentMatchKey(a)).not.toBe(deploymentMatchKey(b));
+    expect(workloadSchema.parse({ ...a.workload, totalMemoryBytes: decimalGbToBytes("32.2"), reserveBytes: decimalGbToBytes("8.2") }))
+      .toMatchObject({ totalMemoryBytes: 32200000000, reserveBytes: 8200000000 });
+  });
   it("normalizes explicit Top-1 units and never transfers unbound KLD", () => {
     const fidelity: EvidenceReport = { schemaVersion: 2, id: "external", modelSlug: fixtureReport.modelSlug,
       artifactRepo: "AesSedai/example", kind: "fidelity", source: { label: "External", origin: "published", limitations: [] },
@@ -56,5 +83,9 @@ describe("evidence boundaries", () => {
     b.fidelity.kld = 0.006;
     b.protocol.top1Definition = "different denominator";
     expect(compareEvidence(a, b).comparable).toBe(false);
+    const pairs = evidenceAssessments([{ label: "A", reports: [fixtureReport, a] }, { label: "B", reports: [b] },
+      { label: "C", reports: [fixtureReport, b] }]);
+    expect(pairs.filter((p) => p.kind === "fidelity")).toHaveLength(3);
+    expect(pairs.filter((p) => p.kind === "performance")).toHaveLength(1);
   });
 });

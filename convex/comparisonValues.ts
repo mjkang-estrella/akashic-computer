@@ -24,6 +24,7 @@ export const runtimeValue = v.object({
   name: v.string(), version: v.string(), backend, platform, archiveUrl: optText, archiveSha256: optText,
 });
 export const settingsValue = v.object({
+  device: optText,
   contextTokens: v.number(), concurrency: v.number(), cacheK: cacheValue, cacheV: cacheValue,
   draftCacheK: cacheValue, draftCacheV: cacheValue,
   mtp: v.union(v.literal("off"), v.literal("draft-mtp"), v.literal("unknown")), draftMax: v.number(),
@@ -37,7 +38,7 @@ export const deploymentValue = v.object({
   runtime: runtimeValue, computer: computerValue, workload: workloadValue, settings: settingsValue,
 });
 export const protocolValue = v.object({
-  id: optText, dataset: optText, datasetRevision: optText, promptSetHash: optText, tokenizer: optText,
+  id: optText, dataset: optText, datasetRevision: optText, promptSetHash: optText, promptSetId: optText, tokenizer: optText,
   tool: optText, toolVersion: optText, referenceRepo: optText, referenceRevision: optText,
   kldDirection: v.optional(v.union(v.literal("reference-to-quant"), v.literal("quant-to-reference"), v.literal("unknown"))),
   top1Definition: optText, sampleCount: optNum, warmups: optNum, repeatsPerPrompt: optNum,

@@ -14,8 +14,12 @@ export function EvidenceSummary({ report }: { report: EvidenceReport }) {
     <p>{report.kind === "fidelity" ? fidelityLabel(report) :
       (decode === null ? "Decode unknown" : decode.toFixed(2) + " decode tok/s") + " · " + trials.length + " trials · " + report.protocol.aggregation.replaceAll("-", " ")}</p>
     {report.kind === "performance" ? <>
+      <p>Protocol: {report.protocol.id ?? "Unrecorded"} · Input sizes: {[...new Set(trials.map((t) => t.promptTokens))].join(", ")} tokens</p>
       <p>Allocated: {report.deployment?.settings.contextTokens.toLocaleString()} · Largest input: {Math.max(0, ...trials.map((t) => t.promptTokens)).toLocaleString()} tokens</p>
       <p>Thinking: {report.deployment?.settings.thinking} · MTP: {report.deployment?.settings.mtp} / {report.deployment?.settings.draftMax}</p>
+      <p>{report.protocol.repeatsPerPrompt === undefined ? "Repetitions unrecorded." : report.protocol.repeatsPerPrompt + " trial(s) per prompt."} {report.deployment?.settings.thinking === "on" ? "Generated thinking is included in throughput." : ""}</p>
+      <p>Prefill throughput: {trials.some((t) => t.prefillTps !== undefined) ? trials.map((t) => t.prefillTps?.toFixed(1) ?? "unknown").join(", ") + " input tok/s" : "Unknown"}</p>
+      {trials.some((t) => t.finishReason === "error") ? <p>Failed trials are retained but excluded from throughput summaries.</p> : null}
       <p>Prefill: {trials.some((t) => t.prefillSeconds !== undefined) ? trials.map((t) => t.prefillSeconds?.toFixed(3) ?? "unknown").join(", ") + " s" : "Unknown"} · TTFT: {trials.some((t) => t.ttftSeconds !== undefined) ? trials.map((t) => t.ttftSeconds?.toFixed(3) ?? "unknown").join(", ") + " s" : "Unknown"}</p>
       {trials.some((t) => t.finishReason === "length") ? <p>Output reached the token limit. Throughput does not establish answer correctness or completion.</p> : null}
     </> : <p>Fidelity to a reference distribution; not a task-quality score.</p>}

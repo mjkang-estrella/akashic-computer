@@ -43,7 +43,7 @@ export function convertQwenRecords(input: {
     const id = group.file.replace(/\.json$/, "");
     const deployment = { ...base, id, runtime: { ...base.runtime, version: p.runtime_release,
       platform: "linux-x64" as const, archiveUrl: p.runtime_asset, archiveSha256: p.runtime_sha256 },
-      settings: { ...base.settings, contextTokens: 262144, concurrency: 1,
+      settings: { ...base.settings, device: "Vulkan0", contextTokens: 262144, concurrency: 1,
         cacheK: "q8_0" as const, cacheV: "q8_0" as const, draftCacheK: "q8_0" as const, draftCacheV: "q8_0" as const,
         mtp: group.draft ? "draft-mtp" as const : "off" as const, draftMax: group.draft,
         thinking: group.thinking ? "on" as const : "off" as const, temperature: group.thinking ? 1 : 0, seed: 1234,
@@ -59,6 +59,8 @@ export function convertQwenRecords(input: {
         "262144 tokens were allocated; full-context quality and stability and 1M context were not tested.",
         "No Q6/Q8 local quality or throughput A/B and no local KLD were measured.",
       ] }, protocol: { id: group.long ? "qwen-local-long-coding" : "qwen-local-three-coding-prompts",
+        // The supplied handoff identifies these prompt sets. This is not a hash of unseen prompt text.
+        promptSetId: group.long ? "qwen-local-handoff:43225-token-coding:v1" : "qwen-local-handoff:three-short-python-prompts:v1",
         tool: "llama.cpp API timing fields", toolVersion: p.runtime_release,
         cache: "disabled", aggregation: group.long ? "single-trial" : "median-across-prompts", repeatsPerPrompt: 1,
         ...(group.file.includes("draft-sweep") ? { order: ["3", "1", "5", "2", "4"] } : {}) },

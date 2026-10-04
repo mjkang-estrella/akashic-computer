@@ -6,11 +6,11 @@ import { useConvexAuth, useMutation, usePaginatedQuery, useQueries, useQuery } f
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useCatalog, useCatalogEntry } from "../atlas/CatalogProvider";
-import { computerTemplates, defaultWorkload, defaultDeployment, deploymentMatchKey, compatibilityNotes, configurationId,
+import { computerTemplates, defaultWorkload, defaultDeployment, deploymentMatchKey, compatibilityNotes, configurationId, stableJson,
   type ComputerProfile, type WorkloadProfile, type DeploymentConfiguration } from "@/lib/atlas/deployments";
 import { estimateDeploymentMemory, memoryBytesLabel } from "@/lib/atlas/memory";
 import type { ArtifactBuild } from "@/lib/atlas/artifactBuilds";
-import { compareEvidence, decodeMedian, fidelityLabel, median, type EvidenceReport } from "@/lib/atlas/evidence";
+import { evidenceAssessments, performanceSummary, decodeMedian, fidelityLabel, median, type EvidenceReport } from "@/lib/atlas/evidence";
 import { exportRecipe, vulkanB11146 } from "@/lib/atlas/recipeExports";
 import { useDeploymentComparison, type Selection } from "./ComparisonProvider";
 import { ArtifactBuildPicker } from "./ArtifactBuildPicker";
@@ -99,23 +99,22 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
   const visible = selections.filter((s) => !hideDeficits || (s.build.bytes ?? 0) <= s.configuration.workload.totalMemoryBytes);
   function sortMetric(s: Selection) {
     const evidence = applicable(s.configuration);
-    if (sort === "decode") { const r = evidence.find((r) => r.kind === "performance"); return r ? -(decodeMedian(r) ?? -Infinity) : Infinity; }
+    if (sort === "decode") { const value = performanceSummary(evidence).sortableDecode; return value === null ? Infinity : -value; }
     if (sort === "kld") return evidence.find((r) => r.fidelity?.kld !== undefined)?.fidelity?.kld ?? Infinity;
     const top1 = evidence.find((r) => r.fidelity?.top1)?.fidelity?.top1;
     return top1 ? -(top1.unit === "percent" ? top1.value : top1.value * 100) : Infinity;
   }
-  const ordered = [...visible].sort((a, b) => sort === "bytes" ? (a.build.bytes ?? Infinity) - (b.build.bytes ?? Infinity)
+  const orderedMetrics = visible.filter((s) => Number.isFinite(sortMetric(s))).sort((a, b) => sortMetric(a) - sortMetric(b));
+  let metricIndex = 0;
+  const ordered = ["decode", "kld", "top1"].includes(sort)
+    // Unknown and multi-workload options retain their position, outside the numeric ranking.
+    ? visible.map((s) => Number.isFinite(sortMetric(s)) ? orderedMetrics[metricIndex++] : s)
+    : [...visible].sort((a, b) => sort === "bytes" ? (a.build.bytes ?? Infinity) - (b.build.bytes ?? Infinity)
     : sort === "name" ? a.configuration.label.localeCompare(b.configuration.label)
-      : ["decode", "kld", "top1"].includes(sort) ? sortMetric(a) - sortMetric(b) : 0);
+      : 0);
   // Assess each evidence class independently: a speed record must not hide a KLD mismatch.
-  const assessments = selections.flatMap((a, i) => selections.slice(i + 1).flatMap((b) =>
-    (["fidelity", "performance"] as const).flatMap((kind) => {
-      const left = applicable(a.configuration).find((r) => r.kind === kind);
-      const right = applicable(b.configuration).find((r) => r.kind === kind);
-      return left && right ? [{ key: a.configuration.id + b.configuration.id + kind, kind,
-        label: a.configuration.label + " ↔ " + b.configuration.label,
-        result: compareEvidence(left, right, left.buildKey === right.buildKey ? "mtp" : "artifact") }] : [];
-    })));
+  const assessments = evidenceAssessments(selections.map((s) => ({ label: s.configuration.label, reports: applicable(s.configuration) })));
+  const [assessmentLimit, setAssessmentLimit] = useState(20);
   const relevantChanges = materialChanges.filter((c) => selections.some((s) => s.configuration.modelSlug === c.modelSlug));
   return <section className="comparison-page">
     <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-xs uppercase tracking-widest text-muted">For your computer</p>
@@ -148,7 +147,7 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
         catch { setMessage("Clipboard unavailable. Save this comparison to retain it."); }
       }}>Copy public shortlist</button>
     </div>
-    {["decode", "kld", "top1"].includes(sort) ? <p className="my-3 text-xs text-muted">Sorting reported values does not align their protocols. Inspect the evidence before interpreting a difference. Unknowns sort last.</p> : null}
+    {["decode", "kld", "top1"].includes(sort) ? <p className="my-3 text-xs text-muted">Sorting reported values does not align their protocols. Unknowns and options with multiple performance workloads retain their position, outside the numeric ranking.</p> : null}
     {!selections.length ? <p className="comparison-status">Choose up to four exact files to start. You can also save profiles or import evidence below.</p> : null}
     <div className="comparison-columns">
       {ordered.map((s) => <ConfigurationCard key={s.configuration.id} selection={s} evidence={applicable(s.configuration)} onChange={(d) => update(s.configuration.id, d)}
@@ -161,10 +160,10 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
         }} />)}
     </div>
     {assessments.length ? <section className="comparison-status" aria-label="Evidence alignment"><h2>Evidence alignment</h2>
-      {assessments.map(({ key, kind, label, result }) => <details key={key} className="my-2">
+      {assessments.slice(0, assessmentLimit).map(({ kind, label, result }, i) => <details key={i} className="my-2">
         <summary className="min-h-11 cursor-pointer py-3"><strong>{kind === "fidelity" ? "Fidelity" : "Performance"}: {result.conclusion}</strong><span className="block text-xs text-muted">{label}</span></summary>
         {result.reasons.length ? <ul className="mt-2 list-disc pl-5">{result.reasons.map((s) => <li key={s}>{s}</li>)}</ul> : null}
-      </details>)}</section> : null}
+      </details>)}{assessments.length > assessmentLimit ? <button className="comparison-button" onClick={() => setAssessmentLimit((n) => n + 20)}>More protocol comparisons</button> : null}</section> : null}
     {selections.length ? <section className="my-6 border-y border-line py-5">
       <h2>Save a decision</h2><p className="my-3 text-sm text-muted">Keep the exact configurations, constraints, evidence references, and your reasoning. Future updates will not replace these pins.</p>
       {evidenceIds.length ? <details className="my-3"><summary className="min-h-11 cursor-pointer py-3">Referenced evidence · {evidenceIds.length}</summary>
@@ -197,13 +196,9 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
 }) {
   const entry = useCatalogEntry(d.modelSlug), s = d.settings;
   const [recipe, setRecipe] = useState<Record<string, string> | null>(null), [error, setError] = useState("");
-  const performance = evidence.find((r) => r.kind === "performance");
+  const performance = performanceSummary(evidence);
   const fidelity = evidence.filter((r) => r.kind === "fidelity");
-  const trials = performance?.trials ?? [];
-  const decode = performance ? decodeMedian(performance) : null;
-  const ttft = median(trials.flatMap((t) => t.ttftSeconds === undefined ? [] : [t.ttftSeconds]));
-  const prefill = median(trials.flatMap((t) => t.prefillTps === undefined ? [] : [t.prefillTps]));
-  const exercised = trials.length ? Math.max(...trials.map((t) => t.promptTokens)) : undefined;
+  const exercised = performance.largestInput;
   const [recipeKey, setRecipeKey] = useState("");
   const estimate = estimateDeploymentMemory({ weightBytes: build.bytes, architecture: build.architecture,
     contextTokens: s.contextTokens, concurrency: s.concurrency, k: s.cacheK, v: s.cacheV,
@@ -219,19 +214,24 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
       <div><dt>Computer</dt><dd>{d.computer.name}</dd></div>
       <div><dt>Runtime</dt><dd>{d.runtime.name} {d.runtime.version} · {d.runtime.backend}</dd></div>
       <div><dt>Native context</dt><dd>{build.architecture?.nativeContext?.toLocaleString() ?? "Unknown"}</dd></div>
-      <div><dt>Allocated target / slot</dt><dd>{s.contextTokens.toLocaleString()} tokens × {s.concurrency}</dd></div>
+      <div><dt>Configured / slot</dt><dd>{s.contextTokens.toLocaleString()} tokens × {s.concurrency}</dd></div>
       <div><dt>Largest measured input</dt><dd>{exercised?.toLocaleString() ?? "Unknown"} tokens</dd></div>
       <div><dt>Fidelity evidence</dt><dd>{fidelity.length ? fidelity.map((r) => <p key={r.id}>{fidelityLabel(r)}<span className="block text-[11px] text-muted">{r.source.label}</span></p>) : "Unknown"}</dd></div>
-      <div><dt>Measured decode</dt><dd>{decode === null ? "Unknown" : decode.toFixed(2) + " tok/s"}</dd></div>
-      <div><dt>Prefill / TTFT</dt><dd>{prefill?.toFixed(1) ?? "Unknown"} input tok/s · {ttft?.toFixed(3) ?? "Unknown"} s</dd></div>
-      {performance?.memory?.map((m, i) => <div key={i}><dt>{m.scope} memory {m.kind}</dt><dd>{memoryBytesLabel(m.bytes)}<span className="block text-[11px] text-muted">{m.method}</span></dd></div>)}
+      <div><dt>Measured workloads</dt><dd>{performance.reports.length || "Unknown"}{performance.reports.length ? " · each protocol below" : ""}</dd></div>
+      {performance.memory.map(({ source, observation: m }, i) => <div key={i}><dt>{m.scope} memory {m.kind}</dt><dd>{memoryBytesLabel(m.bytes)}<span className="block text-[11px] text-muted">{source} · {m.method}</span>
+        {m.scope === "system" ? <span className="block text-xs">{m.bytes > d.workload.totalMemoryBytes ? "Above" : "Below"} your {d.workload.totalMemoryBytes / 1e9} GB ceiling at this observation. {m.kind === "snapshot" ? "Not a peak." : "Only the recorded sampling period."}</span> : null}</dd></div>)}
       <div><dt>Full-context quality</dt><dd>Not validated by allocation</dd></div>
       {estimate.components.map((c) => <div key={c.key}><dt>{c.label}</dt><dd>{memoryBytesLabel(c.bytes)}<span className="mt-1 block text-[11px] text-muted">{c.basis}</span></dd></div>)}
       <div><dt>Known subtotal</dt><dd>{memoryBytesLabel(estimate.knownSubtotalBytes)}<strong className="mt-1 block">Total requirement unknown</strong></dd></div>
     </dl>
-    {performance ? <p className="my-3 text-xs text-muted">{performance.source.label} · {performance.protocol.aggregation.replaceAll("-", " ")}. {s.thinking === "on" ? "Generated thinking is included in throughput." : ""} {trials.some((t) => t.finishReason === "length") ? "Outputs reached the token limit; answer completion is unverified." : ""}</p> : null}
-    {d.workload.desiredDecodeTps ? <p className="my-2 text-xs">Decode target {d.workload.desiredDecodeTps} tok/s: {decode === null ? "unknown" : decode >= d.workload.desiredDecodeTps ? "met on this recorded workload" : "below target on this recorded workload"}.</p> : null}
-    {d.workload.desiredTtftSeconds ? <p className="my-2 text-xs">TTFT target {d.workload.desiredTtftSeconds} s: {ttft === null ? "unknown" : ttft <= d.workload.desiredTtftSeconds ? "met on this recorded workload" : "above target on this recorded workload"}.</p> : null}
+    {performance.reports.map((r) => {
+      const decode = decodeMedian(r), ttft = median((r.trials ?? []).filter((t) => t.finishReason !== "error").flatMap((t) => t.ttftSeconds === undefined ? [] : [t.ttftSeconds]));
+      return <section key={r.id} className="comparison-evidence"><EvidenceSummary report={r} />
+        {r.deployment && stableJson(r.deployment.computer) !== stableJson(d.computer) ? <p className="my-2 text-xs">Measured with different profile metadata or memory observations; processor, backend and recorded environment match.</p> : null}
+        {d.workload.desiredDecodeTps ? <p className="my-2 text-xs">Decode target {d.workload.desiredDecodeTps} tok/s: {decode === null ? "unknown" : decode >= d.workload.desiredDecodeTps ? "met on this recorded workload" : "below target on this recorded workload"}.</p> : null}
+        {d.workload.desiredTtftSeconds ? <p className="my-2 text-xs">TTFT target {d.workload.desiredTtftSeconds} s: {ttft === null ? "unknown" : ttft <= d.workload.desiredTtftSeconds ? "met on this recorded workload" : "above target on this recorded workload"}.</p> : null}
+      </section>;
+    })}
     {s.contextTokens < d.workload.contextTokens ? <p className="comparison-status">Configured context is below the workload target.</p> : null}
     {build.architecture?.nativeContext && s.contextTokens > build.architecture.nativeContext ? <p className="comparison-status">Beyond native context. Extension support and filled-context behavior are unverified.</p> : null}
     {estimate.knownSubtotalBytes > d.workload.totalMemoryBytes ? <p className="comparison-status">Known components already exceed the {d.workload.totalMemoryBytes / 1e9} GB ceiling.</p> : null}
@@ -244,6 +244,7 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
         <label>Label<input value={d.label} onChange={(e) => onChange({ ...d, label: e.target.value })} /></label>
         <label>Runtime<input value={d.runtime.name} onChange={(e) => onChange({ ...d, runtime: { ...d.runtime, name: e.target.value } })} /></label>
         <label>Version<input value={d.runtime.version} onChange={(e) => onChange({ ...d, runtime: { ...d.runtime, version: e.target.value } })} /></label>
+        <label>Runtime device<input value={s.device ?? ""} placeholder="Vulkan0" onChange={(e) => settings({ device: e.target.value || undefined })} /></label>
         <label>Runtime archive URL<input value={d.runtime.archiveUrl ?? ""} onChange={(e) => onChange({ ...d, runtime: { ...d.runtime, archiveUrl: e.target.value || undefined } })} /></label>
         <label>Runtime SHA-256<input value={d.runtime.archiveSha256 ?? ""} maxLength={64} onChange={(e) => onChange({ ...d, runtime: { ...d.runtime, archiveSha256: e.target.value || undefined } })} /></label>
         <label>Backend<select value={d.runtime.backend} onChange={(e) => onChange({ ...d, runtime: { ...d.runtime, backend: e.target.value as DeploymentConfiguration["runtime"]["backend"] } })}>
@@ -264,7 +265,8 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
         <label>Reasoning format<select value={s.reasoningFormat ?? "unknown"} onChange={(e) => settings({ reasoningFormat: e.target.value as typeof s.reasoningFormat })}>{["unknown", "deepseek", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>
       </div>
       <button className="comparison-button" onClick={() => onChange({ ...d, runtime: vulkanB11146, settings: { ...s,
-        offload: "all", flashAttention: "on", threads: 16, batch: 2048, ubatch: 512, chatTemplate: "embedded-jinja", reasoningFormat: "deepseek" } })}>Use pinned b11146 Vulkan recipe settings</button>
+        device: "Vulkan0", offload: "all", flashAttention: "on", threads: 16, batch: 2048, ubatch: 512, chatTemplate: "embedded-jinja", reasoningFormat: "deepseek",
+        temperature: s.temperature ?? 1, seed: s.seed ?? 1234 } })}>Use pinned b11146 Vulkan recipe settings</button>
       <p className="my-2 text-xs text-muted">Choosing settings does not establish compatibility or performance on this computer.</p>
     </details>
     <section className="comparison-evidence"><h3 className="font-semibold">Base-model capability</h3>
@@ -296,6 +298,10 @@ function AvailableEvidence({ configuration, onUse }: { configuration: Deployment
   const { isAuthenticated } = useConvexAuth();
   const published = usePaginatedQuery(api.evidence.listPublic, { buildKey: configuration.buildKey }, { initialNumItems: 10 });
   const own = usePaginatedQuery(api.evidence.listMine, isAuthenticated ? { buildKey: configuration.buildKey } : "skip", { initialNumItems: 10 });
+  const contextPublic = usePaginatedQuery(api.evidence.listPublic, { modelSlug: configuration.modelSlug }, { initialNumItems: 10 });
+  const contextOwn = usePaginatedQuery(api.evidence.listMine, isAuthenticated ? { modelSlug: configuration.modelSlug } : "skip", { initialNumItems: 10 });
+  const context = [...new Map([...contextPublic.results, ...contextOwn.results].map((r) => [r.reportId, r])).values()]
+    .filter((r) => r.evidence.kind === "fidelity" && r.evidence.buildKey !== configuration.buildKey);
   const results = [...new Map([...published.results, ...own.results].map((r) => [r.reportId, r])).values()];
   return <section className="comparison-evidence" aria-label="Artifact fidelity and performance">
     <h3 className="font-semibold">Fidelity and performance</h3>
@@ -322,5 +328,13 @@ function AvailableEvidence({ configuration, onUse }: { configuration: Deployment
     })}
     {published.status === "CanLoadMore" ? <button className="comparison-button" onClick={() => published.loadMore(10)}>More public evidence</button> : null}
     {own.status === "CanLoadMore" ? <button className="comparison-button" onClick={() => own.loadMore(10)}>More private evidence</button> : null}
+    <details className="my-4 border-t border-line pt-3"><summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">Same catalog model · other or unpinned artifacts · context only</summary>
+      <p className="my-2 text-xs text-muted">These results are not measurements of the selected file and never enter its fidelity values, sorting, or alignment. Check the checkpoint lineage and source before using them as background.</p>
+      {context.map((r) => <div key={r.reportId} className="my-3 border-l border-line pl-3"><p className="mb-2 break-all text-xs">{r.evidence.artifactRepo} · {r.evidence.buildKey ? "Different file pin" : "No exact file pin"}</p><EvidenceSummary report={r.evidence} />
+        <button className="comparison-button mt-2" onClick={() => onUse(r.reportId, r.evidence)}>Keep as contextual reference</button></div>)}
+      {!context.length ? <p className="text-xs text-muted">No contextual fidelity records loaded.</p> : null}
+      {contextPublic.status === "CanLoadMore" ? <button className="comparison-button" onClick={() => contextPublic.loadMore(10)}>More public context</button> : null}
+      {contextOwn.status === "CanLoadMore" ? <button className="comparison-button" onClick={() => contextOwn.loadMore(10)}>More private context</button> : null}
+    </details>
   </section>;
 }

@@ -47,7 +47,8 @@ export function architectureFromConfig(raw: Record<string, unknown>, sourceUrl?:
     keyDim: positive(c.key_head_dim) ?? dim, valueDim: positive(c.value_head_dim) ?? dim,
     nativeContext: positive(c.max_position_embeddings ?? c.max_sequence_length ?? c.seq_length),
     ...(rank ? { kvLoraRank: rank, ropeDim: Number(c.qk_rope_head_dim ?? 0) } : {}),
-    ...(typeof c.num_nextn_predict_layers === "number" ? { mtpLayers: c.num_nextn_predict_layers } : {}),
+    ...(typeof (c.mtp_num_hidden_layers ?? c.num_nextn_predict_layers) === "number"
+      ? { mtpLayers: Number(c.mtp_num_hidden_layers ?? c.num_nextn_predict_layers) } : {}),
     ...(sourceUrl ? { sourceUrl } : {}),
   };
 }

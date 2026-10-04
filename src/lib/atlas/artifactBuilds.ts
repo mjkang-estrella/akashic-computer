@@ -77,9 +77,9 @@ export function buildsFromFiles(
     if (group.files.length > 256) throw new Error("Build exceeds 256 shards");
     const gguf = /\.gguf$/i.test(groupPath);
     const quant = gguf
-      ? groupPath.match(/(?:^|[-_])((?:UD-)?(?:IQ|Q|BF|F)\d[\w-]*?)(?:\.gguf)$/i)?.[1]?.toUpperCase() ?? "Unknown"
+      ? groupPath.match(/(?:^|[-_])((?:UD-)?(?:MXFP|NVFP|IQ|Q|BF|F)\d[\w-]*?)(?:\.gguf)$/i)?.[1]?.toUpperCase() ?? "Unknown"
       : options.format ?? "Unknown";
-    const nominal = quant.match(/(?:IQ|Q|BF|F)(\d+)/)?.[1] ?? quant.match(/MLX\s+(\d+)/i)?.[1];
+    const nominal = quant.match(/(?:MXFP|NVFP|IQ|Q|BF|F)(\d+)/)?.[1] ?? quant.match(/MLX\s+(\d+)/i)?.[1];
     const complete = group.files.length === group.expected && group.parts.size === group.expected &&
       [...group.parts].every((part) => part >= 1 && part <= group.expected);
     return {

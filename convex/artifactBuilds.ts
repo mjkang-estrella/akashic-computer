@@ -25,14 +25,17 @@ function publicBuild(build: ArtifactBuild): ArtifactBuild {
     precisionBits, effectiveBits, mtp, baseModels, architecture, sourceUrl });
 }
 export const list = query({
-  args: { repo: v.string(), revision: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  args: { repo: v.string(), revision: v.optional(v.string()), includeHistory: v.optional(v.boolean()), paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(artifactBuildValue),
   handler: async (ctx, args) => {
     const source = await ctx.db.query("sourceRepositories").withIndex("by_repo_name", (q) => q.eq("repoName", args.repo)).first();
     if (!source || source.private || source.status !== "published")
       return { page: [], isDone: true, continueCursor: "" };
     const revision = args.revision ?? source.headSha ?? "";
-    const result = await ctx.db.query("artifactBuilds")
+    const result = args.includeHistory ? await ctx.db.query("artifactBuilds")
+      .withIndex("by_repo_and_revision", (q) => q.eq("repo", args.repo))
+      .paginate({ ...args.paginationOpts, numItems: Math.min(50, args.paginationOpts.numItems) })
+      : await ctx.db.query("artifactBuilds")
       .withIndex("by_repo_and_revision", (q) => q.eq("repo", args.repo).eq("revision", revision))
       .paginate({ ...args.paginationOpts, numItems: Math.min(50, args.paginationOpts.numItems) });
     return { ...result, page: result.page.map(publicBuild) };

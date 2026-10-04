@@ -61,11 +61,13 @@ export const importBatch = mutation({
   },
 });
 export const listMine = query({
-  args: { buildKey: v.optional(v.string()), paginationOpts: paginationOptsValidator }, returns: page,
+  args: { buildKey: v.optional(v.string()), modelSlug: v.optional(v.string()), paginationOpts: paginationOptsValidator }, returns: page,
   handler: async (ctx, a) => {
     const ownerId = await requireOwner(ctx);
     const result = a.buildKey
       ? await ctx.db.query("runReports").withIndex("by_owner_and_build", (q) => q.eq("ownerId", ownerId).eq("buildKey", a.buildKey))
+        .paginate({ ...a.paginationOpts, numItems: Math.min(a.paginationOpts.numItems, 50) })
+      : a.modelSlug ? await ctx.db.query("runReports").withIndex("by_owner_and_model", (q) => q.eq("ownerId", ownerId).eq("modelSlug", a.modelSlug!))
         .paginate({ ...a.paginationOpts, numItems: Math.min(a.paginationOpts.numItems, 50) })
       : await ctx.db.query("runReports").withIndex("by_owner_and_external_id", (q) => q.eq("ownerId", ownerId))
         .paginate({ ...a.paginationOpts, numItems: Math.min(a.paginationOpts.numItems, 50) });
@@ -74,10 +76,13 @@ export const listMine = query({
   },
 });
 export const listPublic = query({
-  args: { buildKey: v.string(), paginationOpts: paginationOptsValidator }, returns: page,
+  args: { buildKey: v.optional(v.string()), modelSlug: v.optional(v.string()), paginationOpts: paginationOptsValidator }, returns: page,
   handler: async (ctx, a) => {
-    const result = await ctx.db.query("runReports")
+    if (!!a.buildKey === !!a.modelSlug) throw new Error("Choose an exact build or a catalog model.");
+    const result = a.buildKey ? await ctx.db.query("runReports")
       .withIndex("by_build_and_published", (q) => q.eq("buildKey", a.buildKey).eq("published", true))
+      .paginate({ ...a.paginationOpts, numItems: Math.min(a.paginationOpts.numItems, 50) })
+      : await ctx.db.query("runReports").withIndex("by_model_and_published", (q) => q.eq("modelSlug", a.modelSlug!).eq("published", true))
       .paginate({ ...a.paginationOpts, numItems: Math.min(a.paginationOpts.numItems, 50) });
     // Never spread a stored document into a public result.
     return { ...result, page: result.page.flatMap((r) => r.publicEvidence

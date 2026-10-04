@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { convertQwenRecords, groups } from "../../../scripts/convert-qwen-benchmarks";
 import { fixtureBuild, fixtureDeployment } from "../../../test/deploymentFixture";
-import { decodeMedian, parseEvidenceImport } from "./evidence";
+import { decodeMedian, parseEvidenceImport, compareEvidence } from "./evidence";
 const provenance = { model_repository: fixtureBuild.repo, model_revision: fixtureBuild.revision,
   model_file: fixtureBuild.files[0].path, model_size_bytes: fixtureBuild.bytes, model_sha256: fixtureBuild.files[0].sha256,
   runtime_release: "b11146", runtime_asset: "https://example.com/runtime.tar.gz", runtime_sha256: "c".repeat(64) };
@@ -24,6 +24,10 @@ describe("local handoff adapter", () => {
     expect(reports.filter((r) => r.memory)).toHaveLength(1);
     expect(JSON.stringify(reports)).not.toContain("privateAnswer");
     expect(parseEvidenceImport(JSON.stringify(reports)).errors).toEqual([]);
+    expect(reports[0].protocol.promptSetHash).toBeUndefined();
+    expect(reports[0].protocol.promptSetId).toBe(reports[1].protocol.promptSetId);
+    expect(compareEvidence(reports[0], reports[1], "mtp").conclusion).toBe("Descriptive comparison; no established winner");
+    expect(compareEvidence(reports[1], reports[2]).comparable).toBe(false);
   });
   it("refuses to attach the handoff to a different exact artifact", () => {
     expect(() => convertQwenRecords({ provenance, deployment: { ...fixtureDeployment, buildKey: "other" }, files: {} })).toThrow("pin must match");

@@ -24,6 +24,22 @@ async function setup() {
   return { t, ids, a: t.withIdentity({ subject: ids.a + "|session" }), b: t.withIdentity({ subject: ids.b + "|session" }) };
 }
 describe("multi-user deployment decisions", () => {
+  it("keeps model-level fidelity private and historical revisions selectable after a README-only update", async () => {
+    const { t, a, b } = await setup();
+    const contextual = { schemaVersion: 2, id: "unbound", kind: "fidelity", modelSlug: fixtureReport.modelSlug,
+      artifactRepo: "AesSedai/example", source: { label: "Context only", origin: "published", limitations: [] },
+      protocol: { cache: "unknown", aggregation: "source-reported" }, fidelity: { kld: 0.006 } };
+    await a.mutation(api.evidence.importBatch, { json: JSON.stringify(contextual) });
+    const args = { modelSlug: fixtureReport.modelSlug, paginationOpts: { numItems: 10, cursor: null } };
+    expect((await a.query(api.evidence.listMine, args)).page).toHaveLength(1);
+    expect((await b.query(api.evidence.listMine, args)).page).toHaveLength(0);
+    expect((await t.query(api.evidence.listPublic, args)).page).toHaveLength(0);
+    await t.run(async (ctx) => { await ctx.db.insert("sourceRepositories", { repoId: "stable", repoName: fixtureBuild.repo,
+      owner: "test", headSha: "d".repeat(40), private: false, gated: false, disabled: false, status: "published", missingCount: 0, lastSeenAt: 1 }); });
+    const picker = { repo: fixtureBuild.repo, paginationOpts: args.paginationOpts };
+    expect((await t.query(api.artifactBuilds.list, picker)).page).toHaveLength(0);
+    expect((await t.query(api.artifactBuilds.list, { ...picker, includeHistory: true })).page[0].key).toBe(fixtureBuild.key);
+  });
   it("isolates profiles, compares immutable snapshots and protects direct IDs", async () => {
     const { a, b } = await setup();
     const computer = await a.mutation(api.comparisons.saveComputer, { profile: fixtureDeployment.computer });

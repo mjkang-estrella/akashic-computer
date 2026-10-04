@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { deploymentSchema, shortText, bytesSchema, stableJson, type DeploymentConfiguration } from "./deployments";
+import { deploymentSchema, shortText, bytesSchema, stableJson, performanceComputer, type DeploymentConfiguration } from "./deployments";
 const nonnegative = z.number().nonnegative();
 const count = z.number().int().nonnegative();
 export const protocolSchema = z.object({
   id: shortText.optional(), dataset: shortText.optional(), datasetRevision: shortText.optional(),
-  promptSetHash: shortText.optional(), tokenizer: shortText.optional(),
+  promptSetHash: shortText.optional(), promptSetId: shortText.optional(), tokenizer: shortText.optional(),
   tool: shortText.optional(), toolVersion: shortText.optional(),
   referenceRepo: shortText.optional(), referenceRevision: shortText.optional(),
   kldDirection: z.enum(["reference-to-quant", "quant-to-reference", "unknown"]).optional(),
@@ -79,7 +79,21 @@ export function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 export function decodeMedian(report: EvidenceReport) {
-  return median((report.trials ?? []).flatMap((t) => t.decodeTps === undefined ? [] : [t.decodeTps]));
+  return median((report.trials ?? []).flatMap((t) => t.finishReason === "error" || t.decodeTps === undefined ? [] : [t.decodeTps]));
+}
+export function performanceSummary(reports: EvidenceReport[]) {
+  const performance = reports.filter((r) => r.kind === "performance");
+  const trials = performance.flatMap((r) => r.trials ?? []).filter((t) => t.finishReason !== "error");
+  return { reports: performance, largestInput: trials.length ? Math.max(...trials.map((t) => t.promptTokens)) : undefined,
+    memory: performance.flatMap((r) => (r.memory ?? []).map((observation) => ({ source: r.source.label, observation }))),
+    // Several workloads do not have one defensible aggregate speed.
+    sortableDecode: performance.length === 1 ? decodeMedian(performance[0]) : null };
+}
+export function evidenceAssessments(options: Array<{ label: string; reports: EvidenceReport[] }>) {
+  return options.flatMap((a, i) => options.slice(i + 1).flatMap((b) => a.reports.flatMap((left) =>
+    b.reports.filter((right) => right.kind === left.kind).map((right) => ({ kind: left.kind,
+      label: a.label + " (" + left.source.label + ") ↔ " + b.label + " (" + right.source.label + ")",
+      result: compareEvidence(left, right, left.buildKey === right.buildKey ? "mtp" : "artifact") })))));
 }
 export function fidelityLabel(report: EvidenceReport) {
   const f = report.fidelity;
@@ -97,7 +111,13 @@ export function compareEvidence(a: EvidenceReport, b: EvidenceReport, varying: "
   if (a.kind !== b.kind) return { comparable: false, conclusion: "Different evidence classes", reasons: ["Fidelity and performance measure different things."] };
   const keys = a.kind === "fidelity"
     ? ["dataset", "datasetRevision", "tokenizer", "tool", "toolVersion", "referenceRepo", "referenceRevision"] as const
-    : ["promptSetHash", "tool", "toolVersion", "cache", "aggregation"] as const;
+    : ["tool", "toolVersion", "cache", "aggregation"] as const;
+  if (a.kind === "performance") {
+    const promptKey = a.protocol.promptSetHash || b.protocol.promptSetHash ? "promptSetHash" : "promptSetId";
+    if (!a.protocol[promptKey] || !b.protocol[promptKey]) reasons.push("Prompt-set identity is unrecorded");
+    else if (a.protocol[promptKey] !== b.protocol[promptKey]) reasons.push("Prompt-set identity differs");
+    if (a.protocol.id && b.protocol.id && a.protocol.id !== b.protocol.id) reasons.push("Protocol id differs");
+  }
   for (const key of keys) {
     if (!a.protocol[key] || !b.protocol[key] || a.protocol[key] === "unknown" || b.protocol[key] === "unknown") reasons.push(key + " is unrecorded");
     else if (a.protocol[key] !== b.protocol[key]) reasons.push(key + " differs");
@@ -123,20 +143,20 @@ export function compareEvidence(a: EvidenceReport, b: EvidenceReport, varying: "
     const deploymentProtocol = (d: DeploymentConfiguration) => {
       const s = { ...d.settings };
       if (varying === "mtp") { s.mtp = "unknown"; s.draftMax = 0; }
-      const { name: _name, revision: _revision, ...computer } = d.computer;
-      void _name; void _revision;
-      return { runtime: d.runtime, computer, settings: s, ...(varying === "mtp" ? { build: d.buildKey } : {}) };
+      return { runtime: d.runtime, computer: performanceComputer(d.computer), settings: s, ...(varying === "mtp" ? { build: d.buildKey } : {}) };
     };
     if (stableJson(deploymentProtocol(a.deployment)) !== stableJson(deploymentProtocol(b.deployment))) reasons.push("Computer, runtime or non-varied settings differ");
-    if (stableJson(a.trials?.map((t) => [t.caseId, t.promptTokens, t.generatedTokens, t.cachedTokens])) !==
-      stableJson(b.trials?.map((t) => [t.caseId, t.promptTokens, t.generatedTokens, t.cachedTokens])))
+    const trialIdentity = (r: EvidenceReport) => (r.trials ?? []).map((t) => [t.caseId, t.repetition, t.promptTokens, t.generatedTokens, t.cachedTokens])
+      .sort((x, y) => stableJson(x).localeCompare(stableJson(y)));
+    if (stableJson(trialIdentity(a)) !== stableJson(trialIdentity(b)))
       reasons.push("Prompt cases, filled context, output lengths or cached tokens differ");
   }
   const repeated = (a.protocol.repeatsPerPrompt ?? 0) > 1 && (b.protocol.repeatsPerPrompt ?? 0) > 1;
   return { comparable: !reasons.length, reasons,
     conclusion: reasons.length ? "Contextual evidence; no controlled delta"
       : a.kind === "performance" && !repeated ? "Descriptive comparison; no established winner"
-        : "Aligned protocol; inspect reported uncertainty" };
+        : a.kind === "performance" && (!a.protocol.promptSetHash || !b.protocol.promptSetHash)
+          ? "Source-described prompt set; inspect reported uncertainty" : "Aligned protocol; inspect reported uncertainty" };
 }
 /** Publication preview is exactly the object the public API will expose. */
 export function publicationProjection(report: EvidenceReport): EvidenceReport {
