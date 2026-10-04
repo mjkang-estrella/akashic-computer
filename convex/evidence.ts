@@ -27,7 +27,8 @@ export const importBatch = mutation({
   handler: async (ctx, { json }) => {
     const ownerId = await requireOwner(ctx), parsed = parseEvidenceImport(json);
     if (parsed.errors.length) throw new Error(parsed.errors.join("\n"));
-    const current = await ctx.db.query("runReports").withIndex("by_owner_and_external_id", (q) => q.eq("ownerId", ownerId)).take(1001);
+    const account = await ctx.db.query("accountOwners").withIndex("by_user", (q) => q.eq("userId", ownerId)).unique();
+    if (!account) throw new Error("Account not found.");
     let inserted = 0, unchanged = 0;
     const reportIds: string[] = [];
     for (const evidence of parsed.reports) {
@@ -36,7 +37,7 @@ export const importBatch = mutation({
         if (stableJson(prior.evidence) !== stableJson(evidence)) throw new Error("Report ID already exists with different content: " + evidence.id);
         unchanged++; reportIds.push(prior.reportId); continue;
       }
-      if (current.length + inserted >= 1000) throw new Error("Limit of 1,000 imported reports reached.");
+      if ((account.importedReportCount ?? 0) + inserted >= 1000) throw new Error("Limit of 1,000 imported reports reached.");
       const model = await ctx.db.query("catalogEntries").withIndex("by_slug", (q) => q.eq("slug", evidence.modelSlug)).unique();
       if (!model) throw new Error("Unknown catalog model: " + evidence.modelSlug);
       if (evidence.buildKey) {
@@ -52,7 +53,10 @@ export const importBatch = mutation({
       await ctx.db.patch(id, { reportId: id });
       reportIds.push(id); inserted++;
     }
-    if (inserted) await consumeAccountLimit(ctx, ownerId, "imports", 10);
+    if (inserted) {
+      await consumeAccountLimit(ctx, ownerId, "imports", 10);
+      await ctx.db.patch(account._id, { importedReportCount: (account.importedReportCount ?? 0) + inserted });
+    }
     return { inserted, unchanged, reportIds };
   },
 });
@@ -136,6 +140,8 @@ export const remove = mutation({
   handler: async (ctx, { reportId }) => {
     const r = await owned(ctx, reportId);
     await ctx.db.delete(r._id as Id<"runReports">);
+    const account = await ctx.db.query("accountOwners").withIndex("by_user", (q) => q.eq("userId", r.ownerId!)).unique();
+    if (account) await ctx.db.patch(account._id, { importedReportCount: Math.max(0, (account.importedReportCount ?? 0) - 1) });
     return null;
   },
 });

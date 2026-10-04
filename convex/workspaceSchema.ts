@@ -19,6 +19,7 @@ export const workspaceTables = {
     githubId: v.string(),
     status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
     role: v.optional(v.union(v.literal("member"), v.literal("admin"))),
+    importedReportCount: v.optional(v.number()),
   }).index("by_user", ["userId"]).index("by_github_id", ["githubId"]),
   enrollments: defineTable({
     ownerId: v.id("users"),

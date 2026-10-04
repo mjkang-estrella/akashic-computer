@@ -44,6 +44,8 @@ describe("multi-user deployment decisions", () => {
     await expect(b.mutation(api.evidence.importBatch, { json: JSON.stringify({ ...fixtureReport, source: { ...fixtureReport.source, label: "Changed" } }) })).rejects.toThrow("different content");
     const opts = { buildKey: fixtureBuild.key, paginationOpts: { numItems: 10, cursor: null } };
     expect((await t.query(api.evidence.listPublic, opts)).page).toEqual([]);
+    expect(await a.query(api.evidence.references, { reportIds: [reportId] })).toEqual([]);
+    expect(await b.query(api.evidence.references, { reportIds: [reportId] })).toHaveLength(1);
     await expect(a.mutation(api.evidence.publish, { reportId })).rejects.toThrow("consent");
     await expect(a.mutation(api.evidence.consentToPublication, { reportId })).rejects.toThrow("not found");
     await b.mutation(api.evidence.consentToPublication, { reportId });
@@ -52,9 +54,35 @@ describe("multi-user deployment decisions", () => {
     const published = (await t.query(api.evidence.listPublic, opts)).page[0];
     expect(published.evidence.deployment!.computer.name).toBe("Published hardware");
     expect(published).not.toHaveProperty("ownerId");
+    expect((await a.query(api.evidence.references, { reportIds: [reportId] }))[0].evidence.deployment!.computer.name).toBe("Published hardware");
     await b.mutation(api.evidence.withdrawPublication, { reportId });
     expect((await t.query(api.evidence.listPublic, opts)).page).toEqual([]);
     expect((await b.query(api.evidence.listMine, opts)).page).toHaveLength(1);
+    expect(await a.query(api.evidence.references, { reportIds: [reportId] })).toEqual([]);
+  });
+  it("enforces import quotas transactionally without scanning all report bodies", async () => {
+    const { t, a, ids } = await setup();
+    await t.run(async (ctx) => { await ctx.db.patch(ids.account, { importedReportCount: 1000 }); });
+    await expect(a.mutation(api.evidence.importBatch, { json: JSON.stringify(fixtureReport) })).rejects.toThrow("1,000");
+    await t.run(async (ctx) => { await ctx.db.patch(ids.account, { importedReportCount: 999 }); });
+    const imported = await a.mutation(api.evidence.importBatch, { json: JSON.stringify(fixtureReport) });
+    expect((await a.mutation(api.evidence.importBatch, { json: JSON.stringify(fixtureReport) })).unchanged).toBe(1);
+    await a.mutation(api.evidence.remove, { reportId: imported.reportIds[0] });
+    expect(await t.run(async (ctx) => (await ctx.db.get(ids.account))!.importedReportCount)).toBe(999);
+  });
+  it("retains historical pins across source renames without exposing a newly private source", async () => {
+    const { t } = await setup();
+    const source = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("sourceRepositories", { repoId: "stable-id", repoName: fixtureBuild.repo, owner: "test",
+        headSha: fixtureBuild.revision, private: false, gated: false, disabled: false, status: "published", missingCount: 0, lastSeenAt: 1 });
+      const build = await ctx.db.query("artifactBuilds").withIndex("by_key", (q) => q.eq("key", fixtureBuild.key)).unique();
+      await ctx.db.patch(build!._id, { sourceRepositoryId: id });
+      await ctx.db.patch(id, { repoName: "renamed/model" });
+      return id;
+    });
+    expect((await t.query(api.artifactBuilds.get, { key: fixtureBuild.key }))!.revision).toBe(fixtureBuild.revision);
+    await t.run(async (ctx) => { await ctx.db.patch(source, { private: true }); });
+    expect(await t.query(api.artifactBuilds.get, { key: fixtureBuild.key })).toBeNull();
   });
   it("rejects mismatched artifacts, suspensions and unowned evidence references", async () => {
     const { t, a, b, ids } = await setup();
