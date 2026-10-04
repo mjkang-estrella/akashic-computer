@@ -200,6 +200,7 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
   const fidelity = evidence.filter((r) => r.kind === "fidelity");
   const exercised = performance.largestInput;
   const [recipeKey, setRecipeKey] = useState("");
+  const currentRecipeKey = JSON.stringify({ configuration: d, exercised });
   const estimate = estimateDeploymentMemory({ weightBytes: build.bytes, architecture: build.architecture,
     contextTokens: s.contextTokens, concurrency: s.concurrency, k: s.cacheK, v: s.cacheV,
     mtp: s.mtp !== "off", reserveBytes: d.workload.reserveBytes });
@@ -278,11 +279,11 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
     <div className="mt-4 flex flex-wrap gap-2">
       {onDuplicate ? <button className="comparison-button" onClick={onDuplicate}>Compare other settings</button> : null}
       <button className="comparison-button" onClick={() => {
-        try { setRecipe(exportRecipe(d, build, exercised)); setRecipeKey(JSON.stringify(d)); setError(""); } catch (e) { setRecipe(null); setError(e instanceof Error ? e.message : "Cannot export."); }
+        try { setRecipe(exportRecipe(d, build, exercised)); setRecipeKey(currentRecipeKey); setError(""); } catch (e) { setRecipe(null); setError(e instanceof Error ? e.message : "Cannot export."); }
       }}>Prepare pinned export</button>
     </div>
     {error ? <p role="alert" className="comparison-status">{error}</p> : null}
-    {recipe && recipeKey === JSON.stringify(d) ? <details open className="mt-4"><summary className="min-h-11 cursor-pointer py-3 font-semibold">Review export files</summary>
+    {recipe && recipeKey === currentRecipeKey ? <details open className="mt-4"><summary className="min-h-11 cursor-pointer py-3 font-semibold">Review export files</summary>
       <p className="text-xs text-muted">Downloads contain configuration and instructions. Nothing is installed or changed.</p>
       {Object.entries(recipe).map(([filename, content]) => <details key={filename} className="my-2"><summary className="min-h-11 cursor-pointer py-2 font-mono text-xs">{filename}</summary>
         <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all text-xs">{content}</pre>
