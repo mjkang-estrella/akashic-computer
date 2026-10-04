@@ -75,6 +75,8 @@ See [connected workspace setup](docs/connected-workspace.md) for GitHub authenti
 
 ## Planning Docs
 
+The optional [deployment comparison workflow](docs/deployment-comparison.md) adds exact quantized files, component memory estimates, GitHub account profiles, private KLD/Top-1 and performance imports, saved decisions and export-only pinned recipes. Enable it with `NEXT_PUBLIC_DEPLOYMENT_COMPARISON=true` after preparing the backend. Public signup is separately controlled by the server's `WORKSPACE_ACCESS_MODE=github`. Automated benchmarking is deferred.
+
 - `PRODUCT.md`
 - `DESIGN.md`
 - `docs/product-brief.md`
