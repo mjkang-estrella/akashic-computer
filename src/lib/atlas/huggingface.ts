@@ -1,3 +1,6 @@
+import type { ArtifactBuild, ArtifactFile } from "./artifactBuilds";
+import { filesFromTree } from "./artifactBuilds";
+import { architectureFromConfig, mainKvBytes } from "./memory";
 import type {
   HardwareKind,
   ModelCapabilityId,
@@ -39,6 +42,7 @@ export interface HuggingFaceRepoInfo {
 }
 
 export interface HuggingFaceWeightMetadata {
+  files: ArtifactFile[];
   manifestHash: string;
   lastModified: string;
   commitSha: string | null;
@@ -47,6 +51,7 @@ export interface HuggingFaceWeightMetadata {
 }
 
 export interface ParsedHuggingFaceRepo {
+  builds?: ArtifactBuild[];
   repo: HuggingFaceRepoInfo;
   format: string;
   modelStem: string;
@@ -247,14 +252,14 @@ export function weightMetadataFromTree(rawEntries: unknown[]): HuggingFaceWeight
     const lfs = asRecord(entry.lfs);
     const lastCommit = asRecord(entry.lastCommit ?? entry.last_commit);
     const date = firstString(lastCommit.date, lastCommit.createdAt, lastCommit.created_at);
-    if (!date || !Number.isFinite(Date.parse(date))) continue;
+    const validDate = date && Number.isFinite(Date.parse(date)) ? date : "1970-01-01T00:00:00.000Z";
     const size = typeof entry.size === "number" && Number.isFinite(entry.size) ? entry.size : 0;
     const oid = firstString(lfs.oid, lfs.sha256, entry.oid, entry.blobId, entry.blob_id) ?? "unknown";
     files.set(path, {
       path,
       size,
       oid,
-      date,
+      date: validDate,
       commitSha: firstString(lastCommit.id, lastCommit.sha),
     });
   }
@@ -265,6 +270,7 @@ export function weightMetadataFromTree(rawEntries: unknown[]): HuggingFaceWeight
   );
   const manifest = ordered.map((file) => `${file.path}\0${file.size}\0${file.oid}`).join("\n");
   return {
+    files: filesFromTree(rawEntries),
     manifestHash: `${stableHash(`weights-a:${manifest}`)}${stableHash(`weights-b:${manifest}`)}`,
     lastModified: latest.date,
     commitSha: latest.commitSha,
@@ -276,7 +282,7 @@ export function weightMetadataFromTree(rawEntries: unknown[]): HuggingFaceWeight
 export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
   const value = asRecord(raw);
   const cardData = asRecord(compactMetadata(value.cardData ?? value.card_data));
-  const config = asRecord(compactMetadata(value.config));
+  const config = { ...asRecord(compactMetadata(value.config)), _akashicDtypes: Object.keys(asRecord(asRecord(value.safetensors).parameters)) };
   const siblings = Array.isArray(value.siblings) ? value.siblings : [];
   const allFiles = siblings.flatMap((item) => {
     const filename = asRecord(item).rfilename;
@@ -354,6 +360,11 @@ function detectedFormat(repo: HuggingFaceRepoInfo): string {
   const quantization = asRecord(repo.config.quantization_config);
   const expertDtype = firstString(repo.config.expert_dtype)?.toUpperCase();
   const quantMethod = firstString(quantization.quant_method)?.toUpperCase();
+  const mlx = repo.tags.some((tag) => tag.toLowerCase().includes("mlx")) || /(?:^mlx-community\/|[-_]mlx(?:[-_]|$))/i.test(repo.id);
+  if (mlx) {
+    const bits = quantization.bits ?? asRecord(repo.config.quantization).bits;
+    return typeof bits === "number" ? "MLX " + bits + "-bit" : "MLX unknown";
+  }
   if (text.includes("NVFP4")) return "NVFP4";
   if (text.includes("MXFP8")) return "MXFP8";
   if (expertDtype === "FP4" && quantMethod === "FP8") return "FP4 + FP8";
@@ -364,7 +375,7 @@ function detectedFormat(repo: HuggingFaceRepoInfo): string {
   if (text.includes("INT4")) return "INT4";
   if (text.includes("INT8")) return "INT8";
   if (repo.files.some((file) => file.toLowerCase().endsWith(".gguf"))) return "GGUF";
-  if (text.includes("BF16") || repo.files.some((file) => file.endsWith(".safetensors"))) {
+  if (text.includes("BF16") || text.includes("BFLOAT16")) {
     return "BF16";
   }
   return "Unknown";
@@ -375,6 +386,11 @@ function formatProfile(format: string): {
   kinds: HardwareKind[];
   runtimes: string[];
 } {
+  if (format.startsWith("MLX")) {
+    const bits = Number(format.match(/MLX (\d+)/)?.[1]);
+    return { factor: bits ? bits / 8 : 0, kinds: ["mac"], runtimes: ["MLX"] };
+  }
+  if (format === "Unknown") return { factor: 0, kinds: [], runtimes: [] };
   if (format === "GGUF") {
     return {
       factor: 0.66,
@@ -432,6 +448,7 @@ export function estimateVram(
   const profile = formatProfile(format);
   const checkpointGb = checkpointBytes && format !== "GGUF" ? checkpointBytes / 1_000_000_000 : null;
   const rawWeightGb = checkpointGb ?? paramsB * profile.factor;
+  if (!rawWeightGb) return { minVramGb: 0, recVramGb: 0, kinds: profile.kinds, runtimes: profile.runtimes, details: null };
   const config = Object.keys(asRecord(rawConfig.text_config)).length > 0
     ? asRecord(rawConfig.text_config)
     : rawConfig;
@@ -463,7 +480,9 @@ export function estimateVram(
     const explicitHeadDim = positive(config.head_dim);
     const headDim = explicitHeadDim ?? (hiddenSize && attentionHeads ? hiddenSize / attentionHeads : null);
     if (kvHeads && headDim) {
-      kvCacheGb = layers * kvHeads * headDim * 2 * 2 * contextTokens / 1_000_000_000;
+      const bytes = mainKvBytes(architectureFromConfig(config), contextTokens, 1, "bf16", "bf16");
+      if (bytes === null) return { minVramGb: rawWeightGb, recVramGb: rawWeightGb, kinds: profile.kinds, runtimes: profile.runtimes, details: null };
+      kvCacheGb = bytes / 1_000_000_000;
       cacheMethod = "standard";
     }
   }
@@ -472,6 +491,7 @@ export function estimateVram(
     ? {
         weightGb,
         kvCacheGb: Math.ceil(kvCacheGb),
+        kvCacheBytes: Math.round(kvCacheGb * 1e9),
         kvCacheDtype: "BF16" as const,
         contextTokens,
         concurrency: 1 as const,
@@ -630,9 +650,6 @@ export function classifyHuggingFaceRepo(
     return { status: "skipped", reason: "license metadata is missing", repo };
   }
   const format = detectedFormat(repo);
-  if (format === "Unknown") {
-    return { status: "skipped", reason: "artifact format is not recognized", repo };
-  }
   const parameters = parameterMetadata(repo);
   if (!parameters.paramsB && repo.baseModels.length === 0) {
     return { status: "skipped", reason: "parameter count is not available", repo };

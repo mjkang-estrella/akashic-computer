@@ -1,3 +1,5 @@
+import { buildsFromFiles } from "../src/lib/atlas/artifactBuilds";
+import { architectureFromConfig } from "../src/lib/atlas/memory";
 import {
   classifyHuggingFaceRepo,
   isWeightBlobFile,
@@ -105,13 +107,29 @@ export async function classifyWithWeightMetadata(
   if (initial.status !== "publishable") return initial;
   const metadata = await fetchWeightMetadata(initial.parsed.repo.id, initial.parsed.repo.sha);
   if (!metadata) return initial;
-  return classifyHuggingFaceRepo({
+  const result = classifyHuggingFaceRepo({
     ...(raw as UnknownRecord),
     _akashicWeightManifestHash: metadata.manifestHash,
     _akashicWeightsLastModified: metadata.lastModified,
     _akashicWeightCommitSha: metadata.commitSha ?? undefined,
     _akashicWeightBytes: metadata.totalBytes,
   }, rule);
+  if (result.status === "publishable") {
+    const parsed = result.parsed;
+    let architecture = architectureFromConfig(parsed.repo.config, "https://huggingface.co/" + parsed.repo.id + "/blob/" + parsed.repo.sha + "/config.json");
+    if (!architecture && parsed.repo.baseModels.length === 1) {
+      const base = await fetchRepo(parsed.repo.baseModels[0]);
+      const data = base.data as Record<string, unknown> | undefined;
+      if (data?.config && typeof data.sha === "string") architecture = architectureFromConfig(
+        data.config as Record<string, unknown>, "https://huggingface.co/" + parsed.repo.baseModels[0] + "/blob/" + data.sha + "/config.json",
+      );
+    }
+    parsed.builds = buildsFromFiles(parsed.repo.id, parsed.repo.sha, metadata.files, parsed.repo.baseModels, {
+      format: parsed.format, architecture,
+      // A repository suffix alone cannot prove that an individual file includes MTP.
+    });
+  }
+  return result;
 }
 
 export async function listRepos(owner: string): Promise<unknown[]> {

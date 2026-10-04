@@ -19,11 +19,12 @@ export interface BenchDef {
 
 export type Trust = "official" | "vendor" | "community";
 export type Confidence = "verified" | "inferred" | "needs_review";
-export type HardwareKind = "mac" | "cpu" | "cuda" | "dgx";
+export type HardwareKind = "mac" | "cpu" | "cuda" | "dgx" | "generic";
 
 export interface VramEstimateDetails {
   weightGb: number;
   kvCacheGb: number;
+  kvCacheBytes?: number;
   kvCacheDtype: "BF16";
   contextTokens: number;
   concurrency: 1;

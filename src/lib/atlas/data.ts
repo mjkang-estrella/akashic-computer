@@ -15,13 +15,13 @@ export const BENCHES: BenchDef[] = [
 ];
 
 export const RIG_PRESETS: RigPreset[] = [
-  { id: "vram16", label: "16 GB", gb: 16, kind: "cuda" },
-  { id: "vram24", label: "24 GB", gb: 24, kind: "cuda" },
-  { id: "vram48", label: "48 GB", gb: 48, kind: "cuda" },
-  { id: "vram80", label: "80 GB", gb: 80, kind: "cuda" },
-  { id: "vram128", label: "128 GB", gb: 128, kind: "cuda" },
-  { id: "vram256", label: "256 GB", gb: 256, kind: "cuda" },
-  { id: "vram384", label: "384 GB", gb: 384, kind: "cuda" },
+  { id: "vram16", label: "16 GB", gb: 16, kind: "generic" },
+  { id: "vram24", label: "24 GB", gb: 24, kind: "generic" },
+  { id: "vram48", label: "48 GB", gb: 48, kind: "generic" },
+  { id: "vram80", label: "80 GB", gb: 80, kind: "generic" },
+  { id: "vram128", label: "128 GB", gb: 128, kind: "generic" },
+  { id: "vram256", label: "256 GB", gb: 256, kind: "generic" },
+  { id: "vram384", label: "384 GB", gb: 384, kind: "generic" },
 ];
 
 export const DEFAULT_PRESET_ID = "vram384";

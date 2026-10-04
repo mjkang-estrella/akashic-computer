@@ -11,7 +11,7 @@ export function resolveProfile(
   manualGb: number | null,
 ): RigProfile {
   if (manualGb && manualGb > 0) {
-    return { gb: manualGb, kind: "cuda", label: `${manualGb} GB VRAM`, manual: true };
+    return { gb: manualGb, kind: "generic", label: `${manualGb} GB budget`, manual: true };
   }
   const preset = presets.find((p) => p.id === presetId) ?? presets[0];
   return { gb: preset.gb, kind: preset.kind, label: preset.label, manual: false };
@@ -40,6 +40,6 @@ export function memoryEstimateLabel(artifact: Artifact): string {
 export function memoryAssumptions(artifact: Artifact): string {
   const estimate = artifact.vramEstimate;
   return estimate
-    ? `+ ${estimate.kvCacheGb} GB KV estimate · ${estimate.contextTokens.toLocaleString("en-US")} tokens · concurrency ${estimate.concurrency} · ${estimate.kvCacheDtype}`
+    ? `+ ${estimate.kvCacheBytes === undefined ? estimate.kvCacheGb : Number((estimate.kvCacheBytes / 1e9).toFixed(3))} GB KV estimate · ${estimate.contextTokens.toLocaleString("en-US")} tokens · concurrency ${estimate.concurrency} · ${estimate.kvCacheDtype}`
     : "Weight and KV breakdown unknown; exact file not selected.";
 }

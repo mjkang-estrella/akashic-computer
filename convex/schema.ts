@@ -1,3 +1,4 @@
+import { buildFields } from "./artifactValues";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
@@ -12,6 +13,10 @@ const sourceFields = {
 };
 
 export default defineSchema({
+  artifactBuilds: defineTable({
+    ...buildFields, modelSlug: v.string(), observedAt: v.number(),
+  }).index("by_key", ["key"]).index("by_repo_and_revision", ["repo", "revision"])
+    .index("by_model", ["modelSlug"]),
   ...authTables,
   ...workspaceTables,
   modelFamilies: defineTable({

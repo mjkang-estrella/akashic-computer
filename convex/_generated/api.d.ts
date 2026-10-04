@@ -8,7 +8,14 @@
  * @module
  */
 
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
 import type * as admin from "../admin.js";
+import type * as artifactBuilds from "../artifactBuilds.js";
+import type * as artifactValues from "../artifactValues.js";
 import type * as auth from "../auth.js";
 import type * as catalog from "../catalog.js";
 import type * as catalogReconciliation from "../catalogReconciliation.js";
@@ -33,14 +40,18 @@ import type * as workspaceAccess from "../workspaceAccess.js";
 import type * as workspaceMigrations from "../workspaceMigrations.js";
 import type * as workspaceSchema from "../workspaceSchema.js";
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
-
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  artifactBuilds: typeof artifactBuilds;
+  artifactValues: typeof artifactValues;
   auth: typeof auth;
   catalog: typeof catalog;
   catalogReconciliation: typeof catalogReconciliation;
@@ -65,31 +76,11 @@ declare const fullApi: ApiFromModules<{
   workspaceMigrations: typeof workspaceMigrations;
   workspaceSchema: typeof workspaceSchema;
 }>;
-
-/**
- * A utility for referencing Convex functions in your app's public API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
-
-/**
- * A utility for referencing Convex functions in your app's internal API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = internal.myModule.myFunction;
- * ```
- */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
-
-export declare const components: {};
