@@ -5,6 +5,7 @@ import { ownedConversation, requireOwner, terminal } from "./workspaceAccess";
 
 export const identity = query({
   args: {},
+  returns: v.union(v.null(), v.object({ id: v.id("users"), name: v.string(), role: v.union(v.literal("admin"), v.literal("member")) })),
   handler: async (ctx) => {
     if (!(await ctx.auth.getUserIdentity())) return null;
     const id = await requireOwner(ctx);
@@ -103,6 +104,7 @@ export const createConversation = mutation({
     deploymentId: v.id("deployments"),
     mode: v.union(v.literal("chat"), v.literal("agent")),
   },
+  returns: v.id("conversations"),
   handler: async (ctx, a) => {
     const ownerId = await requireOwner(ctx);
     const d = await ctx.db.get(a.deploymentId);
@@ -127,6 +129,7 @@ export const submitJob = mutation({
     key: v.string(),
     maxTokens: v.number(),
   },
+  returns: v.id("workspaceJobs"),
   handler: async (ctx, a) => {
     const ownerId = await requireOwner(ctx);
     const c = await ownedConversation(ctx, a.conversationId, ownerId);
@@ -210,6 +213,7 @@ export const cancelJob = mutation({
 });
 export const approveEnrollment = mutation({
   args: { codeHash: v.string() },
+  returns: v.id("connectors"),
   handler: async (ctx, { codeHash }) => {
     const ownerId = await requireOwner(ctx);
     const e = await ctx.db
@@ -241,6 +245,7 @@ export const approveEnrollment = mutation({
 });
 export const beginEnrollment = mutation({
   args: { codeHash: v.string() },
+  returns: v.id("enrollments"),
   handler: async (ctx, { codeHash }) => {
     const ownerId = await requireOwner(ctx);
     await consumeAccountLimit(ctx, ownerId, "enrollments", 10);

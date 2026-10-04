@@ -1,4 +1,5 @@
 "use client";
+import { ComparisonProvider } from "./comparison/ComparisonProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -15,7 +16,7 @@ export function ApplicationShell({ children }: { children: ReactNode }) {
   if (!workspace)
     return (
       <CatalogProvider>
-        <AtlasShell>{children}</AtlasShell>
+        <ComparisonProvider><AtlasShell>{children}</AtlasShell></ComparisonProvider>
       </CatalogProvider>
     );
   return (

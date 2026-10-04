@@ -10,6 +10,7 @@ import { Workspace } from "./Workspace";
 export function CloudWorkspace({ view }: { view: "work" | "computers" }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { signIn } = useAuthActions();
+  const policy = useQuery(api.workspace.accessPolicy);
   const [error, setError] = useState("");
   if (isLoading)
     return <p className="p-8 text-muted">Checking your account…</p>;
@@ -35,7 +36,7 @@ export function CloudWorkspace({ view }: { view: "work" | "computers" }) {
           Continue with GitHub
         </button>
         <p className="mt-4 text-[11px] text-muted">
-          Personal pilot. Access is limited to the configured owner account.
+          {policy?.signup === "github" ? "Private workspaces are available to GitHub users." : "Access is limited to the configured owner account."}
         </p>
         {error && <p role="alert">{error}</p>}
       </section>

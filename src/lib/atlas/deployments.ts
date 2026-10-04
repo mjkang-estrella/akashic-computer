@@ -74,10 +74,14 @@ export const computerTemplates: Record<string, ComputerProfile> = {
     pools: [{ id: "shared", label: "Per-node unified memory — enter actual limits", kind: "unified", deviceIds: ["gpu0"] }],
     topology: "Single node; interconnect and additional devices unconfirmed" },
 };
+export function configurationId(): string {
+  // getRandomValues also supports a local HTTP preview outside a secure context.
+  return "deployment-" + Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) => n.toString(16).padStart(2, "0")).join("");
+}
 export function defaultDeployment(buildKey: string, modelSlug: string, artifactRepo: string, label: string): DeploymentConfiguration {
-  return { id: crypto.randomUUID(), buildKey, modelSlug, artifactRepo, label,
+  return { id: configurationId(), buildKey, modelSlug, artifactRepo, label,
     computer: computerTemplates.generic, workload: defaultWorkload,
-    runtime: { name: "llama.cpp", version: "unknown", backend: "unknown", platform: "unknown" },
+    runtime: { name: "unknown", version: "unknown", backend: "unknown", platform: "unknown" },
     settings: { contextTokens: 262144, concurrency: 1, cacheK: "q8_0", cacheV: "q8_0",
       draftCacheK: "q8_0", draftCacheV: "q8_0", mtp: "off", draftMax: 0,
       thinking: "on", flashAttention: "unknown", offload: "unknown" } };

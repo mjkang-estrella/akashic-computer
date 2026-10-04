@@ -1,0 +1,23 @@
+.comparison-page { padding-block: 2rem 5rem; }
+.comparison-page h1 { font-family: var(--font-stix), serif; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.15; }
+.comparison-page h2 { font-family: var(--font-stix), serif; font-size: 1.5rem; }
+.comparison-button { min-height: 44px; padding: .5rem .9rem; border: 1px solid var(--color-line, #bcb7ac); border-radius: 7px; font-size: .8rem; font-weight: 600; background: var(--color-panel, #fffdf7); }
+.comparison-button:hover { border-color: currentColor; }
+.comparison-button:disabled { opacity: .55; cursor: not-allowed; }
+.comparison-primary { background: var(--color-ink, #292824); color: var(--color-paper, #f8f6ef); }
+.comparison-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr)); gap: 1rem; margin-block: 1rem; padding: 1rem; border: 1px solid var(--color-line, #bcb7ac); border-radius: 8px; }
+.comparison-fields label, .comparison-label { display: flex; flex-direction: column; gap: .4rem; font-size: .8rem; }
+.comparison-fields input, .comparison-fields select, .comparison-page textarea, .comparison-page > input, .comparison-label input, .comparison-label select {
+  min-height: 44px; min-width: 0; width: 100%; padding: .5rem .65rem; border: 1px solid var(--color-line, #bcb7ac); border-radius: 5px; background: var(--color-paper, #f8f6ef); color: inherit;
+}
+.comparison-page :is(input,select,button,textarea,a,summary):focus-visible, .comparison-button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.comparison-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 1rem; margin-block: 1.5rem; align-items: start; }
+.comparison-option { border: 1px solid var(--color-line, #bcb7ac); border-radius: 8px; padding: 1rem; background: var(--color-panel, #fffdf7); min-width: 0; }
+.comparison-option dl { margin-block: 1rem; }
+.comparison-option dl > div { display: grid; grid-template-columns: minmax(90px, .8fr) minmax(0, 1.2fr); gap: .75rem; border-top: 1px solid var(--color-linesoft, #dfdbd1); padding-block: .65rem; font-size: .8rem; }
+.comparison-option dt { color: var(--color-muted, #625f56); }
+.comparison-option dd { overflow-wrap: anywhere; }
+.comparison-evidence { margin-top: 1rem; border-top: 1px solid var(--color-line, #bcb7ac); padding-top: 1rem; }
+.comparison-status { border-left: 3px solid var(--color-ink, #292824); padding: .5rem 1rem; margin-block: 1rem; font-size: .85rem; }
+.comparison-fields label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
+.comparison-fields input[type="checkbox"] { width: 18px; min-height: 18px; flex: none; }

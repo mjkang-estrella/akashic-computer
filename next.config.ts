@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Explicit host for the shared development browser; no extra origins by default.
+  allowedDevOrigins: process.env.AKASHIC_DEV_ORIGIN ? [process.env.AKASHIC_DEV_ORIGIN] : [],
 };
 
 export default nextConfig;

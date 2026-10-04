@@ -24,6 +24,8 @@ import { BenchmarkView } from "./BenchmarkView";
 import { FitBar } from "./FitBar";
 import { SearchView, type SearchTarget } from "./SearchView";
 import { useCatalog } from "./CatalogProvider";
+import { comparisonEnabled } from "@/lib/atlas/comparisonFlags";
+import { useDeploymentComparison } from "../comparison/ComparisonProvider";
 
 interface AtlasUiContextValue {
   rig: RigProfile;
@@ -43,6 +45,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { entries, families } = useCatalog();
+  const { selections, replace } = useDeploymentComparison();
   const [query, setQuery] = useState("");
   const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
   const [manualGb, setManualGb] = useState<number | null>(null);
@@ -96,6 +99,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
   const navigation = [
     { href: "/models", label: "Model", icon: CubeIcon, active: pathname.startsWith("/models") },
     { href: "/benchmarks", label: "Benchmark", icon: ChartColumnIcon, active: pathname.startsWith("/benchmarks") },
+    { href: "/compare", label: "Compare", icon: ChartColumnIcon, active: pathname.startsWith("/compare") },
     { href: "/docs", label: "Docs", icon: BookOpenTextIcon, active: pathname.startsWith("/docs") },
     { href: "/workspace", label: "Workspace", icon: CubeIcon, active: pathname.startsWith("/workspace") },
     { href: "/computers", label: "Computers", icon: CubeIcon, active: pathname.startsWith("/computers") },
@@ -124,7 +128,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               />
             </label>
             <nav aria-label="Primary" className="col-span-3 row-start-2 flex flex-wrap min-w-0 items-center gap-1 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:justify-end">
-              {navigation.filter(item=>connectedWorkspaceEnabled||!["/workspace","/computers"].includes(item.href)).map((item) => (
+              {navigation.filter(item => (connectedWorkspaceEnabled || !["/workspace", "/computers"].includes(item.href)) && (comparisonEnabled || item.href !== "/compare")).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -168,6 +172,12 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               />
             )
           ) : children}
+          {comparisonEnabled && selections.length > 0 && !pathname.startsWith("/compare") ? <aside aria-label="Exact deployment shortlist" className="my-6 flex flex-wrap items-center gap-4 border-y border-line bg-panel p-4 text-sm">
+            <strong>{selections.length} exact files selected</strong>
+            <Link className="comparison-button comparison-primary" href="/compare">Compare for my computer</Link>
+            <button className="comparison-button" onClick={() => replace([])}>Clear file shortlist</button>
+          </aside> : null}
+          {comparisonEnabled && checkedArtifacts.length ? <p className="my-3 text-sm text-muted">Repository comparison below uses catalog estimates. <Link className="underline" href="/compare">Choose exact files for a deployment comparison</Link>.</p> : null}
           {checkedArtifacts.length > 0 ? (
             <CompareDrawer
               artifacts={checkedArtifacts}

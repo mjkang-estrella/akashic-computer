@@ -4,6 +4,7 @@ import { ApplicationShell } from "@/components/ApplicationShell";
 import { AppProviders } from "@/components/AppProviders";
 import "@/components/workspace/workspace.css";
 import "./globals.css";
+import "@/components/comparison/comparison.css";
 
 const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",

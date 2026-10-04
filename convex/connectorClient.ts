@@ -1,6 +1,7 @@
 import { consumeAccountLimit } from "./accountPolicy";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { jobState } from "./workspaceSchema";
 import { credentialConnector, terminal } from "./workspaceAccess";
 export const read = internalQuery({
   args: {
@@ -121,6 +122,7 @@ export const write = internalMutation({
     key: v.optional(v.string()),
     maxTokens: v.optional(v.number()),
   },
+  returns: v.union(v.id("conversations"), v.id("workspaceJobs"), v.object({ jobId: v.string(), sessionId: v.id("conversations"), status: jobState })),
   handler: async (ctx, a) => {
     const c = await credentialConnector(ctx, a.credentialHash);
     if (a.operation === "delegate") {
@@ -199,7 +201,7 @@ export const write = internalMutation({
       return {
         jobId: `cloud:${jobId}`,
         sessionId: conversationId,
-        status: "queued",
+        status: "queued" as const,
       };
     }
     if (a.operation === "create") {
