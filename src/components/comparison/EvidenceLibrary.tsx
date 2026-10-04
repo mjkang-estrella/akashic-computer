@@ -23,7 +23,7 @@ export function EvidenceSummary({ report }: { report: EvidenceReport }) {
     {report.source.url ? <a className="underline" href={report.source.url} target="_blank" rel="noreferrer">Evidence source</a> : null}
     <details><summary className="min-h-11 cursor-pointer py-3">Protocol and limitations</summary>
       <ul className="list-disc pl-4">{report.source.limitations.map((s, i) => <li key={i}>{s}</li>)}</ul>
-      <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify({ protocol: report.protocol, trials: report.trials, memory: report.memory }, null, 2)}</pre>
+      <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify({ protocol: report.protocol, fidelity: report.fidelity, trials: report.trials, memory: report.memory }, null, 2)}</pre>
     </details>
   </div>;
 }

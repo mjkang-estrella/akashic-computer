@@ -32,4 +32,21 @@ describe("evidence boundaries", () => {
     fidelity.fidelity!.top1!.value = 92;
     expect(parseEvidenceImport(JSON.stringify(fidelity)).errors).toHaveLength(1);
   });
+  it("preserves reported uncertainty and requires a common fidelity metric and definition", () => {
+    const a: EvidenceReport = { schemaVersion: 2, id: "fidelity", modelSlug: fixtureReport.modelSlug,
+      artifactRepo: fixtureReport.artifactRepo, buildKey: fixtureReport.buildKey, kind: "fidelity",
+      source: { label: "Published example", origin: "published", limitations: [] },
+      protocol: { cache: "unknown", aggregation: "source-reported", dataset: "dataset", datasetRevision: "1",
+        tokenizer: "tokenizer", tool: "tool", toolVersion: "1", referenceRepo: "reference", referenceRevision: "1",
+        kldDirection: "reference-to-quant", top1Definition: "argmax token agreement" },
+      fidelity: { kld: 0.005988, uncertainty: { value: 0.000117, kind: "standard-error" } } };
+    expect(fidelityLabel(a)).toContain("0.000117 (standard error)");
+    const b = structuredClone(a);
+    b.fidelity = { top1: { value: 98, unit: "percent" } };
+    expect(compareEvidence(a, b).reasons).toContain("No shared fidelity metric");
+    a.fidelity!.top1 = b.fidelity.top1;
+    b.fidelity.kld = 0.006;
+    b.protocol.top1Definition = "different denominator";
+    expect(compareEvidence(a, b).comparable).toBe(false);
+  });
 });

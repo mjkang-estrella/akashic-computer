@@ -87,6 +87,8 @@ export function fidelityLabel(report: EvidenceReport) {
   const parts: string[] = [];
   if (f.kld !== undefined) parts.push("KLD " + f.kld);
   if (f.top1) parts.push("Top-1 " + (f.top1.unit === "fraction" ? f.top1.value * 100 : f.top1.value).toFixed(2) + "%");
+  if (f.uncertainty) parts.push("Reported uncertainty " + f.uncertainty.value + " (" +
+    f.uncertainty.kind.replaceAll("-", " ") + (f.uncertainty.description ? "; " + f.uncertainty.description : "") + ")");
   return parts.join(" · ");
 }
 /** These are descriptive checks, not a significance test or quality verdict. */
@@ -102,8 +104,12 @@ export function compareEvidence(a: EvidenceReport, b: EvidenceReport, varying: "
   }
   if (!a.buildKey || !b.buildKey) reasons.push("Exact artifact identity is missing");
   if (a.kind === "fidelity") {
-    const metric = a.fidelity?.kld !== undefined && b.fidelity?.kld !== undefined ? "kldDirection" : "top1Definition";
-    if (!a.protocol[metric] || a.protocol[metric] === "unknown" || a.protocol[metric] !== b.protocol[metric]) reasons.push(metric + " differs or is unrecorded");
+    const metrics: Array<"kldDirection" | "top1Definition"> = [];
+    if (a.fidelity?.kld !== undefined && b.fidelity?.kld !== undefined) metrics.push("kldDirection");
+    if (a.fidelity?.top1 && b.fidelity?.top1) metrics.push("top1Definition");
+    if (!metrics.length) reasons.push("No shared fidelity metric");
+    for (const metric of metrics) if (!a.protocol[metric] || a.protocol[metric] === "unknown" || a.protocol[metric] !== b.protocol[metric])
+      reasons.push(metric + " differs or is unrecorded");
   } else if (a.deployment && b.deployment) {
     const deploymentProtocol = (d: DeploymentConfiguration) => {
       const s = { ...d.settings };
