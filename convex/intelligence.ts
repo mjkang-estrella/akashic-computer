@@ -201,6 +201,7 @@ export const upsertRunReport = internalMutation({
       .query("runReports")
       .withIndex("by_report_id", (q) => q.eq("reportId", args.reportId))
       .unique();
+    if (existing?.schemaVersion === 2) throw new Error("Use the consent-based publication path for imported reports.");
     const { now, ...reportValue } = args;
     const storedValue = { ...reportValue, updatedAt: now };
     if (existing) await ctx.db.patch(existing._id, clean(storedValue));

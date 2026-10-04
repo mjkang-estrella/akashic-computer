@@ -18,4 +18,4 @@ export const buildFields = {
   mtp: v.union(v.literal("present"), v.literal("absent"), v.literal("unknown")),
   baseModels: v.array(v.string()), architecture: v.optional(architectureValue), sourceUrl: v.string(),
 };
-export const artifactBuildValue = v.object(buildFields);
+export const artifactBuildValue = v.object({ ...buildFields, modelSlug: v.optional(v.string()) });

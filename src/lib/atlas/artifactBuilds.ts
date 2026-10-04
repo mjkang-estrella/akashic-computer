@@ -7,6 +7,7 @@ export interface ArtifactFile {
   gitOid?: string;
 }
 export interface ArtifactBuild {
+  modelSlug?: string;
   key: string;
   repo: string;
   revision: string;

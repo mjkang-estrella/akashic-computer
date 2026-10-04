@@ -1,3 +1,5 @@
+import { comparisonTables } from "./comparisonSchema";
+import { evidenceValue } from "./comparisonValues";
 import { buildFields } from "./artifactValues";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
@@ -13,8 +15,9 @@ const sourceFields = {
 };
 
 export default defineSchema({
+  ...comparisonTables,
   artifactBuilds: defineTable({
-    ...buildFields, modelSlug: v.string(), observedAt: v.number(),
+    ...buildFields, modelSlug: v.string(), observedAt: v.number(), sourceRepositoryId: v.optional(v.id("sourceRepositories")),
   }).index("by_key", ["key"]).index("by_repo_and_revision", ["repo", "revision"])
     .index("by_model", ["modelSlug"]),
   ...authTables,
@@ -212,28 +215,36 @@ export default defineSchema({
     .index("by_model_and_occurred_at", ["modelSlug", "occurredAt"]),
 
   runReports: defineTable({
+    schemaVersion: v.optional(v.literal(2)), ownerId: v.optional(v.id("users")),
+    externalId: v.optional(v.string()), buildKey: v.optional(v.string()),
+    evidence: v.optional(evidenceValue), publicEvidence: v.optional(evidenceValue),
+    consentAt: v.optional(v.number()),
     reportId: v.string(),
     modelSlug: v.string(),
     artifactRepo: v.string(),
     recipeUpstreamId: v.optional(v.string()),
     recipeSourceSha: v.optional(v.string()),
-    hardwareProfile: v.string(),
-    runtime: v.string(),
-    runtimeVersion: v.string(),
+    hardwareProfile: v.optional(v.string()),
+    runtime: v.optional(v.string()),
+    runtimeVersion: v.optional(v.string()),
     testedContextTokens: v.optional(v.number()),
     concurrency: v.optional(v.number()),
     peakMemoryGb: v.optional(v.number()),
     throughputTokensPerSecond: v.optional(v.number()),
-    verificationStatus: v.union(v.literal("measured"), v.literal("reproduced")),
-    testedAt: v.number(),
-    notes: v.string(),
+    verificationStatus: v.optional(v.union(v.literal("measured"), v.literal("reproduced"))),
+    testedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
     evidenceUrl: v.optional(v.string()),
     published: v.boolean(),
     updatedAt: v.number(),
   })
     .index("by_report_id", ["reportId"])
     .index("by_model_and_published", ["modelSlug", "published"])
-    .index("by_artifact_repo", ["artifactRepo"]),
+    .index("by_artifact_repo", ["artifactRepo"])
+    .index("by_owner_and_external_id", ["ownerId", "externalId"])
+    .index("by_build_and_published", ["buildKey", "published"])
+    .index("by_owner_and_build", ["ownerId", "buildKey"])
+    .index("by_published_and_consent", ["published", "consentAt"]),
 
   monitoredSources: defineTable({
     owner: v.string(),

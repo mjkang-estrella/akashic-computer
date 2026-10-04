@@ -1,4 +1,4 @@
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import { query, internalMutation, internalAction, type MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -9,23 +9,24 @@ import { clean } from "./catalogReconciliation";
 export async function storeArtifactBuilds(ctx: MutationCtx, modelSlug: string, builds: ArtifactBuild[], now: number) {
   if (builds.length > 256) throw new Error("Too many artifact builds");
   for (const build of builds) {
+    const source = await ctx.db.query("sourceRepositories").withIndex("by_repo_name", (q) => q.eq("repoName", build.repo)).first();
     const existing = await ctx.db.query("artifactBuilds").withIndex("by_key", (q) => q.eq("key", build.key)).unique();
     if (existing) {
       // Identity repair may reassign the model; never remove the pinned manifest.
-      await ctx.db.patch(existing._id, clean({ ...build, modelSlug, observedAt: now }));
-    } else await ctx.db.insert("artifactBuilds", clean({ ...build, modelSlug, observedAt: now }));
+      await ctx.db.patch(existing._id, clean({ ...build, modelSlug, sourceRepositoryId: source?._id, observedAt: now }));
+    } else await ctx.db.insert("artifactBuilds", clean({ ...build, modelSlug, sourceRepositoryId: source?._id, observedAt: now }));
   }
 }
 
 function publicBuild(build: ArtifactBuild): ArtifactBuild {
-  const { key, repo, revision, label, files, bytes, complete, container, quantization,
+  const { modelSlug, key, repo, revision, label, files, bytes, complete, container, quantization,
     precisionBits, effectiveBits, mtp, baseModels, architecture, sourceUrl } = build;
-  return clean({ key, repo, revision, label, files, bytes, complete, container, quantization,
+  return clean({ modelSlug, key, repo, revision, label, files, bytes, complete, container, quantization,
     precisionBits, effectiveBits, mtp, baseModels, architecture, sourceUrl });
 }
 export const list = query({
   args: { repo: v.string(), revision: v.optional(v.string()), paginationOpts: paginationOptsValidator },
-  returns: v.object({ page: v.array(artifactBuildValue), isDone: v.boolean(), continueCursor: v.string() }),
+  returns: paginationResultValidator(artifactBuildValue),
   handler: async (ctx, args) => {
     const source = await ctx.db.query("sourceRepositories").withIndex("by_repo_name", (q) => q.eq("repoName", args.repo)).first();
     if (!source || source.private || source.status !== "published")
@@ -42,7 +43,8 @@ export const get = query({
   handler: async (ctx, { key }) => {
     const build = await ctx.db.query("artifactBuilds").withIndex("by_key", (q) => q.eq("key", key)).unique();
     if (!build) return null;
-    const source = await ctx.db.query("sourceRepositories").withIndex("by_repo_name", (q) => q.eq("repoName", build.repo)).first();
+    const source = build.sourceRepositoryId ? await ctx.db.get(build.sourceRepositoryId)
+      : await ctx.db.query("sourceRepositories").withIndex("by_repo_name", (q) => q.eq("repoName", build.repo)).first();
     return source && !source.private ? publicBuild(build) : null;
   },
 });

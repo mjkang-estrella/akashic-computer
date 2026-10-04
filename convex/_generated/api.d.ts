@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as accountPolicy from "../accountPolicy.js";
 import type * as admin from "../admin.js";
 import type * as artifactBuilds from "../artifactBuilds.js";
 import type * as artifactValues from "../artifactValues.js";
@@ -21,11 +22,15 @@ import type * as catalog from "../catalog.js";
 import type * as catalogReconciliation from "../catalogReconciliation.js";
 import type * as catalogSnapshot from "../catalogSnapshot.js";
 import type * as catalogValues from "../catalogValues.js";
+import type * as comparisonSchema from "../comparisonSchema.js";
+import type * as comparisonValues from "../comparisonValues.js";
+import type * as comparisons from "../comparisons.js";
 import type * as connector from "../connector.js";
 import type * as connectorClient from "../connectorClient.js";
 import type * as connectorHttp from "../connectorHttp.js";
 import type * as crons from "../crons.js";
 import type * as deploymentRecipeSync from "../deploymentRecipeSync.js";
+import type * as evidence from "../evidence.js";
 import type * as familyConfig from "../familyConfig.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
@@ -49,6 +54,7 @@ import type * as workspaceSchema from "../workspaceSchema.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  accountPolicy: typeof accountPolicy;
   admin: typeof admin;
   artifactBuilds: typeof artifactBuilds;
   artifactValues: typeof artifactValues;
@@ -57,11 +63,15 @@ declare const fullApi: ApiFromModules<{
   catalogReconciliation: typeof catalogReconciliation;
   catalogSnapshot: typeof catalogSnapshot;
   catalogValues: typeof catalogValues;
+  comparisonSchema: typeof comparisonSchema;
+  comparisonValues: typeof comparisonValues;
+  comparisons: typeof comparisons;
   connector: typeof connector;
   connectorClient: typeof connectorClient;
   connectorHttp: typeof connectorHttp;
   crons: typeof crons;
   deploymentRecipeSync: typeof deploymentRecipeSync;
+  evidence: typeof evidence;
   familyConfig: typeof familyConfig;
   health: typeof health;
   http: typeof http;

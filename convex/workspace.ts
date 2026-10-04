@@ -1,4 +1,4 @@
-import { consumeAccountLimit } from "./accountPolicy";
+import { consumeAccountLimit, accountIsAdmin } from "./accountPolicy";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ownedConversation, requireOwner, terminal } from "./workspaceAccess";
@@ -9,7 +9,8 @@ export const identity = query({
     if (!(await ctx.auth.getUserIdentity())) return null;
     const id = await requireOwner(ctx);
     const user = await ctx.db.get(id);
-    return { id, name: user?.name ?? "Personal workspace" };
+    const account = await ctx.db.query("accountOwners").withIndex("by_user", (q) => q.eq("userId", id)).unique();
+    return { id, name: user?.name ?? "Personal workspace", role: account && accountIsAdmin(account) ? "admin" as const : "member" as const };
   },
 });
 export const runningDeployment = query({
@@ -301,4 +302,9 @@ export const revokeConnector = mutation({
         });
     }
   },
+});
+
+export const accessPolicy = query({
+  args: {}, returns: v.object({ signup: v.union(v.literal("github"), v.literal("single_owner")) }),
+  handler: async () => ({ signup: process.env.WORKSPACE_ACCESS_MODE === "github" ? "github" as const : "single_owner" as const }),
 });
