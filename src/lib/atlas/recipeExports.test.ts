@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fixtureBuild, fixtureDeployment } from "../../../test/deploymentFixture";
 import { exportRecipe, mergePiModels, mergePiSettings, vulkanB11146 } from "./recipeExports";
+import { deploymentMatchKey, withWorkloadConstraints } from "./deployments";
 const deployment = { ...fixtureDeployment, runtime: vulkanB11146, settings: { ...fixtureDeployment.settings,
   mtp: "draft-mtp" as const, draftMax: 3, offload: "all" as const, flashAttention: "on" as const,
   threads: 16, batch: 2048, ubatch: 512, chatTemplate: "embedded-jinja", reasoningFormat: "deepseek" as const,
@@ -63,5 +64,16 @@ describe("pinned exports", () => {
     expect(files["launch.sh"]).toContain("'--temp' '1' '--seed' '1234'");
     expect(files["README.txt"]).toContain("systemctl --user");
     expect(files["README.txt"]).toContain("pinned b11146 defaults");
+  });
+  it("keeps measured thinking/context when only workload targets and reserve change", () => {
+    const measured = { ...deployment, settings: { ...deployment.settings, thinking: "off" as const } };
+    const changed = withWorkloadConstraints(measured, { ...measured.workload, thinking: "on", contextTokens: 1048576,
+      concurrency: 2, totalMemoryBytes: 70e9, reserveBytes: 8200000000 });
+    expect(deploymentMatchKey(changed)).toBe(deploymentMatchKey(measured));
+    const files = exportRecipe(changed, fixtureBuild, 43225);
+    expect(files["launch.sh"]).toContain('{"enable_thinking":false}');
+    expect(JSON.parse(files["pi-provider.json"]).providers["local-qwen"].models[0].reasoning).toBe(false);
+    expect(files["launch.sh"]).toContain("'--ctx-size' '262144'");
+    expect(JSON.parse(files["manifest.json"]).exercisedInputTokens).toBe(43225);
   });
 });

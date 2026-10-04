@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEvidenceImport, compareEvidence, fidelityLabel, decodeMedian, performanceSummary, evidenceAssessments, type EvidenceReport } from "./evidence";
+import { parseEvidenceImport, compareEvidence, fidelityLabel, fidelitySortValue, decodeMedian, performanceSummary, evidenceAssessments, type EvidenceReport } from "./evidence";
 import { deploymentMatchKey, decimalGbToBytes, workloadSchema } from "./deployments";
 import { fixtureReport } from "../../../test/deploymentFixture";
 describe("evidence boundaries", () => {
@@ -87,5 +87,11 @@ describe("evidence boundaries", () => {
       { label: "C", reports: [fixtureReport, b] }]);
     expect(pairs.filter((p) => p.kind === "fidelity")).toHaveLength(3);
     expect(pairs.filter((p) => p.kind === "performance")).toHaveLength(1);
+    a.protocol.id = "ctx512"; b.protocol.id = "ctx8192";
+    a.protocol.sampleCount = 512; b.protocol.sampleCount = 8192;
+    expect(compareEvidence(a, b).reasons).toContain("Fidelity protocol id differs");
+    expect(compareEvidence(a, b).reasons).toContain("Fidelity protocol sampleCount differs");
+    expect(fidelitySortValue([a, b], "kld")).toBeNull();
+    expect(fidelitySortValue([a], "kld")).toBe(0.005988);
   });
 });

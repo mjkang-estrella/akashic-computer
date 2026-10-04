@@ -89,6 +89,14 @@ export function performanceSummary(reports: EvidenceReport[]) {
     // Several workloads do not have one defensible aggregate speed.
     sortableDecode: performance.length === 1 ? decodeMedian(performance[0]) : null };
 }
+export function fidelitySortValue(reports: EvidenceReport[], metric: "kld" | "top1"): number | null {
+  const values = reports.filter((r) => r.kind === "fidelity").flatMap((r) => {
+    if (metric === "kld") return r.fidelity?.kld === undefined ? [] : [r.fidelity.kld];
+    const t = r.fidelity?.top1;
+    return t ? [t.unit === "percent" ? t.value : t.value * 100] : [];
+  });
+  return values.length === 1 ? values[0] : null;
+}
 export function evidenceAssessments(options: Array<{ label: string; reports: EvidenceReport[] }>) {
   return options.flatMap((a, i) => options.slice(i + 1).flatMap((b) => a.reports.flatMap((left) =>
     b.reports.filter((right) => right.kind === left.kind).map((right) => ({ kind: left.kind,
@@ -124,6 +132,10 @@ export function compareEvidence(a: EvidenceReport, b: EvidenceReport, varying: "
   }
   if (!a.buildKey || !b.buildKey) reasons.push("Exact artifact identity is missing");
   if (a.kind === "fidelity") {
+    for (const key of ["id", "sampleCount"] as const) {
+      if (a.protocol[key] !== undefined && b.protocol[key] !== undefined && a.protocol[key] !== b.protocol[key])
+        reasons.push("Fidelity protocol " + key + " differs");
+    }
     const metrics: Array<"kldDirection" | "top1Definition"> = [];
     if (a.fidelity?.kld !== undefined && b.fidelity?.kld !== undefined) metrics.push("kldDirection");
     if (a.fidelity?.top1 && b.fidelity?.top1) metrics.push("top1Definition");

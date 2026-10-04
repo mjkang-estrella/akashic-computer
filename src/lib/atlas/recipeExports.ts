@@ -50,7 +50,7 @@ export function exportRecipe(raw: DeploymentConfiguration, build: ArtifactBuild,
     "--spec-draft-type-k", s.draftCacheK, "--spec-draft-type-v", s.draftCacheV);
   else args.push("--spec-type", "none");
   const provider = { baseUrl: "http://127.0.0.1:8080/v1", api: "openai-completions", apiKey: "local",
-    models: [{ id: modelId, name: modelId, reasoning: true, input: ["text"], contextWindow: s.contextTokens,
+    models: [{ id: modelId, name: modelId, reasoning: s.thinking === "on", input: ["text"], contextWindow: s.contextTokens,
       maxTokens: Math.min(8192, s.contextTokens), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] };
   const preparePi = [
     "// Stages backups and proposed files in a NEW directory; never modifies the originals.",

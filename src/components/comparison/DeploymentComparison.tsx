@@ -6,11 +6,11 @@ import { useConvexAuth, useMutation, usePaginatedQuery, useQueries, useQuery } f
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useCatalog, useCatalogEntry } from "../atlas/CatalogProvider";
-import { computerTemplates, defaultWorkload, defaultDeployment, deploymentMatchKey, compatibilityNotes, configurationId, stableJson,
+import { computerTemplates, defaultWorkload, defaultDeployment, deploymentMatchKey, compatibilityNotes, configurationId, stableJson, withWorkloadConstraints,
   type ComputerProfile, type WorkloadProfile, type DeploymentConfiguration } from "@/lib/atlas/deployments";
 import { estimateDeploymentMemory, memoryBytesLabel } from "@/lib/atlas/memory";
 import type { ArtifactBuild } from "@/lib/atlas/artifactBuilds";
-import { evidenceAssessments, performanceSummary, decodeMedian, fidelityLabel, median, type EvidenceReport } from "@/lib/atlas/evidence";
+import { evidenceAssessments, performanceSummary, fidelitySortValue, decodeMedian, fidelityLabel, median, type EvidenceReport } from "@/lib/atlas/evidence";
 import { exportRecipe, vulkanB11146 } from "@/lib/atlas/recipeExports";
 import { useDeploymentComparison, type Selection } from "./ComparisonProvider";
 import { ArtifactBuildPicker } from "./ArtifactBuildPicker";
@@ -84,8 +84,7 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
     setComputer(p); setSelections((items) => items.map((s) => ({ ...s, configuration: { ...s.configuration, computer: p } })));
   }
   function applyWorkload(p: WorkloadProfile) {
-    setWorkload(p); setSelections((items) => items.map((s) => ({ ...s, configuration: { ...s.configuration, workload: p,
-      settings: { ...s.configuration.settings, contextTokens: p.contextTokens, concurrency: p.concurrency, thinking: p.thinking } } })));
+    setWorkload(p); setSelections((items) => items.map((s) => ({ ...s, configuration: withWorkloadConstraints(s.configuration, p) })));
   }
   function update(id: string, d: DeploymentConfiguration) {
     setSelections((items) => items.map((s) => s.configuration.id === id ? { ...s, configuration: d } : s));
@@ -100,9 +99,8 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
   function sortMetric(s: Selection) {
     const evidence = applicable(s.configuration);
     if (sort === "decode") { const value = performanceSummary(evidence).sortableDecode; return value === null ? Infinity : -value; }
-    if (sort === "kld") return evidence.find((r) => r.fidelity?.kld !== undefined)?.fidelity?.kld ?? Infinity;
-    const top1 = evidence.find((r) => r.fidelity?.top1)?.fidelity?.top1;
-    return top1 ? -(top1.unit === "percent" ? top1.value : top1.value * 100) : Infinity;
+    const value = fidelitySortValue(evidence, sort === "kld" ? "kld" : "top1");
+    return value === null ? Infinity : sort === "kld" ? value : -value;
   }
   const orderedMetrics = visible.filter((s) => Number.isFinite(sortMetric(s))).sort((a, b) => sortMetric(a) - sortMetric(b));
   let metricIndex = 0;
@@ -130,9 +128,11 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
       {currentModel ? [...new Set(currentModel.artifacts.map((a) => a.repo))].map((repo) => <ArtifactBuildPicker key={repo} repo={repo} modelSlug={currentModel.slug} modelName={currentModel.name} onAdd={add} />) : null}
     </details>
     <details className="my-5 border-y border-line py-3">
-      <summary className="min-h-11 cursor-pointer py-3 font-semibold">{computer.name} · {workload.totalMemoryBytes / 1e9} GB total ceiling · {workload.contextTokens.toLocaleString()} token target</summary>
-      <p className="text-xs text-muted">Changing these controls applies the profile to every selected option. Configuration details below retain their own runtime settings.</p>
-      <ComputerEditor profile={computer} onChange={applyComputer} /><WorkloadEditor profile={workload} onChange={applyWorkload} />
+      <summary className="min-h-11 cursor-pointer py-3 font-semibold">Defaults and constraints · {computer.name} · {workload.totalMemoryBytes / 1e9} GB total ceiling · {workload.contextTokens.toLocaleString()} token target</summary>
+      <p className="text-xs text-muted">Workload targets apply to every option without changing runtime settings. Computer edits set defaults for new options; apply them explicitly to replace the computers of existing options.</p>
+      <ComputerEditor profile={computer} onChange={setComputer} />
+      <button className="comparison-button" disabled={!selections.length} onClick={() => applyComputer(computer)}>Apply this computer to all options</button>
+      <WorkloadEditor profile={workload} onChange={applyWorkload} />
     </details>
     <div className="flex flex-wrap items-center gap-5 text-sm">
       <label>Order <select className="comparison-button ml-2" value={sort} onChange={(e) => setSort(e.target.value)}>
@@ -147,7 +147,7 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
         catch { setMessage("Clipboard unavailable. Save this comparison to retain it."); }
       }}>Copy public shortlist</button>
     </div>
-    {["decode", "kld", "top1"].includes(sort) ? <p className="my-3 text-xs text-muted">Sorting reported values does not align their protocols. Unknowns and options with multiple performance workloads retain their position, outside the numeric ranking.</p> : null}
+    {["decode", "kld", "top1"].includes(sort) ? <p className="my-3 text-xs text-muted">Sorting reported values does not align their protocols. Unknowns and options with multiple results for this metric retain their position, outside the numeric ranking.</p> : null}
     {!selections.length ? <p className="comparison-status">Choose up to four exact files to start. You can also save profiles or import evidence below.</p> : null}
     <div className="comparison-columns">
       {ordered.map((s) => <ConfigurationCard key={s.configuration.id} selection={s} evidence={applicable(s.configuration)} onChange={(d) => update(s.configuration.id, d)}
@@ -234,6 +234,8 @@ function ConfigurationCard({ selection: { build, configuration: d }, evidence, o
       </section>;
     })}
     {s.contextTokens < d.workload.contextTokens ? <p className="comparison-status">Configured context is below the workload target.</p> : null}
+    {s.concurrency !== d.workload.concurrency ? <p className="comparison-status">Configured concurrency {s.concurrency} differs from the workload target {d.workload.concurrency}.</p> : null}
+    {s.thinking !== d.workload.thinking ? <p className="comparison-status">Configured thinking is {s.thinking}; the workload target is {d.workload.thinking}.</p> : null}
     {build.architecture?.nativeContext && s.contextTokens > build.architecture.nativeContext ? <p className="comparison-status">Beyond native context. Extension support and filled-context behavior are unverified.</p> : null}
     {estimate.knownSubtotalBytes > d.workload.totalMemoryBytes ? <p className="comparison-status">Known components already exceed the {d.workload.totalMemoryBytes / 1e9} GB ceiling.</p> : null}
     {d.computer.pools.map((p) => p.accessibleBytes !== undefined && s.offload === "all" && estimate.knownSubtotalBytes > p.accessibleBytes

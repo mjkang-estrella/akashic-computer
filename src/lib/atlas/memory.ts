@@ -83,7 +83,7 @@ export function estimateDeploymentMemory(input: {
   const a = input.architecture;
   const components: MemoryComponent[] = [
     { key: "weights", label: "Weights", bytes: input.weightBytes, basis: "Download bytes; resident allocation may differ" },
-    { key: "kv", label: "Main KV cache", bytes: mainKvBytes(a, input.contextTokens, input.concurrency, input.k, input.v), basis: "Estimated growing attention cache; allocator padding excluded" },
+    { key: "kv", label: "Main KV cache", bytes: mainKvBytes(a, input.contextTokens, input.concurrency, input.k, input.v), basis: "Estimated growing attention cache; allocator padding excluded. Sliding-window layers conservatively use full context." },
     { key: "recurrent", label: "Recurrent state", bytes: a && a.growingLayers === a.mainLayers ? 0 : null, basis: "Runtime-specific linear-attention state" },
     { key: "draft", label: "MTP / draft state", bytes: input.mtp ? null : 0, basis: "Separate from main KV" },
     { key: "workspace", label: "Runtime workspace", bytes: null, basis: "Runtime-specific buffers and resident-weight overhead" },

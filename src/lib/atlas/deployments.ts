@@ -102,6 +102,9 @@ export function performanceComputer(p: ComputerProfile) {
     pools: p.pools.map((pool) => ({ kind: pool.kind, deviceIds: [...pool.deviceIds].sort() })) };
 }
 export function decimalGbToBytes(value: string): number { return Math.round(Number(value) * 1e9); }
+export function withWorkloadConstraints(d: DeploymentConfiguration, workload: WorkloadProfile): DeploymentConfiguration {
+  return { ...d, workload };
+}
 export function compatibilityNotes(d: DeploymentConfiguration): string[] {
   const notes: string[] = [];
   if (d.runtime.platform !== "unknown" && d.computer.platform !== "unknown" && d.runtime.platform !== d.computer.platform)
