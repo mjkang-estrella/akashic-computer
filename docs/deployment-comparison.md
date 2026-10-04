@@ -20,7 +20,7 @@ The foundation is the connected-workspace changes through `f898bf7`, cherry-pick
 
 ## Identity, memory, compatibility
 
-`ArtifactBuild.key` is encoded lowercase repository + pinned commit + exact file/shard group. Multiple Q6/Q8 files in one repo remain selectable. Repository records/links remain unresolved estimates. Historical pins survive source renames via a source-repository foreign key, while respecting later source privacy. File lists load lazily with pagination; the public snapshot stays compact.
+`ArtifactBuild.key` is encoded lowercase repository + pinned commit + exact file/shard group. Multiple Q6/Q8 files in one repo remain selectable. Repository records/links remain unresolved estimates. Historical pins survive source renames via a source-repository foreign key, while respecting later source privacy. File lists load lazily with pagination; the public snapshot stays compact. The picker can include recorded historical revisions, so a README-only commit does not make an evidence-bearing pin inaccessible. Unrecorded revisions require catalog metadata before exact evidence can attach.
 
 The hybrid fixture has 40 main layers (10 full, 30 linear), 2 KV heads, head dimension 256 and 262144 tokens per slot. BF16 main KV is **5,368,709,120 bytes**; Q8_0 main KV is **2,852,126,720 bytes**, including 34 bytes per 32-element block. These are KV components, not total runtime memory. MTP prediction layers are separate from main layers. Unknown recurrent/draft/workspace allocations are never silently zeroed. Download bytes are a resident-weight proxy, not an observed allocation.
 
@@ -33,10 +33,10 @@ Configured context is **per slot**; concurrency multiplies estimated cache and e
 The canonical application schema is `src/lib/atlas/evidence.ts`; Convex validators mirror it in `convex/comparisonValues.ts`. `/docs/deployment-comparison` is the user guide. Selected options download identity-populated fidelity/performance templates; null placeholders must be replaced or removed before import.
 
 - Base-model capability remains published creator evidence, never a selected-quantization test.
-- Fidelity accepts KLD, Top-1 with explicit fraction/percent units, uncertainty and reference/dataset/tokenizer/tool/protocol details. Missing details are allowed but prevent controlled comparisons. Without `buildKey`, a record remains repository-level context in the private library.
+- Fidelity accepts KLD, Top-1 with explicit fraction/percent units, uncertainty and reference/dataset/tokenizer/tool/protocol details. Missing details are allowed but prevent controlled comparisons. Without `buildKey`, a record remains repository-level context. Comparison cards expose same-catalog-model evidence for other or unpinned artifacts in a separate context-only section; it never enters selected-file metrics or sorting.
 - Performance requires an exact deployment and trials. Input/output counts, cache, prefill/decode/TTFT/wall time, stop reason, thinking/sampling, MTP/draft acceptance and repetitions remain separate. Unmeasured fields are omitted.
 - Memory explicitly records snapshot/peak, scope, method and bytes. A peak requires sampling interval and duration. V2 cannot silently relabel a setup snapshot as a peak.
-- Alignment checks reference/protocol or hardware/runtime/non-varied settings and prompt/output identity. It is descriptive, not a significance test. One trial per different prompt yields no established winner. Numeric sorting does not establish causality.
+- Alignment checks reference/protocol or hardware/runtime/non-varied settings and prompt/output identity. It is descriptive, not a significance test. One trial per different prompt yields no established winner. Numeric sorting does not establish causality. Unknown values and multi-workload performance options retain their positions outside numeric ranking. Each matching performance report remains visible with its own protocol; no speed is aggregated across workloads. Largest measured input and memory observations use all matching reports, including in recipe exports. Failed trials are excluded from throughput summaries.
 
 Limits: 1 MiB / 100 reports per batch; 64 KiB / 100 trials per report; 1,000 imported reports/account; 10 inserting batches/hour. IDs are unique **within an account**. Identical re-import is unchanged; conflicting content rejects the transaction. An account counter avoids scanning all report bodies. Profiles/comparisons allow 100 of each type and 120 writes/hour. Connector enrollment allows 10/hour and 10 active controllers; conversation/job creation allows 60/hour. Server enforcement is transactional.
 
@@ -46,7 +46,7 @@ Saved-ID URLs remain private. Public shortlist URLs contain artifact keys only, 
 
 ## Local-only handoff conversion
 
-The adapter reads only named benchmark JSON files, `provenance.json`, and optional setup `results.json`. It never runs benchmark scripts, inspects devices, contacts inference, or reads Pi sessions. It excludes answers, raw responses and incidental paths. A supplied deployment/recipe manifest identifies the computer snapshot and catalog subject; the provenance pin must match. Handoff b11146/Vulkan/context/cache/batch/thread settings are explicit; unrecorded sampling details stay unknown.
+The adapter reads only named benchmark JSON files, `provenance.json`, and optional setup `results.json`. It never runs benchmark scripts, inspects devices, contacts inference, or reads Pi sessions. It excludes answers, raw responses and incidental paths. A supplied deployment/recipe manifest identifies the computer snapshot and catalog subject; the provenance pin must match. Handoff b11146/Vulkan/context/cache/batch/thread settings are explicit; unrecorded sampling details stay unknown. Prompt-set IDs are source-described by this handoff; they are not hashes inferred from case IDs or token counts.
 
 ```bash
 npx tsx scripts/convert-qwen-benchmarks.ts \
@@ -70,6 +70,8 @@ Limitations: three different short prompts rather than repeated trials; all outp
 5. First coverage: Framework/Spark templates, Qwen3.6 35B Q6/Q8 exact manifests, a dense alternative, and privately imported available evidence. Missing Q6/Spark/task measurements are not launch blockers.
 
 No V2 records have been deployed. `importedReportCount` starts at zero because pre-V2 accounts have no private imports. Any experimental deployment already containing V2 imports must recount this field before rollout. There is no destructive migration or automatic publication.
+
+Recipe export requires a known native context, a target within that context, explicit temperature/seed/runtime device, and MTP not explicitly absent. Remaining sampler options use the pinned runtime defaults and are listed in the export instructions. The unit is explicitly a user service. Export stages Pi proposals with a replacement warning if `local-qwen` already exists.
 
 Rollback: disable the web flag and, if needed, restore single-owner access. Preserve additive tables/pins and private records. Existing catalog/companion interfaces remain available.
 
@@ -101,7 +103,7 @@ The harness uses synthetic data and simulated authentication. It cannot publish 
 
 ### Local verification record
 
-- 103 web/backend tests; TypeScript, ESLint, local Convex generation and the Next production build pass.
+- 109 web/backend tests; TypeScript, ESLint, local Convex generation and the Next production build pass.
 - Companion build, typecheck and all 22 tests pass. No controller changes or live inference actions were needed.
 - T3 browser DOM checks at desktop and 390 px mobile: same-repository Q6/Q8 selection, private JSON preview/import, KLD/Top-1 and performance references, save/reopen with retained references, profile saving, export preview, unknown measurements after settings change, public pin URLs and legacy scenario URLs. No horizontal overflow was found. Sign-out clears private in-memory state. Preview screenshots were unavailable, so these were DOM/interaction checks rather than screenshot review.
 - Existing handoff files were converted and validated **in memory only**: 10 reports / 28 trials, original medians preserved, setup memory still a snapshot. No actual records were added to a database or a fixture server.

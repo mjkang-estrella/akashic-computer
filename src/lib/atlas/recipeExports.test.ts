@@ -8,7 +8,7 @@ import { exportRecipe, mergePiModels, mergePiSettings, vulkanB11146 } from "./re
 const deployment = { ...fixtureDeployment, runtime: vulkanB11146, settings: { ...fixtureDeployment.settings,
   mtp: "draft-mtp" as const, draftMax: 3, offload: "all" as const, flashAttention: "on" as const,
   threads: 16, batch: 2048, ubatch: 512, chatTemplate: "embedded-jinja", reasoningFormat: "deepseek" as const,
-  temperature: 1, seed: 1234 } };
+  device: "Vulkan0", temperature: 1, seed: 1234 } };
 describe("pinned exports", () => {
   it("exports valid shell with the b11146 flags and distinguishes exercised context", () => {
     const files = exportRecipe(deployment, fixtureBuild, 43225);
@@ -51,5 +51,17 @@ describe("pinned exports", () => {
     expect(prior.providers).not.toHaveProperty("local-qwen");
     expect(mergePiSettings({ thinkingLevel: "high", other: 1 }, "model")).toMatchObject({ thinkingLevel: "high", other: 1 });
     expect(JSON.parse(exportRecipe(deployment, fixtureBuild)["manifest.json"]).exercisedInputTokens).toBeNull();
+  });
+  it("refuses unsupported context, missing sampling settings and absent MTP", () => {
+    expect(() => exportRecipe({ ...deployment, settings: { ...deployment.settings, contextTokens: 1048576 } }, fixtureBuild)).toThrow("native context");
+    expect(() => exportRecipe(deployment, { ...fixtureBuild, architecture: undefined })).toThrow("native context");
+    expect(() => exportRecipe({ ...deployment, settings: { ...deployment.settings, seed: undefined } }, fixtureBuild)).toThrow("temperature, seed");
+    expect(() => exportRecipe({ ...deployment, settings: { ...deployment.settings, temperature: undefined } }, fixtureBuild)).toThrow("temperature, seed");
+    expect(() => exportRecipe(deployment, { ...fixtureBuild, mtp: "absent" })).toThrow("no MTP");
+    const files = exportRecipe({ ...deployment, settings: { ...deployment.settings, device: "Vulkan1" } }, fixtureBuild);
+    expect(files["launch.sh"]).toContain("'--device' 'Vulkan1'");
+    expect(files["launch.sh"]).toContain("'--temp' '1' '--seed' '1234'");
+    expect(files["README.txt"]).toContain("systemctl --user");
+    expect(files["README.txt"]).toContain("pinned b11146 defaults");
   });
 });

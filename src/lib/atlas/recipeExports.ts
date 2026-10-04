@@ -24,6 +24,11 @@ export function exportRecipe(raw: DeploymentConfiguration, build: ArtifactBuild,
   if (d.runtime.name !== "llama.cpp" || d.runtime.version !== "b11146" || d.runtime.platform !== "linux-x64" ||
     d.computer.platform !== "linux-x64" || d.runtime.backend !== "vulkan" || build.container !== "gguf")
     throw new Error("The first recipe exporter supports llama.cpp b11146 Vulkan on Linux x64 with GGUF.");
+  if (!build.architecture?.nativeContext || s.contextTokens > build.architecture.nativeContext)
+    throw new Error("Export requires a known native context and a per-slot target within it. Extended context is not supported by this exporter.");
+  if (s.mtp === "draft-mtp" && build.mtp === "absent") throw new Error("This artifact is recorded as having no MTP layer.");
+  if (s.temperature === undefined || s.seed === undefined || !s.device || !/^Vulkan\d+$/.test(s.device))
+    throw new Error("Specify temperature, seed and the runtime device (for example Vulkan0) before exporting.");
   if (!d.runtime.archiveSha256 || !d.runtime.archiveUrl ||
     !d.runtime.archiveUrl.startsWith("https://github.com/ggml-org/llama.cpp/releases/download/" + d.runtime.version + "/"))
     throw new Error("Pin an official llama.cpp release archive and SHA-256 before exporting.");
@@ -33,7 +38,7 @@ export function exportRecipe(raw: DeploymentConfiguration, build: ArtifactBuild,
     throw new Error("Specify all-layer offload, flash attention, cache formats, threads, batches, embedded Jinja and reasoning format.");
   if (s.mtp === "draft-mtp" && !s.draftMax) throw new Error("MTP needs a positive draft length.");
   const modelId = build.files[0].path.split("/").at(-1)!.replace(/\.gguf$/i, "");
-  const args = ["--host", "127.0.0.1", "--port", "8080", "--alias", modelId, "--gpu-layers", "all", "--device", "Vulkan0", "--fit", "off", "--cache-ram", "0",
+  const args = ["--host", "127.0.0.1", "--port", "8080", "--alias", modelId, "--gpu-layers", "all", "--device", s.device, "--fit", "off", "--cache-ram", "0",
     "--ctx-size", String(s.contextTokens * s.concurrency), "--parallel", String(s.concurrency), "--flash-attn", s.flashAttention,
     "--cache-type-k", s.cacheK, "--cache-type-v", s.cacheV,
     "--batch-size", String(s.batch), "--ubatch-size", String(s.ubatch), "--threads", String(s.threads),
@@ -57,6 +62,7 @@ export function exportRecipe(raw: DeploymentConfiguration, build: ArtifactBuild,
     "const models = JSON.parse(modelsText), settings = JSON.parse(settingsText);",
     "const object = (v) => v && typeof v === 'object' && !Array.isArray(v);",
     "if (!object(models) || !object(settings) || (models.providers !== undefined && !object(models.providers))) throw new Error('Expected object configurations');",
+    "if (models.providers?.['local-qwen']) console.warn('The staged proposal replaces providers.local-qwen. Review its diff; the original and backup remain unchanged.');",
     "const provider = " + JSON.stringify(provider) + ";",
     "const proposedModels = { ...models, providers: { ...models.providers, 'local-qwen': provider } };",
     "const proposedSettings = { ...settings, defaultProvider: 'local-qwen', defaultModel: " + JSON.stringify(modelId) + " };",
@@ -101,6 +107,9 @@ export function exportRecipe(raw: DeploymentConfiguration, build: ArtifactBuild,
       "Make launch.sh executable (chmod 700). Back up any existing akashic-selected files before installing replacements.",
       "Check that port 8080 is available before starting. Do not stop or replace existing inference services automatically.",
       "The optional systemd unit is a separate service. Enable it explicitly only after testing launch.sh.",
+      "This is a user unit: install under ~/.config/systemd/user and use systemctl --user only, never the system service manager.",
+      "Runtime device: " + s.device + ". Confirm that this llama.cpp device identifier selects the intended hardware before launching.",
+      "Temperature and seed are explicit. Unspecified sampler options (including top-p/top-k when absent, min-p, typical-p, penalties and sampler order) use the pinned b11146 defaults; these are not claims about measured settings.",
       "Back up Pi models.json and settings.json. Merge only providers.local-qwen and the two default-setting keys; retain other providers and thinking preferences.",
       "Optional: node prepare-pi.mjs EXISTING_MODELS_JSON EXISTING_SETTINGS_JSON NEW_OUTPUT_DIR stages backups and proposed merged files without changing the originals. Review the proposals before installing them.",
       "Validate /health, a streaming completion, and a harmless tool-call exchange before selecting the new provider.",
