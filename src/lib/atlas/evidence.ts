@@ -111,6 +111,15 @@ export function compareEvidence(a: EvidenceReport, b: EvidenceReport, varying: "
     for (const metric of metrics) if (!a.protocol[metric] || a.protocol[metric] === "unknown" || a.protocol[metric] !== b.protocol[metric])
       reasons.push(metric + " differs or is unrecorded");
   } else if (a.deployment && b.deployment) {
+    for (const field of ["name", "version", "backend", "platform"] as const) {
+      if ([a.deployment.runtime[field], b.deployment.runtime[field]].includes("unknown")) reasons.push("Runtime " + field + " is unrecorded");
+    }
+    for (const field of ["thinking", "cacheK", "cacheV", "flashAttention", "offload"] as const) {
+      if ([a.deployment.settings[field], b.deployment.settings[field]].includes("unknown")) reasons.push(field + " is unrecorded");
+    }
+    for (const field of ["temperature", "seed", "threads", "batch", "ubatch", "chatTemplate"] as const) {
+      if (a.deployment.settings[field] === undefined || b.deployment.settings[field] === undefined) reasons.push(field + " is unrecorded");
+    }
     const deploymentProtocol = (d: DeploymentConfiguration) => {
       const s = { ...d.settings };
       if (varying === "mtp") { s.mtp = "unknown"; s.draftMax = 0; }
@@ -119,9 +128,9 @@ export function compareEvidence(a: EvidenceReport, b: EvidenceReport, varying: "
       return { runtime: d.runtime, computer, settings: s, ...(varying === "mtp" ? { build: d.buildKey } : {}) };
     };
     if (stableJson(deploymentProtocol(a.deployment)) !== stableJson(deploymentProtocol(b.deployment))) reasons.push("Computer, runtime or non-varied settings differ");
-    if (a.deployment.runtime.version === "unknown" || b.deployment.runtime.version === "unknown") reasons.push("Runtime version is unrecorded");
-    if (stableJson(a.trials?.map((t) => [t.caseId, t.generatedTokens])) !== stableJson(b.trials?.map((t) => [t.caseId, t.generatedTokens])))
-      reasons.push("Prompt cases or output lengths differ");
+    if (stableJson(a.trials?.map((t) => [t.caseId, t.promptTokens, t.generatedTokens, t.cachedTokens])) !==
+      stableJson(b.trials?.map((t) => [t.caseId, t.promptTokens, t.generatedTokens, t.cachedTokens])))
+      reasons.push("Prompt cases, filled context, output lengths or cached tokens differ");
   }
   const repeated = (a.protocol.repeatsPerPrompt ?? 0) > 1 && (b.protocol.repeatsPerPrompt ?? 0) > 1;
   return { comparable: !reasons.length, reasons,

@@ -107,12 +107,15 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
   const ordered = [...visible].sort((a, b) => sort === "bytes" ? (a.build.bytes ?? Infinity) - (b.build.bytes ?? Infinity)
     : sort === "name" ? a.configuration.label.localeCompare(b.configuration.label)
       : ["decode", "kld", "top1"].includes(sort) ? sortMetric(a) - sortMetric(b) : 0);
-  const selectedReports = selections.map((s) => {
-    const options = applicable(s.configuration);
-    return options.find((r) => r.kind === "performance") ?? options.find((r) => r.kind === "fidelity");
-  }).filter((r): r is EvidenceReport => !!r);
-  const assessment = selectedReports.length === 2 ? compareEvidence(selectedReports[0], selectedReports[1],
-    selectedReports[0].buildKey === selectedReports[1].buildKey ? "mtp" : "artifact") : null;
+  // Assess each evidence class independently: a speed record must not hide a KLD mismatch.
+  const assessments = selections.flatMap((a, i) => selections.slice(i + 1).flatMap((b) =>
+    (["fidelity", "performance"] as const).flatMap((kind) => {
+      const left = applicable(a.configuration).find((r) => r.kind === kind);
+      const right = applicable(b.configuration).find((r) => r.kind === kind);
+      return left && right ? [{ key: a.configuration.id + b.configuration.id + kind, kind,
+        label: a.configuration.label + " ↔ " + b.configuration.label,
+        result: compareEvidence(left, right, left.buildKey === right.buildKey ? "mtp" : "artifact") }] : [];
+    })));
   const relevantChanges = materialChanges.filter((c) => selections.some((s) => s.configuration.modelSlug === c.modelSlug));
   return <section className="comparison-page">
     <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-xs uppercase tracking-widest text-muted">For your computer</p>
@@ -157,8 +160,11 @@ function ComparisonEditor({ initial, saved, savedId }: { initial: Selection[]; s
           if (report.deployment) update(s.configuration.id, { ...report.deployment, id: s.configuration.id, workload: s.configuration.workload });
         }} />)}
     </div>
-    {assessment ? <section className="comparison-status" aria-label="Evidence alignment"><strong>{assessment.conclusion}</strong>
-      {assessment.reasons.length ? <ul className="mt-2 list-disc pl-5">{assessment.reasons.map((s) => <li key={s}>{s}</li>)}</ul> : null}</section> : null}
+    {assessments.length ? <section className="comparison-status" aria-label="Evidence alignment"><h2>Evidence alignment</h2>
+      {assessments.map(({ key, kind, label, result }) => <details key={key} className="my-2">
+        <summary className="min-h-11 cursor-pointer py-3"><strong>{kind === "fidelity" ? "Fidelity" : "Performance"}: {result.conclusion}</strong><span className="block text-xs text-muted">{label}</span></summary>
+        {result.reasons.length ? <ul className="mt-2 list-disc pl-5">{result.reasons.map((s) => <li key={s}>{s}</li>)}</ul> : null}
+      </details>)}</section> : null}
     {selections.length ? <section className="my-6 border-y border-line py-5">
       <h2>Save a decision</h2><p className="my-3 text-sm text-muted">Keep the exact configurations, constraints, evidence references, and your reasoning. Future updates will not replace these pins.</p>
       {evidenceIds.length ? <details className="my-3"><summary className="min-h-11 cursor-pointer py-3">Referenced evidence · {evidenceIds.length}</summary>

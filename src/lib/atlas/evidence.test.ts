@@ -17,11 +17,19 @@ describe("evidence boundaries", () => {
   });
   it("does not claim a winner for draft lengths measured once per prompt", () => {
     const a = structuredClone(fixtureReport), b = structuredClone(fixtureReport);
+    for (const report of [a, b]) Object.assign(report.deployment!.settings, { temperature: 0, seed: 1234,
+      threads: 16, batch: 2048, ubatch: 512, chatTemplate: "embedded-jinja", flashAttention: "on", offload: "all" });
     a.deployment!.settings.mtp = "draft-mtp"; a.deployment!.settings.draftMax = 2;
     b.deployment!.settings.mtp = "draft-mtp"; b.deployment!.settings.draftMax = 3;
     expect(compareEvidence(a, b, "mtp").conclusion).toContain("no established winner");
     b.deployment!.settings.thinking = "off";
     expect(compareEvidence(a, b, "mtp").comparable).toBe(false);
+  });
+  it("does not align two equally unknown protocols or different filled contexts", () => {
+    expect(compareEvidence(fixtureReport, fixtureReport).reasons).toContain("temperature is unrecorded");
+    const b = structuredClone(fixtureReport);
+    b.trials![0].promptTokens = 43225;
+    expect(compareEvidence(fixtureReport, b).reasons).toContain("Prompt cases, filled context, output lengths or cached tokens differ");
   });
   it("normalizes explicit Top-1 units and never transfers unbound KLD", () => {
     const fidelity: EvidenceReport = { schemaVersion: 2, id: "external", modelSlug: fixtureReport.modelSlug,
