@@ -1,3 +1,4 @@
+import { consumeAccountLimit } from "./accountPolicy";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { credentialConnector, terminal } from "./workspaceAccess";
@@ -164,6 +165,7 @@ export const write = internalMutation({
         (d) => d.status === "online" && d.ownerId === c.ownerId,
       );
       if (!d) throw new Error("No running deployment");
+      await consumeAccountLimit(ctx, c.ownerId, "session/job creations", 60);
       const conversationId = await ctx.db.insert("conversations", {
         ownerId: c.ownerId,
         connectorId: c._id,
@@ -205,6 +207,7 @@ export const write = internalMutation({
       const d = await ctx.db.get(a.deploymentId);
       if (!d || d.connectorId !== c._id || d.ownerId !== c.ownerId)
         throw new Error("Deployment not found");
+      await consumeAccountLimit(ctx, c.ownerId, "session/job creations", 60);
       return ctx.db.insert("conversations", {
         ownerId: c.ownerId,
         connectorId: c._id,
@@ -270,6 +273,7 @@ export const write = internalMutation({
       .take(30);
     if (jobs.some((j) => !terminal(j.status)))
       throw new Error("Conversation has an active job");
+    await consumeAccountLimit(ctx, c.ownerId, "session/job creations", 60);
     const id = await ctx.db.insert("workspaceJobs", {
       ownerId: c.ownerId,
       connectorId: c._id,

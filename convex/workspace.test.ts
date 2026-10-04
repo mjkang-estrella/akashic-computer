@@ -4,7 +4,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 const modules = import.meta.glob("./**/*.*s");
-beforeEach(() => vi.stubEnv("ALLOWED_GITHUB_USER_ID", "54899956"));
+beforeEach(() => { vi.stubEnv("ALLOWED_GITHUB_USER_ID", "54899956"); vi.stubEnv("WORKSPACE_ACCESS_MODE", "github"); });
 async function setup() {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
@@ -16,7 +16,7 @@ async function setup() {
     });
     await ctx.db.insert("accountOwners", {
       userId: other,
-      githubId: "54899956",
+      githubId: "99999999",
     });
     const connector = await ctx.db.insert("connectors", {
       ownerId: owner,
@@ -64,6 +64,7 @@ describe("account workspace", () => {
   });
   it("denies accounts after allowlist changes", async () => {
     const { owner } = await setup();
+    vi.stubEnv("WORKSPACE_ACCESS_MODE", "single_owner");
     vi.stubEnv("ALLOWED_GITHUB_USER_ID", "another");
     await expect(owner.query(api.workspace.overview, {})).rejects.toThrow(
       /not allowed/,

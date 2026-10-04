@@ -1,3 +1,4 @@
+import { accountAllowed } from "./accountPolicy";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -9,12 +10,7 @@ export async function requireOwner(ctx: QueryCtx | MutationCtx) {
     .query("accountOwners")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .unique();
-  if (
-    !owner ||
-    !process.env.ALLOWED_GITHUB_USER_ID ||
-    owner.githubId !== process.env.ALLOWED_GITHUB_USER_ID
-  )
-    throw new Error("Account is not allowed.");
+  if (!accountAllowed(owner)) throw new Error("Account is not allowed.");
   return userId;
 }
 export async function ownedConversation(
@@ -41,7 +37,7 @@ export async function credentialConnector(
     .query("accountOwners")
     .withIndex("by_user", (q) => q.eq("userId", c.ownerId))
     .unique();
-  if (!owner || owner.githubId !== process.env.ALLOWED_GITHUB_USER_ID)
+  if (!accountAllowed(owner))
     throw new Error("Account is not allowed.");
   return c;
 }

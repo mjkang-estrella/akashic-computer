@@ -11,10 +11,15 @@ export const jobState = v.union(
   v.literal("interrupted"),
 );
 export const workspaceTables = {
+  accountLimits: defineTable({
+    ownerId: v.id("users"), kind: v.string(), windowStart: v.number(), count: v.number(),
+  }).index("by_owner_and_kind", ["ownerId", "kind"]),
   accountOwners: defineTable({
     userId: v.id("users"),
     githubId: v.string(),
-  }).index("by_user", ["userId"]),
+    status: v.optional(v.union(v.literal("active"), v.literal("suspended"))),
+    role: v.optional(v.union(v.literal("member"), v.literal("admin"))),
+  }).index("by_user", ["userId"]).index("by_github_id", ["githubId"]),
   enrollments: defineTable({
     ownerId: v.id("users"),
     codeHash: v.string(),
@@ -33,7 +38,8 @@ export const workspaceTables = {
     revokedAt: v.optional(v.number()),
   })
     .index("by_owner", ["ownerId"])
-    .index("by_credential", ["credentialHash"]),
+    .index("by_credential", ["credentialHash"])
+    .index("by_owner_and_revoked", ["ownerId", "revokedAt"]),
   devices: defineTable({
     ownerId: v.id("users"),
     connectorId: v.id("connectors"),

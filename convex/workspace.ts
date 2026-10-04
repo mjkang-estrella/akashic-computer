@@ -1,3 +1,4 @@
+import { consumeAccountLimit } from "./accountPolicy";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ownedConversation, requireOwner, terminal } from "./workspaceAccess";
@@ -107,6 +108,7 @@ export const createConversation = mutation({
     if (!d || d.ownerId !== ownerId) throw new Error("Deployment not found.");
     const c = await ctx.db.get(d.connectorId);
     if (!c || c.revokedAt) throw new Error("Connector is unavailable.");
+    await consumeAccountLimit(ctx, ownerId, "session/job creations", 60);
     return ctx.db.insert("conversations", {
       ownerId,
       connectorId: d.connectorId,
@@ -162,6 +164,7 @@ export const submitJob = mutation({
     const connector = await ctx.db.get(c.connectorId);
     if (!connector || connector.revokedAt)
       throw new Error("Connector is revoked.");
+    await consumeAccountLimit(ctx, ownerId, "session/job creations", 60);
     const id = await ctx.db.insert("workspaceJobs", {
       ownerId,
       connectorId: c.connectorId,
@@ -222,9 +225,9 @@ export const approveEnrollment = mutation({
       throw new Error("Code expired, invalid, or already used.");
     const existing = await ctx.db
       .query("connectors")
-      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
-      .take(30);
-    if (existing.length >= 30) throw new Error("Connector limit reached.");
+      .withIndex("by_owner_and_revoked", (q) => q.eq("ownerId", ownerId).eq("revokedAt", undefined))
+      .take(10);
+    if (existing.length >= 10) throw new Error("Connector limit reached.");
     const id = await ctx.db.insert("connectors", {
       ownerId,
       name: e.name,
@@ -239,11 +242,12 @@ export const beginEnrollment = mutation({
   args: { codeHash: v.string() },
   handler: async (ctx, { codeHash }) => {
     const ownerId = await requireOwner(ctx);
+    await consumeAccountLimit(ctx, ownerId, "enrollments", 10);
     if (!/^[a-f0-9]{64}$/.test(codeHash)) throw new Error("Invalid code.");
     const old = await ctx.db
       .query("enrollments")
       .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
-      .collect();
+      .order("desc").take(100);
     for (const e of old) if (!e.connectorId) await ctx.db.delete(e._id);
     return ctx.db.insert("enrollments", {
       ownerId,

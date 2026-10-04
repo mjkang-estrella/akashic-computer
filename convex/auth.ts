@@ -1,3 +1,4 @@
+import { githubAccountAllowed, accountAllowed } from "./accountPolicy";
 import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@convex-dev/auth/server";
 import type { MutationCtx } from "./_generated/server";
@@ -23,15 +24,17 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       const db = (ctx as MutationCtx).db;
       const githubId = String(args.profile.githubId ?? "");
       if (
-        !process.env.ALLOWED_GITHUB_USER_ID ||
-        githubId !== process.env.ALLOWED_GITHUB_USER_ID ||
+        !githubAccountAllowed(githubId) ||
         args.provider.id !== "github"
       )
         throw new Error(
-          "This personal workspace is not available for this account.",
+          "GitHub signup is not available for this account.",
         );
+      const linked = await db.query("accountOwners").withIndex("by_github_id", (q) => q.eq("githubId", githubId)).unique();
+      if (linked && !accountAllowed(linked)) throw new Error("Account is not allowed.");
+      if (linked && args.existingUserId && linked.userId !== args.existingUserId) throw new Error("GitHub identity conflict.");
       const userId =
-        args.existingUserId ??
+        linked?.userId ?? args.existingUserId ??
         (await db.insert("users", {
           name:
             typeof args.profile.name === "string"
@@ -45,7 +48,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         .query("accountOwners")
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .unique();
-      if (!owner) await db.insert("accountOwners", { userId, githubId });
+      if (owner && owner.githubId !== githubId) throw new Error("Account identity conflict.");
+      if (!owner) await db.insert("accountOwners", { userId, githubId, status: "active",
+        role: githubId === process.env.ALLOWED_GITHUB_USER_ID ? "admin" : "member" });
       return userId;
     },
     async beforeSessionCreation(ctx, { userId }) {
@@ -53,7 +58,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         .query("accountOwners")
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .unique();
-      if (!owner || owner.githubId !== process.env.ALLOWED_GITHUB_USER_ID)
+      if (!accountAllowed(owner))
         throw new Error("Account is not allowed.");
     },
   },
