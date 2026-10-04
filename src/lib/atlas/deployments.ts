@@ -98,7 +98,10 @@ export function deploymentMatchKey(d: DeploymentConfiguration) {
 }
 /** Profile bookkeeping and memory observations do not identify a different processor. */
 export function performanceComputer(p: ComputerProfile) {
-  return { platform: p.platform, cpu: p.cpu, devices: p.devices, backends: [...p.backends].sort(), environment: p.environment, topology: p.topology,
+  const environment = Object.fromEntries(Object.entries(p.environment ?? {}).filter(([, value]) => value?.trim())
+    .map(([key, value]) => [key, value!.trim()]));
+  return { platform: p.platform, cpu: p.cpu, devices: p.devices, backends: [...p.backends].sort(),
+    environment: Object.keys(environment).length ? environment : undefined, topology: p.topology?.trim() || undefined,
     pools: p.pools.map((pool) => ({ kind: pool.kind, deviceIds: [...pool.deviceIds].sort() })) };
 }
 export function decimalGbToBytes(value: string): number { return Math.round(Number(value) * 1e9); }

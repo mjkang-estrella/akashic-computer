@@ -53,6 +53,8 @@ describe("evidence boundaries", () => {
     b.computer.source = "manual"; b.computer.observedAt = 123;
     b.computer.pools[0].label = "My RAM"; b.computer.pools[0].usableBytes = 125 * 2 ** 30;
     expect(deploymentMatchKey(a)).toBe(deploymentMatchKey(b));
+    b.computer.environment = { os: undefined, kernel: "  " }; b.computer.topology = "";
+    expect(deploymentMatchKey(a)).toBe(deploymentMatchKey(b));
     b.computer.environment = { driver: "Different driver" };
     expect(deploymentMatchKey(a)).not.toBe(deploymentMatchKey(b));
     expect(workloadSchema.parse({ ...a.workload, totalMemoryBytes: decimalGbToBytes("32.2"), reserveBytes: decimalGbToBytes("8.2") }))

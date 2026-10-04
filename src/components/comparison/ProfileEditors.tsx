@@ -28,7 +28,7 @@ export function ComputerEditor({ profile, onChange }: { profile: ComputerProfile
       pools: [{ ...(pool ?? { id: "memory", label: "Memory", deviceIds: [] }), kind: e.target.value as "host" | "unified" | "device" }, ...profile.pools.slice(1)] })}>
       <option value="host">Host RAM</option><option value="unified">Unified/shared</option><option value="device">Discrete GPU</option>
     </select></label>
-    <label>Topology<input value={profile.topology ?? ""} maxLength={500} placeholder="Unknown" onChange={(e) => onChange({ ...profile, topology: e.target.value, source: "manual" })} /></label>
+    <label>Topology<input value={profile.topology ?? ""} maxLength={500} placeholder="Unknown" onChange={(e) => onChange({ ...profile, topology: e.target.value || undefined, source: "manual" })} /></label>
     <label>CPU<input value={profile.cpu ?? ""} onChange={(e) => onChange({ ...profile, cpu: e.target.value || undefined, source: "manual" })} /></label>
     <fieldset className="col-span-full"><legend>Available backends</legend><div className="flex flex-wrap gap-4">
       {(["vulkan", "cuda", "rocm", "metal", "cpu"] as const).map((backend) => <label className="flex min-h-11 items-center gap-2" key={backend}>
@@ -62,8 +62,8 @@ export function WorkloadEditor({ profile, onChange }: { profile: WorkloadProfile
     <label>Total memory ceiling (GB)<input type="number" min="1" step="1" value={profile.totalMemoryBytes / 1e9}
       onChange={(e) => { if (Number(e.target.value) > 0) onChange({ ...profile, totalMemoryBytes: decimalGbToBytes(e.target.value) }); }} /><span className="text-xs text-muted">{memoryBytesLabel(profile.totalMemoryBytes)}</span></label>
     <label>Target context (tokens)<input type="number" min="1" value={profile.contextTokens}
-      onChange={(e) => onChange({ ...profile, contextTokens: Number(e.target.value) })} /></label>
-    <label>Concurrency<input type="number" min="1" max="256" value={profile.concurrency} onChange={(e) => onChange({ ...profile, concurrency: Number(e.target.value) })} /></label>
+      onChange={(e) => { const n = Number(e.target.value); if (Number.isSafeInteger(n) && n > 0 && n <= 16777216) onChange({ ...profile, contextTokens: n }); }} /></label>
+    <label>Concurrency<input type="number" min="1" max="256" value={profile.concurrency} onChange={(e) => { const n = Number(e.target.value); if (Number.isSafeInteger(n) && n > 0 && n <= 256) onChange({ ...profile, concurrency: n }); }} /></label>
     <label>Thinking<select value={profile.thinking} onChange={(e) => onChange({ ...profile, thinking: e.target.value as WorkloadProfile["thinking"] })}>
       <option value="on">On</option><option value="off">Off</option><option value="unknown">Unknown</option>
     </select></label>
