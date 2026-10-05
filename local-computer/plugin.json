@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "akashic-local",
+  "version": "0.4.0",
+  "description": "Model discovery, connected computers, and independent local AI conversations.",
+  "author": {
+    "name": "MJ Kang"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Akashic Computer",
+        "shortDescription": "Your models, your computers",
+        "longDescription": "Open a local workspace, chat directly with a LAN model, and delegate bounded read-only fleet tasks. Local configuration and the running controller are required.",
+        "developerName": "MJ Kang",
+        "category": "Developer tools",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": "Open Akashic Computer."
+      }
+    }
+  }
+}

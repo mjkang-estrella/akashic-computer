@@ -1,3 +1,4 @@
+import { storeArtifactBuilds } from "./artifactBuilds";
 import {
   internalAction,
   internalMutation,
@@ -560,6 +561,7 @@ export const applyRepoResult = internalMutation({
           .query("catalogEntries")
           .withIndex("by_slug", (q) => q.eq("slug", payload!.slug))
           .unique();
+    await storeArtifactBuilds(ctx, payload.slug, parsed.builds ?? [], args.now);
     const publicPayload = clean(payload);
     const publicChanged = !existingEntry || !convexValuesEqual(existingEntry.payload, publicPayload);
     const sourceRepos = payload.artifacts.map((artifact) => artifact.repo);

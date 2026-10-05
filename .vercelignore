@@ -1,0 +1,11 @@
+.env*
+!.env.example
+node_modules/
+local-computer/node_modules/
+local-computer/dist/
+local-computer/.local/
+output/
+.playwright-cli/
+.gstack/
+.impeccable/live/
+.git/

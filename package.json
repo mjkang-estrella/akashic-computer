@@ -12,14 +12,19 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@convex-dev/auth": "^0.0.96",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
     "acorn": "^8.15.0",
     "convex": "^1.45.0",
-    "next": "^16.3.3",
+    "next": "^16.3.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "yaml": "^2.9.0"
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "yaml": "^2.9.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -29,8 +34,9 @@
     "@types/react-dom": "^19.2.5",
     "convex-test": "^0.0.56",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.3",
+    "eslint-config-next": "^16.3.8",
     "tailwindcss": "^4.3.3",
+    "tsx": "4.20.6",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

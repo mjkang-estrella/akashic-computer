@@ -74,6 +74,7 @@ export function publishableEntry(entry: ModelEntry): PublishedCatalogEntry {
 }
 
 export function catalogSummary(entry: PublishedCatalogEntry): PublishedCatalogSummary {
+  entry = withoutKey(entry as PublishedCatalogEntry & { recipeReferences?: unknown[] }, "recipeReferences");
   const summary = withoutKey(
     withoutKey(
       withoutKey(

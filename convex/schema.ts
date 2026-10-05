@@ -1,5 +1,10 @@
+import { comparisonTables } from "./comparisonSchema";
+import { evidenceValue } from "./comparisonValues";
+import { buildFields } from "./artifactValues";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
+import { workspaceTables } from "./workspaceSchema";
 import { publishedCatalogEntryValue, publishedCatalogSummaryValue } from "./catalogValues";
 
 const sourceFields = {
@@ -10,6 +15,13 @@ const sourceFields = {
 };
 
 export default defineSchema({
+  ...comparisonTables,
+  artifactBuilds: defineTable({
+    ...buildFields, modelSlug: v.string(), observedAt: v.number(), sourceRepositoryId: v.optional(v.id("sourceRepositories")),
+  }).index("by_key", ["key"]).index("by_repo_and_revision", ["repo", "revision"])
+    .index("by_model", ["modelSlug"]),
+  ...authTables,
+  ...workspaceTables,
   modelFamilies: defineTable({
     slug: v.string(),
     name: v.string(),
@@ -90,6 +102,7 @@ export default defineSchema({
     .index("by_slug", ["slug"]),
 
   artifacts: defineTable({
+    aliases: v.optional(v.array(v.string())),
     variantId: v.id("modelVariants"),
     huggingFaceRepo: v.string(),
     format: v.string(),
@@ -202,32 +215,41 @@ export default defineSchema({
     .index("by_model_and_occurred_at", ["modelSlug", "occurredAt"]),
 
   runReports: defineTable({
+    schemaVersion: v.optional(v.literal(2)), ownerId: v.optional(v.id("users")),
+    externalId: v.optional(v.string()), buildKey: v.optional(v.string()),
+    evidence: v.optional(evidenceValue), publicEvidence: v.optional(evidenceValue),
+    consentAt: v.optional(v.number()),
     reportId: v.string(),
     modelSlug: v.string(),
     artifactRepo: v.string(),
     recipeUpstreamId: v.optional(v.string()),
     recipeSourceSha: v.optional(v.string()),
-    hardwareProfile: v.string(),
-    runtime: v.string(),
-    runtimeVersion: v.string(),
+    hardwareProfile: v.optional(v.string()),
+    runtime: v.optional(v.string()),
+    runtimeVersion: v.optional(v.string()),
     testedContextTokens: v.optional(v.number()),
     concurrency: v.optional(v.number()),
     peakMemoryGb: v.optional(v.number()),
     throughputTokensPerSecond: v.optional(v.number()),
-    verificationStatus: v.union(v.literal("measured"), v.literal("reproduced")),
-    testedAt: v.number(),
-    notes: v.string(),
+    verificationStatus: v.optional(v.union(v.literal("measured"), v.literal("reproduced"))),
+    testedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
     evidenceUrl: v.optional(v.string()),
     published: v.boolean(),
     updatedAt: v.number(),
   })
     .index("by_report_id", ["reportId"])
     .index("by_model_and_published", ["modelSlug", "published"])
-    .index("by_artifact_repo", ["artifactRepo"]),
+    .index("by_artifact_repo", ["artifactRepo"])
+    .index("by_owner_and_external_id", ["ownerId", "externalId"])
+    .index("by_build_and_published", ["buildKey", "published"])
+    .index("by_owner_and_build", ["ownerId", "buildKey"])
+    .index("by_owner_and_model", ["ownerId", "modelSlug"])
+    .index("by_published_and_consent", ["published", "consentAt"]),
 
   monitoredSources: defineTable({
     owner: v.string(),
-    ownerKey: v.string(),
+    ownerKey: v.optional(v.string()),
     displayName: v.string(),
     role: v.union(
       v.literal("creator"),
@@ -249,6 +271,15 @@ export default defineSchema({
     .index("by_enabled", ["enabled"]),
 
   sourceRepositories: defineTable({
+    ingestionVersion: v.optional(v.number()),
+    lastMissingAuditId: v.optional(v.string()),
+    weightDatePolicyVersion: v.optional(v.number()),
+    cardData: v.optional(v.any()),
+    config: v.optional(v.any()),
+    aliases: v.optional(v.array(v.string())),
+    baseModels: v.optional(v.array(v.string())),
+    files: v.optional(v.array(v.any())),
+    tags: v.optional(v.array(v.string())),
     repoId: v.string(),
     repoName: v.string(),
     owner: v.string(),
@@ -280,6 +311,7 @@ export default defineSchema({
     .index("by_owner", ["owner"]),
 
   webhookEvents: defineTable({
+    payload: v.optional(v.any()),
     dedupeKey: v.string(),
     repoId: v.string(),
     repoName: v.string(),
@@ -306,7 +338,10 @@ export default defineSchema({
     .index("by_status_and_received", ["status", "receivedAt"]),
 
   syncRuns: defineTable({
-    kind: v.union(v.literal("webhook"), v.literal("audit")),
+    auditVersion: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    completedSourceOwners: v.optional(v.array(v.string())),
+    kind: v.union(v.literal("webhook"), v.literal("audit"), v.literal("seed")),
     sourceOwner: v.optional(v.string()),
     status: v.union(
       v.literal("running"),
@@ -373,7 +408,7 @@ export default defineSchema({
   catalogSnapshotChunks: defineTable({
     snapshotKey: v.string(),
     chunk: v.number(),
-    entries: v.array(publishedCatalogSummaryValue),
+    entries: v.array(v.union(publishedCatalogSummaryValue, publishedCatalogEntryValue)),
   }).index("by_snapshot_and_chunk", ["snapshotKey", "chunk"]),
 
   catalogSnapshotState: defineTable({

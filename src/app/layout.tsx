@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, STIX_Two_Text } from "next/font/google";
-import { AtlasShell } from "@/components/atlas/AtlasShell";
-import { CatalogProvider } from "@/components/atlas/CatalogProvider";
+import { ApplicationShell } from "@/components/ApplicationShell";
+import { AppProviders } from "@/components/AppProviders";
+import "@/components/workspace/workspace.css";
 import "./globals.css";
+import "@/components/comparison/comparison.css";
 
 const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",
@@ -23,19 +25,19 @@ const stixTwo = STIX_Two_Text({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://akashic.computer"),
-  title: "Akashic",
+  title: "Akashic Computer",
   description:
     "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
   openGraph: {
-    title: "Akashic",
+    title: "Akashic Computer",
     description:
       "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
-    siteName: "Akashic",
+    siteName: "Akashic Computer",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Akashic",
+    title: "Akashic Computer",
     description:
       "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
   },
@@ -52,9 +54,9 @@ export default function RootLayout({
       className={`${plexSans.variable} ${plexMono.variable} ${stixTwo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <CatalogProvider>
-          <AtlasShell>{children}</AtlasShell>
-        </CatalogProvider>
+        <AppProviders>
+          <ApplicationShell>{children}</ApplicationShell>
+        </AppProviders>
       </body>
     </html>
   );

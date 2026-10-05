@@ -67,7 +67,15 @@ npm run build
 npm run test:e2e
 ```
 
+## Personal local workspace
+
+The [Akashic Computer companion](local-computer/README.md) connects your LAN fleet to the signed-in website and desktop MCP App. Public model discovery remains at the homepage. Account conversations and job progress sync through Convex; inference runs on your hardware. Existing device-only sessions stay local.
+
+See [connected workspace setup](docs/connected-workspace.md) for GitHub authentication, enrollment, deployment flags, and rollback.
+
 ## Planning Docs
+
+The optional [deployment comparison workflow](docs/deployment-comparison.md) adds exact quantized files, component memory estimates, GitHub account profiles, private KLD/Top-1 and performance imports, saved decisions and export-only pinned recipes. Enable it with `NEXT_PUBLIC_DEPLOYMENT_COMPARISON=true` after preparing the backend. Public signup is separately controlled by the server's `WORKSPACE_ACCESS_MODE=github`. Automated benchmarking is deferred.
 
 - `PRODUCT.md`
 - `DESIGN.md`

@@ -22,6 +22,8 @@ interconnect, runtime support or offloading. No budget produces a confirmed
 runtime-fit verdict. A budget below the weight estimate establishes only a
 weight deficit. Repository-level GGUF estimates are not exact file estimates.
 
+The optional deployment comparison uses revision-pinned file/shard manifests and byte counts beneath these repositories. Hybrid KV estimates count growing attention layers and independent cache precision. Recurrent state, draft state, runtime workspace and OS reserve remain separate; unknown components prevent a total-memory verdict. See [deployment comparison](deployment-comparison.md) for private evidence imports, reference-scoped KLD/Top-1, saved profiles and rollout details.
+
 Full detail hydration preserves original trust, confidence, memory bounds and
 benchmark values. Comparison fetches only the selected models' details, not the
 lossy catalog summaries. Equal memory bounds render as one value. Missing deltas

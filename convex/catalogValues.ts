@@ -1,3 +1,4 @@
+import { artifactBuildValue } from "./artifactValues";
 import { v } from "convex/values";
 
 export const benchKeyValue = v.union(
@@ -82,6 +83,7 @@ const benchmarkReferenceValue = v.object({
 const vramEstimateValue = v.object({
   weightGb: v.number(),
   kvCacheGb: v.number(),
+  kvCacheBytes: v.optional(v.number()),
   kvCacheDtype: v.literal("BF16"),
   contextTokens: v.number(),
   concurrency: v.literal(1),
@@ -108,6 +110,7 @@ const ingestionRepoValue = v.object({
 });
 
 const parsedIngestionRepoValue = v.object({
+  builds: v.optional(v.array(artifactBuildValue)),
   repo: ingestionRepoValue,
   format: v.string(),
   modelStem: v.string(),
@@ -121,7 +124,7 @@ const parsedIngestionRepoValue = v.object({
   minVramGb: v.union(v.number(), v.null()),
   recVramGb: v.union(v.number(), v.null()),
   vramEstimate: v.union(vramEstimateValue, v.null()),
-  kinds: v.array(v.union(v.literal("mac"), v.literal("cpu"), v.literal("cuda"), v.literal("dgx"))),
+  kinds: v.array(v.union(v.literal("mac"), v.literal("cpu"), v.literal("cuda"), v.literal("dgx"), v.literal("generic"))),
   runtimes: v.array(v.string()),
   benchmarkRows: v.array(v.object({
     name: v.string(),
@@ -143,7 +146,7 @@ export const publishedArtifactValue = v.object({
   format: v.string(),
   trust: v.union(v.literal("official"), v.literal("vendor"), v.literal("community")),
   confidence: v.union(v.literal("verified"), v.literal("inferred"), v.literal("needs_review")),
-  kinds: v.array(v.union(v.literal("mac"), v.literal("cpu"), v.literal("cuda"), v.literal("dgx"))),
+  kinds: v.array(v.union(v.literal("mac"), v.literal("cpu"), v.literal("cuda"), v.literal("dgx"), v.literal("generic"))),
   runtimes: v.array(v.string()),
   minVramGb: v.number(),
   recVramGb: v.number(),
@@ -308,6 +311,9 @@ const runReportValue = v.object({
 });
 
 export const publishedCatalogEntryValue = v.object({
+  // Legacy local snapshots used this field before deploymentRecipes. Preserve
+  // their source evidence; current readers and writers use deploymentRecipes.
+  recipeReferences: v.optional(v.array(v.any())),
   ...summaryFields,
   artifacts: v.array(publishedArtifactValue),
   release: v.object({

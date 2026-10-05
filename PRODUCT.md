@@ -10,6 +10,8 @@ Akashic Computer primarily serves people who are curious about running open-weig
 
 The primary workflow is to discover a model family, understand the available releases and variants, inspect their artifacts, and then determine which options can run within a generic VRAM budget.
 
+An optional **Compare for my computer** workflow lets experienced users retain hardware and workload constraints, compare exact deployment configurations, and save a justified choice. Available KLD/Top-1 fidelity reports and base-model capability evidence are useful without exhaustive per-quantization benchmarks. Unknown measurements remain visible. This complements discovery and does not produce a universal best-model score.
+
 ## Product Purpose
 
 Akashic Computer is a discovery atlas for open-weight models. It organizes the ecosystem into a legible hierarchy: family, release, size, variant, and artifact. It presents benchmark evidence, provenance, runtime compatibility, and memory requirements without making subjective recommendations.

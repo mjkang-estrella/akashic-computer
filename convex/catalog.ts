@@ -115,7 +115,9 @@ export const listPublished = query({
     ]);
     if (!snapshotState) throw new Error("Published catalog snapshot is not initialized");
     return {
-      entries: assertCatalogBound(chunks.flatMap((chunk) => chunk.entries)),
+      entries: assertCatalogBound(chunks.flatMap((chunk) => chunk.entries).map(entry =>
+        "benchmarkRefs" in entry ? catalogSummary(entry as PublishedCatalogEntry) : entry,
+      )),
       syncedAt: snapshotState.syncedAt,
       revision: snapshotState.revision,
     };
