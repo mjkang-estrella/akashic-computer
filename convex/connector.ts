@@ -140,7 +140,15 @@ export const claim = internalMutation({
       .first();
     if (!j) return null;
     const d = await ctx.db.get(j.deploymentId);
-    if (!d || d.connectorId !== c._id || d.status !== "online") return null;
+    if (!d || d.connectorId !== c._id || d.status !== "online") {
+      // Retire this entry so the next poll can advance without scanning an unbounded queue.
+      await ctx.db.patch(j._id, {
+        status: "failed",
+        finishedAt: Date.now(),
+        error: "Deployment is unavailable. Restore the model and submit a new request.",
+      });
+      return null;
+    }
     const patch = {
       status: "running" as const,
       leaseId: a.leaseId,

@@ -154,6 +154,40 @@ describe("account workspace", () => {
       }),
     ).rejects.toThrow();
   });
+  it.each(["unavailable", "missing", "other-connector"])("retires a queued job with a %s deployment so later jobs can run", async (state) => {
+    const { t, owner, ids } = await setup();
+    const conversationId = await owner.mutation(api.workspace.createConversation, {
+      deploymentId: ids.deployment, mode: "chat",
+    });
+    const blocked = await owner.mutation(api.workspace.submitJob, {
+      conversationId, text: "First", key: "unavailable-first", maxTokens: 512,
+    });
+    const online = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("deployments", {
+        ownerId: ids.owner, connectorId: ids.connector, localId: "online-model",
+        model: "online-model", status: "online", observedAt: Date.now(),
+      });
+      if (state === "missing") await ctx.db.delete(ids.deployment);
+      else await ctx.db.patch(ids.deployment, state === "unavailable"
+        ? { status: "unavailable" } : { connectorId: ids.second });
+      return id;
+    });
+    const nextConversation = await owner.mutation(api.workspace.createConversation, {
+      deploymentId: online, mode: "chat",
+    });
+    const next = await owner.mutation(api.workspace.submitJob, {
+      conversationId: nextConversation, text: "Next", key: "online-next", maxTokens: 512,
+    });
+    const args = { credentialHash: "a".repeat(64), leaseId: "next-lease" };
+    expect(await t.mutation(internal.connector.claim, args)).toBeNull();
+    const failed = await t.run((ctx) => ctx.db.get(blocked));
+    expect(failed).toMatchObject({ status: "failed", error: expect.stringContaining("unavailable"), finishedAt: expect.any(Number) });
+    expect(failed?.leaseId).toBeUndefined();
+    const claimed = await t.mutation(internal.connector.claim, args);
+    expect(claimed?.job._id).toBe(next);
+    expect(claimed?.job.status).toBe("running");
+    expect(claimed?.reconcile).toBe(false);
+  });
   it("cancellation wins against late completion and completion is idempotent", async () => {
     const { t, owner, ids } = await setup();
     const id = await owner.mutation(api.workspace.createConversation, {
