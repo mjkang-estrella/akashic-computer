@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { ModelEntry } from "@/lib/atlas/models";
@@ -59,7 +59,13 @@ function absoluteHttpUrl(value: string | undefined): string | null {
 }
 
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
-  const [loadedAt] = useState(() => Date.now());
+  const [loadedAt, setLoadedAt] = useState(() => Math.floor(Date.now() / 60_000) * 60_000);
+  useEffect(() => {
+    const update = () => setLoadedAt(Math.floor(Date.now() / 60_000) * 60_000);
+    const timer = setInterval(update, 1_000);
+    window.addEventListener("focus", update);
+    return () => { clearInterval(timer); window.removeEventListener("focus", update); };
+  }, []);
   const result = useQuery(api.catalog.listPublished);
   const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 });
   const sourceHealth = useQuery(api.catalog.healthSummary, { now: loadedAt });

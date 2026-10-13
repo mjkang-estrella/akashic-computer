@@ -1,3 +1,4 @@
+import { patchCatalogEntry } from "./catalogSnapshot";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery, type ActionCtx } from "./_generated/server";
@@ -259,7 +260,7 @@ export const finalizeSync = internalMutation({
       const previous = payload.deploymentRecipes ?? [];
       if (equal(previous, matches)) continue;
       const nextPayload = { ...payload, deploymentRecipes: matches };
-      await ctx.db.patch(entry._id, { payload: clean(nextPayload) as typeof entry.payload });
+      await patchCatalogEntry(ctx, entry, { payload: clean(nextPayload) as typeof entry.payload });
       changedEntries += 1;
 
       if (!args.initialSync) {

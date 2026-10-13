@@ -1,3 +1,4 @@
+import { patchCatalogEntry } from "./catalogSnapshot";
 import { action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -88,7 +89,7 @@ export const upsertModelIntroduction = internalMutation({
     else await ctx.db.insert("modelIntroductions", value);
     if (!changed) return { slug: args.slug, changed: false };
 
-    await ctx.db.patch(document._id, { payload: { ...payload, introduction } });
+    await patchCatalogEntry(ctx, document, { payload: { ...payload, introduction } });
     const state = await ctx.db
       .query("catalogState")
       .withIndex("by_key", (q) => q.eq("key", "public"))

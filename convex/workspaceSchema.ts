@@ -36,6 +36,8 @@ export const workspaceTables = {
     name: v.string(),
     credentialHash: v.string(),
     lastSeenAt: v.number(),
+    deviceInventoryVersion: v.optional(v.number()),
+    deploymentInventoryVersion: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
   })
     .index("by_owner", ["ownerId"])
@@ -57,6 +59,7 @@ export const workspaceTables = {
     note: v.optional(v.string()),
   })
     .index("by_connector", ["connectorId"])
+    .index("by_connector_and_local", ["connectorId", "localId"])
     .index("by_owner", ["ownerId"]),
   deployments: defineTable({
     ownerId: v.id("users"),
@@ -68,6 +71,7 @@ export const workspaceTables = {
     artifactRepo: v.optional(v.string()),
   })
     .index("by_connector", ["connectorId"])
+    .index("by_connector_and_local", ["connectorId", "localId"])
     .index("by_owner", ["ownerId"]),
   conversations: defineTable({
     ownerId: v.id("users"),

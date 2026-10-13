@@ -353,3 +353,97 @@ describe("controller relocation", () => {
     );
   });
 });
+
+describe("workspace I/O isolation", () => {
+  it("keeps inventory documents unchanged on repeated and presence-only heartbeats", async () => {
+    const { t, owner, ids } = await setup();
+    const args = { credentialHash: "a".repeat(64), devices: [{ localId: "device", name: "Mac", role: "controller", state: "observed", status: "online", observedAt: 10 }],
+      deployments: [{ localId: "local-model", model: "local-model", status: "online" }] };
+    await t.mutation(internal.connector.heartbeat, args);
+    const before = await owner.query(api.workspace.inventory, {});
+    await t.mutation(internal.connector.heartbeat, { ...args, devices: [{ ...args.devices[0], observedAt: 20 }] });
+    expect(await owner.query(api.workspace.inventory, {})).toEqual(before);
+    await t.mutation(internal.connector.heartbeat, { credentialHash: args.credentialHash });
+    expect(await owner.query(api.workspace.inventory, {})).toEqual(before);
+    expect((await owner.query(api.workspace.connectorPresence, {}))[0].id).toBe(ids.connector);
+    await t.mutation(internal.connector.heartbeat, { ...args, devices: [], deployments: [] });
+    const removed = await owner.query(api.workspace.inventory, {});
+    expect(removed.devices[0].status).toBe("not-reported");
+    expect(removed.deployments[0].status).toBe("unavailable");
+  });
+
+  it("paginates history separately, protects new queries, and preserves output on keepalive", async () => {
+    const { t, owner, other, ids } = await setup();
+    const id = await owner.mutation(api.workspace.createConversation, { deploymentId: ids.deployment, mode: "chat" });
+    const jobId = await owner.mutation(api.workspace.submitJob, { conversationId: id, text: "hello", key: "io-isolation", maxTokens: 512 });
+    await t.mutation(internal.connector.claim, { credentialHash: "a".repeat(64), leaseId: "io-lease" });
+    await t.run(async ctx => {
+      for (let i = 0; i < 65; i++) await ctx.db.insert("workspaceMessages", {
+        ownerId: ids.owner, conversationId: id, jobId, role: "user", content: `history-${i}`, partial: false,
+      });
+    });
+    const paginationOpts = { cursor: null, numItems: 30 };
+    const first = await owner.query(api.workspace.conversationMessages, { id, paginationOpts });
+    expect(first.page).toHaveLength(30);
+    expect(first.isDone).toBe(false);
+    const second = await owner.query(api.workspace.conversationMessages, { id, paginationOpts: { cursor: first.continueCursor, numItems: 30 } });
+    expect(second.page).toHaveLength(30);
+    expect(new Set([...first.page, ...second.page].map(m => m._id)).size).toBe(60);
+    const progress = { credentialHash: "a".repeat(64), jobId, leaseId: "io-lease", sequence: 1,
+      content: "streamed text", events: [{ tool: "inspect", status: "done" }], rounds: 1, promptTokens: 2, completionTokens: 3, status: "running" as const };
+    await t.mutation(internal.connector.progress, progress);
+    const keepalive = { ...progress, content: undefined, events: undefined };
+    await t.mutation(internal.connector.progress, { ...keepalive, sequence: 2 });
+    expect((await owner.query(api.workspace.conversationProgress, { id })).progress[0]).toMatchObject({ content: "streamed text", events: progress.events });
+    expect(await owner.query(api.workspace.conversationMessages, { id, paginationOpts })).toEqual(first);
+    await expect(other.query(api.workspace.conversationMessages, { id, paginationOpts })).rejects.toThrow(/not found/);
+    await expect(other.query(api.workspace.conversationProgress, { id })).rejects.toThrow(/not found/);
+    await expect(other.query(api.workspace.conversationInfo, { id })).rejects.toThrow(/not found/);
+    expect((await other.query(api.workspace.inventory, {})).devices).toHaveLength(0);
+    await expect(t.mutation(internal.connector.progress, { ...keepalive, sequence: 3, status: "completed" })).rejects.toThrow(/Final output required/);
+    await t.mutation(internal.connector.progress, { ...progress, sequence: 3, status: "completed" });
+    expect((await owner.query(api.workspace.conversationProgress, { id })).progress).toHaveLength(0);
+    expect((await owner.query(api.workspace.conversationMessages, { id, paginationOpts })).page[0].content).toBe("streamed text");
+  });
+});
+
+it("presence-only heartbeats write one document regardless of inventory size", async () => {
+  const { t } = await setup();
+  const full = {
+    credentialHash: "a".repeat(64),
+    devices: Array.from({ length: 80 }, (_, i) => ({ localId: `device-${i}`, name: `Device ${i}`, role: "worker", state: "observed", status: "online" })),
+    deployments: [],
+  };
+  await t.mutation(internal.connector.heartbeat, full);
+  const presence = await t.mutation(async ctx => {
+    await ctx.runMutation(internal.connector.heartbeat, { credentialHash: full.credentialHash });
+    return ctx.meta.getTransactionMetrics();
+  });
+  expect(presence.documentsWritten.used).toBe(1);
+  expect(presence.documentsRead.used).toBeLessThan(5);
+  const unchanged = await t.mutation(async ctx => {
+    await ctx.runMutation(internal.connector.heartbeat, full);
+    return ctx.meta.getTransactionMetrics();
+  });
+  expect(unchanged.documentsWritten.used).toBe(1);
+});
+
+it("retires large historical inventories in pages without overwriting a newer report", async () => {
+  vi.useFakeTimers();
+  try {
+    const { t, ids } = await setup();
+    await t.run(async ctx => {
+      for (let i = 0; i < 205; i++) await ctx.db.insert("devices", {
+        ownerId: ids.owner, connectorId: ids.connector, localId: `old-${i}`, name: `Old ${i}`, role: "worker", state: "observed", status: "online",
+      });
+    });
+    await t.mutation(internal.connector.heartbeat, { credentialHash: "a".repeat(64), devices: [] });
+    await t.mutation(internal.connector.heartbeat, { credentialHash: "a".repeat(64), devices: [
+      { localId: "old-204", name: "Returned", role: "worker", state: "observed", status: "online" },
+    ] });
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    const devices = await t.run(ctx => ctx.db.query("devices").collect());
+    expect(devices.filter(d => d.status === "online").map(d => d.localId)).toEqual(["old-204"]);
+    expect(devices).toHaveLength(205);
+  } finally { vi.useRealTimers(); }
+});

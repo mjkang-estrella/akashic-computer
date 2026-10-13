@@ -403,7 +403,17 @@ export default defineSchema({
     lastCompletedAuditAt: v.optional(v.number()),
     lastDegradedAuditAt: v.optional(v.number()),
     snapshotRefreshScheduledAt: v.optional(v.number()),
+    summaryBackfillCursor: v.optional(v.union(v.string(), v.null())),
+    summariesReady: v.optional(v.boolean()),
   }).index("by_key", ["key"]),
+
+  catalogSummaries: defineTable({
+    slug: v.string(), bucket: v.number(), payload: publishedCatalogSummaryValue,
+  }).index("by_slug", ["slug"]).index("by_bucket", ["bucket"]),
+
+  catalogSummaryCounts: defineTable({ key: v.string(), count: v.number() }).index("by_key", ["key"]),
+
+  catalogDirtyBuckets: defineTable({ bucket: v.number() }).index("by_bucket", ["bucket"]),
 
   catalogSnapshotChunks: defineTable({
     snapshotKey: v.string(),
@@ -413,6 +423,8 @@ export default defineSchema({
 
   catalogSnapshotState: defineTable({
     key: v.string(),
+    snapshotKey: v.optional(v.string()),
+    chunkCount: v.optional(v.number()),
     revision: v.string(),
     syncedAt: v.number(),
   }).index("by_key", ["key"]),

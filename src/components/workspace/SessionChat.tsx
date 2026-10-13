@@ -130,6 +130,22 @@ export function SessionChat({
                 </p>
               </div>
             )}
+            {p.onLoadEarlier &&
+              (p.historyStatus === "CanLoadMore" ||
+                p.historyStatus === "LoadingMore") && (
+                <button
+                  className="ac-secondary"
+                  disabled={p.historyStatus === "LoadingMore"}
+                  onClick={() => {
+                    followOutput.current = false;
+                    p.onLoadEarlier?.();
+                  }}
+                >
+                  {p.historyStatus === "LoadingMore"
+                    ? "Loading…"
+                    : "Load earlier messages"}
+                </button>
+              )}
             {p.messages.map((m) => (
               <article
                 className={`ac-message ${m.role}`}

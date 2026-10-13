@@ -117,3 +117,76 @@ test("a native local job blocks cloud claims until the shared runner is free", a
   await relay.tick();
   assert.equal(called, 0);
 });
+
+test("unchanged inventories become presence-only heartbeats and failures retry inventory", async (t) => {
+  const calls = [];
+  let fail = false;
+  const { relay, runner } = setup(t, async (op, args) => {
+    calls.push({ op, args });
+    if (fail) throw new Error("offline");
+    return { connectorId: "connector" };
+  });
+  runner.active = { id: "local" };
+  relay.lastHeartbeat = 0;
+  await relay.tick();
+  assert.ok(calls[0].args.deployments);
+  relay.lastHeartbeat = 0;
+  await relay.tick();
+  assert.equal(calls[1].args.deployments, undefined);
+  assert.equal(calls[1].args.devices, undefined);
+  relay.fleet.models = async () => ({ status: "online", models: [{ id: "changed" }] });
+  relay.lastHeartbeat = 0;
+  fail = true;
+  await relay.tick();
+  fail = false;
+  relay.nextAttempt = 0;
+  await relay.tick();
+  assert.equal(calls.at(-1).args.deployments[0].model, "changed");
+});
+
+test("progress batches changed text, omits unchanged output on keepalive, and flushes completion", async (t) => {
+  const calls = [];
+  const { relay, store } = setup(t, async (op, args) => {
+    calls.push({ op, args });
+    return { status: args.status };
+  });
+  const job = store.enqueue(store.createSession().id, "hi", "batch-test", 512,
+    { cloudJobId: "job", cloudLeaseId: "lease" });
+  job.status = "running";
+  job.output = "first";
+  await relay.report(job);
+  job.output = "first second";
+  await relay.report(job);
+  assert.equal(calls.length, 1);
+  relay.reported.get(job.id).at -= 2000;
+  await relay.report(job);
+  assert.equal(calls[1].args.content, "first second");
+  relay.reported.get(job.id).at -= 5000;
+  await relay.report(job);
+  assert.equal(calls[2].args.content, undefined);
+  assert.equal(calls[2].args.events, undefined);
+  job.status = "succeeded";
+  await relay.report(job);
+  assert.equal(calls[3].args.content, "first second");
+  assert.equal(calls[3].args.status, "completed");
+  assert.equal(job.cloudCompleted, true);
+});
+
+test("a failed progress report does not acknowledge output", async (t) => {
+  let fail = true;
+  const calls = [];
+  const { relay, store } = setup(t, async (op, args) => {
+    calls.push({ op, args });
+    if (fail) throw new Error("offline");
+    return { status: args.status };
+  });
+  const job = store.enqueue(store.createSession().id, "hi", "retry-test", 512,
+    { cloudJobId: "job", cloudLeaseId: "lease" });
+  job.status = "running";
+  job.output = "full output";
+  await assert.rejects(relay.report(job), /offline/);
+  fail = false;
+  await relay.report(job);
+  assert.equal(calls[1].args.content, "full output");
+  assert.ok(calls[1].args.sequence > calls[0].args.sequence);
+});
