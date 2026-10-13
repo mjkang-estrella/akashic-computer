@@ -1,15 +1,29 @@
-# Zima controller migration
+# Zima controller deployment
 
 Akashic Computer's account relay moved from the Mac to `mj-zima` on October 1, 2026. The website uses outbound HTTPS through Convex. The controller reaches the existing two-Spark model service over LAN. The browsing device needs internet access, not access to the home LAN or VPN. Zima and the model service must remain on and connected.
+
+## Current runtime (verified October 13, 2026)
+
+The controller runs **inside Proxmox VM 104, `akashic`**, hosted by `mj-zima` (`192.168.0.226`). The Proxmox host itself has no Akashic service or controller state. Paths and user-service commands below refer to the guest, not the host. The account displays this controller as **Akashic VM on ZimaBoard**.
+
+Administration from the development machine uses the host's scoped guest-agent sudo permissions. For example:
+
+```sh
+ssh mj-zima 'sudo -n /usr/sbin/qm guest exec 104 -- /usr/sbin/runuser -u mj-kang -- env XDG_RUNTIME_DIR=/run/user/1000 systemctl --user status akashic-computer.service --no-pager'
+```
+
+The guest has Node at `/opt/node24/bin/node`, and user lingering is already enabled inside the guest. Enabling lingering or installing a second controller on the Proxmox host is unnecessary. No new pairing is needed when updating this installation.
 
 ## Installed state
 
 - Linux user service: `akashic-computer.service`, enabled with user lingering already enabled.
-- Release: `/srv/projects/akashic-computer/releases/0.4.0-20261001`.
+- Release: `/srv/projects/akashic-computer/releases/0.4.0-20261013-a7a9af0` (database I/O optimizations).
+- Previous release retained: `/srv/projects/akashic-computer/releases/0.4.0-20261001`.
+- Private pre-update backup: `~/.local/share/akashic-local/release-backup-20261013-a7a9af0`.
 - Current release link: `/srv/projects/akashic-computer/current`.
 - Inventory snapshot: `/srv/projects/akashic-computer/fleet/inventory/hosts.json`.
 - Private controller state: `/home/mj-kang/.local/share/akashic-local`, directory mode 700, configuration and credentials mode 600.
-- Controller identity: `mj-zima`, displayed as `ZimaBoard controller`.
+- Controller identity: `mj-zima`, displayed as `Akashic VM on ZimaBoard`.
 - Mac companion: existing `computer.akashic.local` LaunchAgent with `relayEnabled: false`. Its local API and installed plugin remain available as clients. Existing device-only conversations remain on the Mac and are read-only in this mode.
 
 The same cloud connector identity and credential were retained, preserving account conversations and deployment IDs. Two completed cloud execution receipts moved to Zima; three device-only conversations stayed on the Mac. SSH keys were not copied. The fleet inventory is a snapshot, with private overrides retaining Spark 3's retired state and the active TP2 group.
@@ -18,7 +32,7 @@ The prior `This Mac` device remains a historical `not-reported` observation. Zim
 
 ## Operations
 
-On Zima:
+Inside VM 104:
 
 ```sh
 systemctl --user status akashic-computer.service
@@ -40,7 +54,7 @@ Never enable two relays with the same connector credential.
 
 The pre-cutover Mac files are saved under `~/.local/share/akashic-local/migration-backup-20261001-131924`. They are recovery evidence, not a substitute for receipts produced after cutover.
 
-## Verification
+## Historical migration verification (October 1)
 
 - Root tests: 80 passed. Companion tests: 22 passed. Both TypeScript checks, root lint, and both production builds passed.
 - Production Convex deployment succeeded with an additive message-by-job index.
