@@ -49,6 +49,8 @@ export class CloudRelay {
     this.lastClaim = 0;
     this.lastError = null;
     this.busy = false;
+    this.inventorySignature = null;
+    this.reported = new Map();
   }
   start() {
     this.timer = setInterval(() => void this.tick(), 1000);
@@ -101,13 +103,24 @@ export class CloudRelay {
             ? { artifactRepo: this.config.artifactRepo }
             : {}),
         }));
+        const inventorySignature = JSON.stringify({
+          pairing: this.paired(),
+          devices: devices
+            .map((device) => ({ ...device, observedAt: undefined }))
+            .sort((a, b) => a.localId.localeCompare(b.localId)),
+          deployments: [...deployments].sort((a, b) =>
+            a.localId.localeCompare(b.localId),
+          ),
+        });
         await this.request("heartbeat", {
-          devices,
-          deployments,
+          ...(inventorySignature !== this.inventorySignature
+            ? { devices, deployments }
+            : {}),
           ...(this.config.controllerName
             ? { name: this.config.controllerName }
             : {}),
         });
+        this.inventorySignature = inventorySignature;
         this.lastHeartbeat = Date.now();
         this.failures = 0;
         this.nextAttempt = 0;
@@ -206,6 +219,31 @@ export class CloudRelay {
         : j.status === "queued"
           ? "running"
           : j.status;
+    const final = ["completed", "failed", "cancelled", "interrupted"].includes(
+      status,
+    );
+    const events = j.events
+      .slice(-36)
+      .map((e) => ({ tool: e.tool, status: e.status }));
+    const eventSignature = JSON.stringify(events);
+    const signature = JSON.stringify([
+      j.output,
+      eventSignature,
+      j.rounds,
+      j.usage,
+      status,
+      j.error,
+    ]);
+    const previous = this.reported.get(j.id);
+    const now = Date.now();
+    // Batch changed output at 2 seconds; retain cancellation checks and lease renewal
+    // at 5 seconds even when inference has not produced any new text.
+    if (
+      !final &&
+      previous &&
+      now - previous.at < (signature === previous.signature ? 5000 : 2000)
+    )
+      return;
     const sequence = (j.cloudSequence || 0) + 1;
     j.cloudSequence = sequence;
     this.store.save();
@@ -213,15 +251,21 @@ export class CloudRelay {
       jobId: j.cloudJobId,
       leaseId: j.cloudLeaseId,
       sequence,
-      content: j.output,
-      events: j.events
-        .slice(-36)
-        .map((e) => ({ tool: e.tool, status: e.status })),
+      ...(final || !previous || previous.output !== j.output
+        ? { content: j.output }
+        : {}),
+      ...(!previous || previous.events !== eventSignature ? { events } : {}),
       rounds: j.rounds,
       promptTokens: j.usage.prompt_tokens,
       completionTokens: j.usage.completion_tokens,
       status,
       ...(j.error ? { error: j.error } : {}),
+    });
+    this.reported.set(j.id, {
+      at: now,
+      signature,
+      output: j.output,
+      events: eventSignature,
     });
     if (result.status === "cancelling") this.runner.cancel(j.id);
     if (
@@ -230,6 +274,7 @@ export class CloudRelay {
       )
     ) {
       if (["running", "queued"].includes(j.status)) this.runner.cancel(j.id);
+      this.reported.delete(j.id);
       j.cloudCompleted = true;
       this.store.save();
     }

@@ -8,11 +8,6 @@
  * @module
  */
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
 import type * as accountPolicy from "../accountPolicy.js";
 import type * as admin from "../admin.js";
 import type * as artifactBuilds from "../artifactBuilds.js";
@@ -36,6 +31,7 @@ import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as huggingFaceClient from "../huggingFaceClient.js";
 import type * as intelligence from "../intelligence.js";
+import type * as ioMetrics from "../ioMetrics.js";
 import type * as sourceConfig from "../sourceConfig.js";
 import type * as sourceConfigSync from "../sourceConfigSync.js";
 import type * as sync from "../sync.js";
@@ -45,14 +41,12 @@ import type * as workspaceAccess from "../workspaceAccess.js";
 import type * as workspaceMigrations from "../workspaceMigrations.js";
 import type * as workspaceSchema from "../workspaceSchema.js";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
+
 declare const fullApi: ApiFromModules<{
   accountPolicy: typeof accountPolicy;
   admin: typeof admin;
@@ -77,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   huggingFaceClient: typeof huggingFaceClient;
   intelligence: typeof intelligence;
+  ioMetrics: typeof ioMetrics;
   sourceConfig: typeof sourceConfig;
   sourceConfigSync: typeof sourceConfigSync;
   sync: typeof sync;
@@ -86,11 +81,31 @@ declare const fullApi: ApiFromModules<{
   workspaceMigrations: typeof workspaceMigrations;
   workspaceSchema: typeof workspaceSchema;
 }>;
+
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
+
+export declare const components: {};

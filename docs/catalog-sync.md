@@ -12,6 +12,33 @@ larger SGLang monorepo. Revision comparisons make unchanged checks read-only.
 Changed revisions synchronize compact, versioned references without copying or
 regenerating launch commands.
 
+## Incremental snapshots and I/O diagnostics
+
+Every catalog write updates a compact `catalogSummaries` row in the same
+transaction. Changed summaries mark one of 128 stable slug-based buckets dirty.
+Snapshot publication reads only dirty buckets and rewrites only changed chunks;
+list responses sort by timestamp independently of bucket membership. Detail-only
+changes, such as introductions and reports, do not rewrite summary chunks.
+
+The first snapshot refresh after deploying this schema backfills summaries in
+pages of at most 100 rows, with a 1 MB read budget. It persists its cursor and
+schedules continuation automatically. The previous complete snapshot stays
+visible until the migration and publication finish. The next audit/update starts
+this automatically, or an operator can run the existing `admin:refreshCatalogSnapshot`
+action. New write paths must use the insert/patch/delete helpers in
+`convex/catalogSnapshot.ts`; direct database imports after migration require a
+controlled summary backfill before publication.
+
+Public health subscriptions use a shared minute timestamp that advances while
+the page is open, allowing visitors in the same minute to share query results.
+Time-derived health can lag a boundary by up to one minute.
+
+Set the Convex environment variable `LOG_DATABASE_IO=true` to log transaction
+bytes and documents read/written for snapshot publication and workspace I/O.
+The log payload contains counters and operation names, not catalog records,
+messages, or credentials. Leave it unset in normal operation; use the same
+fixtures/workloads before and after changes when comparing metrics.
+
 ## Production Setup
 
 1. Deploy the Convex functions.

@@ -37,9 +37,30 @@ New website conversations belong to the signed-in account. Prompts, final answer
 
 The local interface and MCP App share React components with the website. Choose **Account · this controller** to use the same cloud conversation/job records, or **Device only** to keep using existing local conversations. Historical device-only transcripts are not uploaded. MCP panel traffic still passes through its host, and explicit sharing sends the selected answer to ChatGPT.
 
-Only one inference request runs through a controller at a time across both local and account jobs. Cloud job IDs become persistent local idempotency keys. Leases identify the original execution and are never reassigned automatically. Reconnect first reconciles local receipts. A missing receipt produces an interrupted result rather than replay. Progress is reported in one-second batches; idle claims poll every five seconds and failures back off to thirty seconds.
+Only one inference request runs through a controller at a time across both local and account jobs. Cloud job IDs become persistent local idempotency keys. Leases identify the original execution and are never reassigned automatically. Reconnect first reconciles local receipts. A missing receipt produces an interrupted result rather than replay. Changed progress is reported at most every two seconds. Unchanged output is omitted from five-second lease/cancellation checks, and terminal results flush immediately. Idle claims poll every five seconds and failures back off to thirty seconds.
 
 Cancellation is requested in Convex and propagated to the local runner. Revoking a connector prevents further access and interrupts its cloud jobs. A disconnected process can learn about revocation only after reconnecting; the current agent has read-only tools. Closing the browser does not stop a running job.
+
+## Database I/O behavior
+
+Deploy the backend before upgrading the website and controller. The backend
+continues accepting older full-inventory heartbeats and full-output reports.
+New controllers send inventory on initial connection and meaningful changes;
+ordinary fifteen-second heartbeats update only controller presence. Failed
+uploads are retried without acknowledging the inventory/output locally.
+Device observation timestamps alone do not trigger inventory writes; use
+controller `lastSeenAt` for connection freshness. Missing historical inventory
+is retired in bounded, version-checked batches while retaining deployment IDs
+referenced by conversations.
+
+The website subscribes independently to inventory, controller presence,
+conversation metadata, paginated messages, and job progress. History loads 30
+messages at a time with a 1 MB read budget and a **Load earlier messages** control.
+Output changes do not reread message history. Existing combined read endpoints
+remain available for older clients.
+
+Optional `LOG_DATABASE_IO=true` on the Convex deployment logs transaction I/O
+counters for these paths. It does not log message bodies or credentials.
 
 ## Rollback and checks
 

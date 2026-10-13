@@ -1,6 +1,8 @@
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { convexValuesEqual } from "./catalogSnapshot";
+import { convexValuesEqual, MAX_CATALOG_ENTRIES, SUMMARY_BUCKETS, SUMMARY_SNAPSHOT_KEY, updateCatalogSummary } from "./catalogSnapshot";
+import { internal } from "./_generated/api";
+import { logIoMetrics } from "./ioMetrics";
 import {
   publishedCatalogEntryValue,
   publishedCatalogListValue,
@@ -16,9 +18,7 @@ import {
 } from "../src/lib/atlas/catalogHealth";
 
 const STATE_KEY = "public";
-const SNAPSHOT_CHUNK_SIZE = 24;
-const MAX_CATALOG_ENTRIES = 2_000;
-const MAX_SNAPSHOT_CHUNKS = Math.ceil(MAX_CATALOG_ENTRIES / SNAPSHOT_CHUNK_SIZE) + 1;
+const MAX_SNAPSHOT_CHUNKS = SUMMARY_BUCKETS + 1;
 const healthLevel = v.union(v.literal("healthy"), v.literal("degraded"), v.literal("stale"));
 
 const healthSummaryValue = v.object({
@@ -102,22 +102,16 @@ export const listPublished = query({
   args: {},
   returns: publishedCatalogListValue,
   handler: async (ctx) => {
-    const [chunks, snapshotState] = await Promise.all([
-      ctx.db
-        .query("catalogSnapshotChunks")
-        .withIndex("by_snapshot_and_chunk", (q) => q.eq("snapshotKey", STATE_KEY))
-        .order("asc")
-        .take(MAX_SNAPSHOT_CHUNKS),
-      ctx.db
-        .query("catalogSnapshotState")
-        .withIndex("by_key", (q) => q.eq("key", STATE_KEY))
-        .unique(),
-    ]);
+    const snapshotState = await ctx.db.query("catalogSnapshotState")
+      .withIndex("by_key", q => q.eq("key", STATE_KEY)).unique();
     if (!snapshotState) throw new Error("Published catalog snapshot is not initialized");
+    const chunks = await ctx.db.query("catalogSnapshotChunks")
+      .withIndex("by_snapshot_and_chunk", q => q.eq("snapshotKey", snapshotState.snapshotKey ?? STATE_KEY))
+      .take(MAX_SNAPSHOT_CHUNKS);
     return {
       entries: assertCatalogBound(chunks.flatMap((chunk) => chunk.entries).map(entry =>
         "benchmarkRefs" in entry ? catalogSummary(entry as PublishedCatalogEntry) : entry,
-      )),
+      )).sort((a, b) => b.timestamp - a.timestamp || a.slug.localeCompare(b.slug)),
       syncedAt: snapshotState.syncedAt,
       revision: snapshotState.revision,
     };
@@ -136,43 +130,44 @@ export const rebuildPublishedSnapshot = internalMutation({
       return { rebuilt: false, chunks: 0, changedChunks: 0 };
     }
 
-    const documents = assertCatalogBound(
-      await ctx.db.query("catalogEntries").take(MAX_CATALOG_ENTRIES + 1),
-    );
-    const entries = documents
-      .sort((a, b) => b.updatedAt - a.updatedAt || a.slug.localeCompare(b.slug))
-      .map((document) => catalogSummary(document.payload as PublishedCatalogEntry));
-    const nextChunks = Array.from(
-      { length: Math.ceil(entries.length / SNAPSHOT_CHUNK_SIZE) },
-      (_, index) => entries.slice(index * SNAPSHOT_CHUNK_SIZE, (index + 1) * SNAPSHOT_CHUNK_SIZE),
-    );
-    const existingChunks = await ctx.db
-      .query("catalogSnapshotChunks")
-      .withIndex("by_snapshot_and_chunk", (q) => q.eq("snapshotKey", STATE_KEY))
-      .take(MAX_SNAPSHOT_CHUNKS);
-    const existingByChunk = new Map(existingChunks.map((chunk) => [chunk.chunk, chunk]));
-    let changedChunks = 0;
-
-    for (let index = 0; index < nextChunks.length; index += 1) {
-      const nextEntries = nextChunks[index];
-      const existing = existingByChunk.get(index);
-      if (!existing) {
-        await ctx.db.insert("catalogSnapshotChunks", {
-          snapshotKey: STATE_KEY,
-          chunk: index,
-          entries: nextEntries,
-        });
-        changedChunks += 1;
-      } else if (!convexValuesEqual(existing.entries, nextEntries)) {
-        await ctx.db.patch(existing._id, { entries: nextEntries });
-        changedChunks += 1;
+    // One-time, resumable migration. Existing clients retain the previous complete
+    // snapshot while full documents are read in byte-bounded pages.
+    if (!catalogState.summariesReady) {
+      const page = await ctx.db.query("catalogEntries").paginate({
+        cursor: catalogState.summaryBackfillCursor ?? null,
+        numItems: 100, maximumBytesRead: 1_000_000,
+      });
+      for (const entry of page.page) await updateCatalogSummary(ctx, entry.slug, entry.payload);
+      await ctx.db.patch(catalogState._id, {
+        summaryBackfillCursor: page.isDone ? undefined : page.continueCursor,
+        summariesReady: page.isDone,
+      });
+      if (!page.isDone) {
+        await ctx.scheduler.runAfter(0, internal.catalog.rebuildPublishedSnapshot, args);
+        await logIoMetrics(ctx, "catalog.backfill");
+        return { rebuilt: false, chunks: 0, changedChunks: 0 };
       }
     }
-    for (const existing of existingChunks) {
-      if (existing.chunk >= nextChunks.length) {
-        await ctx.db.delete(existing._id);
-        changedChunks += 1;
+    const dirty = await ctx.db.query("catalogDirtyBuckets").take(SUMMARY_BUCKETS + 1);
+    let changedChunks = 0;
+    let chunkDelta = 0;
+    for (const marker of dirty) {
+      const rows = await ctx.db.query("catalogSummaries")
+        .withIndex("by_bucket", q => q.eq("bucket", marker.bucket)).take(MAX_CATALOG_ENTRIES + 1);
+      const entries = assertCatalogBound(rows).map(row => row.payload)
+        .sort((a, b) => a.slug.localeCompare(b.slug));
+      const existing = await ctx.db.query("catalogSnapshotChunks")
+        .withIndex("by_snapshot_and_chunk", q => q.eq("snapshotKey", SUMMARY_SNAPSHOT_KEY).eq("chunk", marker.bucket)).unique();
+      if (!entries.length) {
+        if (existing) { await ctx.db.delete(existing._id); changedChunks++; chunkDelta--; }
+      } else if (!existing) {
+        await ctx.db.insert("catalogSnapshotChunks", { snapshotKey: SUMMARY_SNAPSHOT_KEY, chunk: marker.bucket, entries });
+        changedChunks++; chunkDelta++;
+      } else if (!convexValuesEqual(existing.entries, entries)) {
+        await ctx.db.patch(existing._id, { entries });
+        changedChunks++;
       }
+      await ctx.db.delete(marker._id);
     }
 
     const snapshotState = await ctx.db
@@ -183,11 +178,22 @@ export const rebuildPublishedSnapshot = internalMutation({
       key: STATE_KEY,
       revision: catalogState.revision,
       syncedAt: catalogState.syncedAt,
+      snapshotKey: SUMMARY_SNAPSHOT_KEY,
+      chunkCount: (snapshotState?.chunkCount ?? 0) + chunkDelta,
     };
-    if (snapshotState) await ctx.db.patch(snapshotState._id, stateValue);
+    if (snapshotState) {
+      const previous = { ...snapshotState, _id: undefined, _creationTime: undefined };
+      if (!convexValuesEqual(previous, { ...stateValue, _id: undefined, _creationTime: undefined })) await ctx.db.patch(snapshotState._id, stateValue);
+    }
     else await ctx.db.insert("catalogSnapshotState", stateValue);
     await ctx.db.patch(catalogState._id, { snapshotRefreshScheduledAt: undefined });
-    return { rebuilt: true, chunks: nextChunks.length, changedChunks };
+    if (snapshotState && snapshotState.snapshotKey !== SUMMARY_SNAPSHOT_KEY) {
+      const legacy = await ctx.db.query("catalogSnapshotChunks")
+        .withIndex("by_snapshot_and_chunk", q => q.eq("snapshotKey", STATE_KEY)).take(MAX_SNAPSHOT_CHUNKS);
+      for (const chunk of legacy) await ctx.db.delete(chunk._id);
+    }
+    await logIoMetrics(ctx, "catalog.rebuildPublishedSnapshot");
+    return { rebuilt: true, chunks: stateValue.chunkCount, changedChunks };
   },
 });
 

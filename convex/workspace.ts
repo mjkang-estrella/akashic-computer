@@ -1,3 +1,6 @@
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
+import { workspaceTables } from "./workspaceSchema";
+import { logIoMetrics } from "./ioMetrics";
 import { consumeAccountLimit, accountIsAdmin } from "./accountPolicy";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
@@ -312,4 +315,73 @@ export const revokeConnector = mutation({
 export const accessPolicy = query({
   args: {}, returns: v.object({ signup: v.union(v.literal("github"), v.literal("single_owner")) }),
   handler: async () => ({ signup: process.env.WORKSPACE_ACCESS_MODE === "github" ? "github" as const : "single_owner" as const }),
+});
+
+// Separate subscriptions keep presence and output updates out of stable inventory/history.
+const messageDocument = v.object({
+  ...workspaceTables.workspaceMessages.validator.fields,
+  _id: v.id("workspaceMessages"), _creationTime: v.number(),
+});
+const jobDocument = v.object({
+  ...workspaceTables.workspaceJobs.validator.fields,
+  _id: v.id("workspaceJobs"), _creationTime: v.number(),
+});
+export const inventory = query({
+  args: {},
+  returns: v.object({
+    devices: v.array(v.object({ ...workspaceTables.devices.validator.fields, _id: v.id("devices"), _creationTime: v.number() })),
+    deployments: v.array(v.object({ ...workspaceTables.deployments.validator.fields, _id: v.id("deployments"), _creationTime: v.number() })),
+  }),
+  handler: async (ctx) => {
+    const ownerId = await requireOwner(ctx);
+    const [devices, deployments] = await Promise.all([
+      ctx.db.query("devices").withIndex("by_owner", q => q.eq("ownerId", ownerId)).take(200),
+      ctx.db.query("deployments").withIndex("by_owner", q => q.eq("ownerId", ownerId)).take(100),
+    ]);
+    await logIoMetrics(ctx, "workspace.inventory");
+    return { devices, deployments };
+  },
+});
+export const connectorPresence = query({
+  args: {},
+  returns: v.array(v.object({ id: v.id("connectors"), name: v.string(), lastSeenAt: v.number(), revoked: v.boolean() })),
+  handler: async (ctx) => {
+    const ownerId = await requireOwner(ctx);
+    const connectors = await ctx.db.query("connectors").withIndex("by_owner", q => q.eq("ownerId", ownerId)).take(30);
+    return connectors.map(c => ({ id: c._id, name: c.name, lastSeenAt: c.lastSeenAt, revoked: !!c.revokedAt }));
+  },
+});
+export const conversationInfo = query({
+  args: { id: v.id("conversations") },
+  returns: v.object({ ...workspaceTables.conversations.validator.fields, _id: v.id("conversations"), _creationTime: v.number() }),
+  handler: async (ctx, { id }) => ownedConversation(ctx, id, await requireOwner(ctx)),
+});
+export const conversationMessages = query({
+  args: { id: v.id("conversations"), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(messageDocument),
+  handler: async (ctx, { id, paginationOpts }) => {
+    await ownedConversation(ctx, id, await requireOwner(ctx));
+    const page = await ctx.db.query("workspaceMessages")
+      .withIndex("by_conversation", q => q.eq("conversationId", id)).order("desc")
+      .paginate({ ...paginationOpts, numItems: Math.min(30, paginationOpts.numItems), maximumBytesRead: 1_000_000 });
+    await logIoMetrics(ctx, "workspace.conversationMessages");
+    return page;
+  },
+});
+export const conversationProgress = query({
+  args: { id: v.id("conversations") },
+  returns: v.object({
+    jobs: v.array(jobDocument),
+    progress: v.array(v.object({ jobId: v.id("workspaceJobs"), content: v.string(), events: v.array(v.object({ tool: v.string(), status: v.string() })) })),
+  }),
+  handler: async (ctx, { id }) => {
+    await ownedConversation(ctx, id, await requireOwner(ctx));
+    const jobs = await ctx.db.query("workspaceJobs").withIndex("by_conversation", q => q.eq("conversationId", id)).order("desc").take(30);
+    const progress = await Promise.all(jobs.filter(j => !terminal(j.status)).map(async j => {
+      const output = await ctx.db.query("jobOutput").withIndex("by_job", q => q.eq("jobId", j._id)).unique();
+      return { jobId: j._id, content: output?.content ?? "", events: output?.events ?? [] };
+    }));
+    await logIoMetrics(ctx, "workspace.conversationProgress");
+    return { jobs, progress };
+  },
 });

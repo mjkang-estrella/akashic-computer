@@ -53,6 +53,8 @@ export interface WorkspaceProps {
   sessions: Conversation[];
   current: Conversation | null;
   messages: Message[];
+  historyStatus?: "LoadingFirstPage" | "CanLoadMore" | "LoadingMore" | "Exhausted";
+  onLoadEarlier?: () => void;
   jobs: Job[];
   devices: Computer[];
   connectors: Connector[];

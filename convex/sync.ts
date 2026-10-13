@@ -1,3 +1,4 @@
+import { patchCatalogEntry, insertCatalogEntry, deleteCatalogEntry } from "./catalogSnapshot";
 import { storeArtifactBuilds } from "./artifactBuilds";
 import {
   internalAction,
@@ -540,7 +541,7 @@ export const applyRepoResult = internalMutation({
         const size = variant ? await ctx.db.get(variant.sizeId) : null;
         if (size?.slug === previousEntry.slug) await ctx.db.patch(artifact._id, { available: false, confidence: "needs_review" });
       }
-      await ctx.db.patch(previousEntry._id, {
+      await patchCatalogEntry(ctx, previousEntry, {
         sourceRepos: remaining.map((artifact) => artifact.repo),
         payload: {
           ...previous,
@@ -577,8 +578,8 @@ export const applyRepoResult = internalMutation({
       sourceRevision: parsed.repo.sha,
     };
     if (publicChanged) {
-      if (existingEntry) await ctx.db.patch(existingEntry._id, catalogValue);
-      else await ctx.db.insert("catalogEntries", catalogValue);
+      if (existingEntry) await patchCatalogEntry(ctx, existingEntry, catalogValue);
+      else await insertCatalogEntry(ctx, catalogValue);
       await upsertNormalized(ctx, payload, parsed, source.role, args.now, previousRepoName);
 
       const previousPayload = existingEntry?.payload as PublishedCatalogEntry | undefined;
@@ -825,7 +826,7 @@ export const removeRepository = internalMutation({
         if (remaining.length === payload.artifacts.length) continue;
         catalogChanged = true;
         if (remaining.length === 0) {
-          await ctx.db.delete(entry._id);
+          await deleteCatalogEntry(ctx, entry);
         } else {
           const nextPayload = {
             ...payload,
@@ -833,7 +834,7 @@ export const removeRepository = internalMutation({
             quantizations: [...new Set(remaining.map((artifact) => artifact.format))],
             providers: [...new Set(remaining.map((artifact) => uploaderDisplay(artifact.repo)))].sort(),
           };
-          await ctx.db.patch(entry._id, {
+          await patchCatalogEntry(ctx, entry, {
             payload: nextPayload,
             sourceRepos: remaining.map((artifact) => artifact.repo),
             publishedAt: args.now,

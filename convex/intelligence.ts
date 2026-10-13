@@ -1,3 +1,4 @@
+import { patchCatalogEntry } from "./catalogSnapshot";
 import { v } from "convex/values";
 import { internalMutation, query, type MutationCtx } from "./_generated/server";
 import { changeDateLabel } from "../src/lib/atlas/intelligence";
@@ -98,7 +99,7 @@ export async function upsertMaterialChange(
     ]
       .sort((left, right) => right.occurredAt - left.occurredAt)
       .slice(0, 12);
-    await ctx.db.patch(entry._id, { payload: { ...payload, materialChanges } });
+    await patchCatalogEntry(ctx, entry, { payload: { ...payload, materialChanges } });
   }
   return true;
 }
@@ -230,7 +231,7 @@ export const upsertRunReport = internalMutation({
           .sort((left, right) => right.testedAt - left.testedAt)
           .slice(0, 12)
       : (payload.runReports ?? []).filter((item) => item.id !== args.reportId);
-    await ctx.db.patch(entry._id, { payload: clean({ ...payload, runReports }) });
+    await patchCatalogEntry(ctx, entry, { payload: clean({ ...payload, runReports }) });
     return { reportId: args.reportId, changed: true };
   },
 });

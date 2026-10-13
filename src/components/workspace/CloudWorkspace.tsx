@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import {
+  useConvexAuth,
+  useMutation,
+  useQuery,
+  usePaginatedQuery,
+} from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -36,7 +41,9 @@ export function CloudWorkspace({ view }: { view: "work" | "computers" }) {
           Continue with GitHub
         </button>
         <p className="mt-4 text-[11px] text-muted">
-          {policy?.signup === "github" ? "Private workspaces are available to GitHub users." : "Access is limited to the configured owner account."}
+          {policy?.signup === "github"
+            ? "Private workspaces are available to GitHub users."
+            : "Access is limited to the configured owner account."}
         </p>
         {error && <p role="alert">{error}</p>}
       </section>
@@ -49,9 +56,22 @@ function SignedInWorkspace({ view }: { view: "work" | "computers" }) {
   const id = search.get("conversation") as Id<"conversations"> | null;
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const overview = useQuery(api.workspace.overview);
+  const overview = useQuery(api.workspace.inventory);
+  const connectors = useQuery(api.workspace.connectorPresence);
   const sessions = useQuery(api.workspace.listConversations);
-  const current = useQuery(api.workspace.getConversation, id ? { id } : "skip");
+  const current = useQuery(
+    api.workspace.conversationInfo,
+    id ? { id } : "skip",
+  );
+  const messages = usePaginatedQuery(
+    api.workspace.conversationMessages,
+    id ? { id } : "skip",
+    { initialNumItems: 30 },
+  );
+  const activity = useQuery(
+    api.workspace.conversationProgress,
+    id ? { id } : "skip",
+  );
   const pending = useQuery(api.workspace.pendingEnrollment);
   const create = useMutation(api.workspace.createConversation);
   const send = useMutation(api.workspace.submitJob);
@@ -132,7 +152,7 @@ function SignedInWorkspace({ view }: { view: "work" | "computers" }) {
     <Workspace
       preferredDeploymentId={search.get("deployment") || undefined}
       view={view}
-      loading={!overview || !sessions}
+      loading={!overview || !connectors || !sessions}
       sessions={(sessions || []).map((s) => ({
         id: s._id,
         title: s.title,
@@ -142,28 +162,28 @@ function SignedInWorkspace({ view }: { view: "work" | "computers" }) {
       current={
         current
           ? {
-              id: current.conversation._id,
-              title: current.conversation.title,
-              mode: current.conversation.mode,
-              deploymentId: current.conversation.deploymentId,
+              id: current._id,
+              title: current.title,
+              mode: current.mode,
+              deploymentId: current.deploymentId,
             }
           : null
       }
-      messages={(current?.messages || []).map((m) => ({
+      messages={[...messages.results].reverse().map((m) => ({
         id: m._id,
         role: m.role,
         content: m.content,
         partial: m.partial,
       }))}
-      jobs={(current?.jobs || []).map((j) => ({
+      jobs={(activity?.jobs || []).map((j) => ({
         id: j._id,
         status: j.status,
         error: j.error,
         rounds: j.rounds,
         completionTokens: j.completionTokens,
         leaseUntil: j.leaseUntil,
-        output: current?.progress.find((p) => p.jobId === j._id)?.content,
-        events: current?.progress.find((p) => p.jobId === j._id)?.events,
+        output: activity?.progress.find((p) => p.jobId === j._id)?.content,
+        events: activity?.progress.find((p) => p.jobId === j._id)?.events,
       }))}
       devices={(overview?.devices || []).map((d) => ({
         id: d._id,
@@ -179,7 +199,9 @@ function SignedInWorkspace({ view }: { view: "work" | "computers" }) {
         group: d.group,
         note: d.note,
       }))}
-      connectors={overview?.connectors || []}
+      connectors={connectors || []}
+      historyStatus={id ? messages.status : undefined}
+      onLoadEarlier={() => messages.loadMore(30)}
       deployments={(overview?.deployments || []).map((d) => ({
         id: d._id,
         model: d.model,
