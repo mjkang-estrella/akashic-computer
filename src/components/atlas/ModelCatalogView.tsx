@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AiVisionRecognitionIcon,
@@ -384,7 +385,6 @@ export function ModelCatalogView({
   families: Family[];
   onOpen: (entry: ModelEntry) => void;
 }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const categoryIds = ["all", ...MODEL_CATEGORIES.map((item) => item.id)] as CategoryFilter[];
@@ -475,7 +475,8 @@ export function ModelCatalogView({
     const params = new URLSearchParams(searchParams.toString());
     update(params);
     const query = params.toString();
-    router.replace(query ? `/models?${query}` : "/models", { scroll: false });
+    // The page is rendered per request; history updates keep filtering client-side.
+    window.history.replaceState(null, "", query ? `/models?${query}` : "/models");
   };
   const updateCategory = (value: CategoryFilter) => replaceParams((params) => setUrlParam(params, "category", value));
   const updateFamily = (value: string) => replaceParams((params) => setUrlParam(params, "family", value));
@@ -483,7 +484,7 @@ export function ModelCatalogView({
   const updateVariant = (value: string) => replaceParams((params) => setUrlParam(params, "catalogVariant", value));
   const updateQuant = (value: string) => replaceParams((params) => setUrlParam(params, "quant", value));
   const updateProvider = (value: string) => replaceParams((params) => setUrlParam(params, "provider", value));
-  const resetFilters = () => router.replace("/models", { scroll: false });
+  const resetFilters = () => window.history.replaceState(null, "", "/models");
   const toggleCapability = (item: ModelCapabilityId) => {
     replaceParams((params) => {
       const next = new Set(capabilities);
@@ -636,10 +637,14 @@ export function ModelCatalogView({
               </div>
               <div className="divide-y divide-linesoft">
                 {entries.map((entry, index) => (
-                  <button
+                  <Link
                     key={entry.slug}
-                    type="button"
-                    onClick={() => onOpen(entry)}
+                    href={`/models/${entry.slug}`}
+                    onClick={(event) => {
+                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                      event.preventDefault();
+                      onOpen(entry);
+                    }}
                     aria-label={`Open ${entry.name}`}
                     className="group grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2"
                   >
@@ -675,7 +680,7 @@ export function ModelCatalogView({
                     <span className="hidden h-9 w-9 items-center justify-center text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink lg:col-start-7 lg:flex">
                       <HugeiconsIcon icon={ArrowRight01Icon} size={18} strokeWidth={1.8} aria-hidden="true" />
                     </span>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </div>

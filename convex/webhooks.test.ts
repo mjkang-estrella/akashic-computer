@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from "convex-test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { classifyHuggingFaceRepo, compactClassification } from "../src/lib/atlas/huggingface";
@@ -191,6 +191,64 @@ describe("webhook ingestion", () => {
     expect((state.entry!.payload as { artifacts: Array<{ repo: string }> }).artifacts).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ repo: removedRepo })]),
     );
+  });
+
+  it("settles a delete for a repository that was never ingested", async () => {
+    const t = await monitoredTest();
+    const eventId = await t.run((ctx) => ctx.db.insert("webhookEvents", {
+      dedupeKey: "gone:repo:delete:sha",
+      repoId: "gone",
+      repoName: "Qwen/never-ingested",
+      owner: "Qwen",
+      scope: "repo",
+      action: "delete",
+      status: "pending",
+      receivedAt: 1,
+    }));
+    expect(await t.mutation(internal.sync.removeRepository, {
+      repoName: "Qwen/never-ingested",
+      explicit: true,
+      now: 2,
+      eventId,
+    })).toEqual({ removed: false });
+    expect(await t.run((ctx) => ctx.db.get(eventId))).toMatchObject({ status: "processed", processedAt: 2 });
+  });
+
+  it("re-schedules stalled webhook events and fails ones that keep stalling", async () => {
+    // Fake timers keep the re-scheduled processing action from calling Hugging Face.
+    vi.useFakeTimers();
+    vi.setSystemTime(10 * 60 * 60_000);
+    try {
+      const t = await monitoredTest();
+      const now = Date.now();
+      const insert = (repoName: string, extra: { receivedAt: number; recoveryAttempts?: number; nextRetryAt?: number }) =>
+        t.run((ctx) => ctx.db.insert("webhookEvents", {
+          dedupeKey: `${repoName}:delete`,
+          repoId: repoName,
+          repoName,
+          owner: "Qwen",
+          scope: "repo",
+          action: "delete",
+          status: "pending",
+          ...extra,
+        }));
+      const ids = [
+        await insert("Qwen/stalled", { receivedAt: now - 60 * 60_000 }),
+        await insert("Qwen/exhausted", { receivedAt: now - 60 * 60_000, recoveryAttempts: 3 }),
+        await insert("Qwen/awaiting-retry", { receivedAt: now - 60 * 60_000, nextRetryAt: now + 60_000 }),
+        await insert("Qwen/recent", { receivedAt: now - 60_000 }),
+      ];
+      expect(await t.mutation(internal.sync.recoverStalledWebhooks, {})).toEqual({ rescheduled: 1, failed: 1 });
+      const events = await t.run((ctx) => Promise.all(ids.map((id) => ctx.db.get(id))));
+      expect(events.map((event) => [event?.status, event?.recoveryAttempts])).toEqual([
+        ["pending", 1],
+        ["failed", 3],
+        ["pending", undefined],
+        ["pending", undefined],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reapplies a typed model introduction after automatic metadata", async () => {

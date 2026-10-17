@@ -1,9 +1,9 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { BENCHES } from "@/lib/atlas/data";
-import { fitOf, memoryEstimateLabel, memoryAssumptions } from "@/lib/atlas/fit";
+import { contextLabel, fitOf, memoryEstimateLabel, memoryAssumptions } from "@/lib/atlas/fit";
 import { learnTermForFormat } from "@/lib/atlas/learn";
-import type { Artifact, RigProfile } from "@/lib/atlas/types";
+import type { Artifact, ContextChoice, RigProfile } from "@/lib/atlas/types";
 import { uploaderDisplay } from "@/lib/atlas/naming";
 import { DeltaChip, FitBadge } from "./badges";
 import { LexiconHint } from "./LexiconHint";
@@ -11,11 +11,13 @@ import { LexiconHint } from "./LexiconHint";
 export function CompareDrawer({
   artifacts,
   rig,
+  context,
   onRemove,
   onClear,
 }: {
   artifacts: Artifact[];
-  rig: RigProfile;
+  rig: RigProfile | null;
+  context: ContextChoice;
   onRemove: (repo: string) => void;
   onClear: () => void;
 }) {
@@ -50,7 +52,7 @@ export function CompareDrawer({
 
         <div className="mt-3 divide-y divide-linesoft md:hidden">
           {artifacts.map((artifact, index) => {
-            const fit = fitOf(artifact, rig);
+            const fit = fitOf(artifact, rig, { context });
             return (
               <section key={artifact.repo} className="py-3 first:pt-0">
                 <div className="flex items-start justify-between gap-3">
@@ -94,11 +96,14 @@ export function CompareDrawer({
                 <dl className="mt-2.5 grid grid-cols-2 gap-3 border-t border-linesoft pt-2.5">
                   <div>
                     <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Memory estimate</dt>
-                    <dd className="mt-0.5 font-mono text-[13px]">{memoryEstimateLabel(artifact)}<span className="mt-1 block font-sans text-[10px] text-muted">{memoryAssumptions(artifact)}</span></dd>
+                    <dd className="mt-0.5 font-mono text-[13px]">{memoryEstimateLabel(artifact)}<span className="mt-1 block font-sans text-[10px] text-muted">{memoryAssumptions(artifact, context)}</span></dd>
                   </div>
                   <div>
                     <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Runtime</dt>
-                    <dd className="mt-0.5"><FitBadge fit={fit} /></dd>
+                    <dd className="mt-0.5 flex items-start gap-1.5">
+                      <FitBadge fit={fit} />
+                      <span aria-hidden="true" className="text-[11px] leading-snug text-muted">{fit.text}</span>
+                    </dd>
                   </div>
                 </dl>
 
@@ -160,18 +165,19 @@ export function CompareDrawer({
               </tr>
               <tr>
                 <td className={labelCell}>Memory estimate</td>
-                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{memoryEstimateLabel(artifact)}<span className="mt-1 block max-w-[240px] whitespace-normal font-sans text-[10px] text-muted">{memoryAssumptions(artifact)}</span></td>)}
+                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{memoryEstimateLabel(artifact)}<span className="mt-1 block max-w-[240px] whitespace-normal font-sans text-[10px] text-muted">{memoryAssumptions(artifact, context)}</span></td>)}
               </tr>
               <tr>
                 <td className={labelCell}>Runtime</td>
-                {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><FitBadge fit={fitOf(artifact, rig)} /></td>)}
+                {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top"><FitBadge fit={fitOf(artifact, rig, { context })} /></td>)}
               </tr>
 
             </tbody>
           </table>
         </div>
         <p className="mt-3 text-[11.5px] text-muted">
-          Runtime fit is unverified. Total memory does not establish runtime support, KV cache, context length, concurrency or device topology.
+          {rig ? `Checked against ${rig.gb} GB with BF16 KV at ${context === "native" ? "native context" : contextLabel(context)}. ` : "No memory budget set. "}
+          Runtime fit is unverified. Total memory does not establish runtime support, concurrency or device topology.
         </p>
         {artifacts.some((artifact) => BENCHES.some((bench) => Number.isFinite(artifact.deltas[bench.key]))) ? (
           <details className="mt-2 border-t border-linesoft pt-2 text-[11.5px] text-muted">

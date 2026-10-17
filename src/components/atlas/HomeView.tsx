@@ -10,6 +10,7 @@ import {
   Clock01Icon,
   CubeIcon,
   RefreshIcon,
+  RssIcon,
 } from "@hugeicons/core-free-icons";
 import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
 import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
@@ -17,6 +18,7 @@ import type { ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
 import type { MaterialChange, RigProfile } from "@/lib/atlas/types";
 import { FamilyLogo } from "./FamilyLogo";
+import { openBudgetMenu } from "./FitBar";
 
 const FEATURED_BENCHMARK_IDS = [
   "mmlu-pro",
@@ -288,7 +290,7 @@ export function HomeView({
   loading: boolean;
   health: CatalogHealth | null;
   revision: string;
-  rig: RigProfile;
+  rig: RigProfile | null;
   onOpenModel: (entry: ModelEntry) => void;
   onViewModels: () => void;
   onViewBenchmarks: () => void;
@@ -334,12 +336,14 @@ export function HomeView({
     }).slice(0, 5),
     [entries, materialChanges],
   );
+  // List summaries carry the weights + native-context KV estimate only.
+  const budgetGb = rig?.gb ?? null;
   const runnableEntries = useMemo(
     () =>
-      entries.filter((entry) =>
-        entry.artifacts.some((artifact) => artifact.recVramGb <= rig.gb),
+      budgetGb === null ? 0 : entries.filter((entry) =>
+        entry.artifacts.some((artifact) => artifact.recVramGb <= budgetGb),
       ).length,
-    [entries, rig.gb],
+    [entries, budgetGb],
   );
   const recentEntries = useMemo(
     () =>
@@ -417,9 +421,17 @@ export function HomeView({
             </p>
             <p className="flex min-h-12 items-center gap-2 border-t border-linesoft py-2 text-[11.5px] text-muted sm:border-t-0 sm:border-l sm:pl-4">
               <HugeiconsIcon icon={CubeIcon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
-              {loading
-                ? `Checking listed artifacts against ${rig.label}`
-                : `${rig.label}: ${runnableEntries} of ${entries.length} model sizes have an artifact estimated to fit`}
+              {!rig ? (
+                <span>
+                  No memory budget set.{" "}
+                  <button type="button" onClick={openBudgetMenu} className="font-semibold text-meta underline-offset-2 hover:underline">
+                    Choose your hardware
+                  </button>{" "}
+                  to check estimated fit.
+                </span>
+              ) : loading
+                ? `Checking listed artifacts against ${rig.gb} GB`
+                : `${rig.gb} GB: ${runnableEntries} of ${entries.length} model sizes have an artifact estimated to fit at full context`}
             </p>
           </div>
         </div>
@@ -473,7 +485,14 @@ export function HomeView({
                 Weight, artifact, runtime, and official recipe changes. Documentation-only commits are excluded.
               </p>
             </div>
-            <span className="font-mono text-[10.5px] text-faint">Evidence-linked</span>
+            <span className="flex items-center gap-3">
+              <span className="font-mono text-[10.5px] text-faint">Evidence-linked</span>
+              <a href="/feed.xml" className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
+                <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
+                RSS
+                <span className="sr-only"> feed of material changes</span>
+              </a>
+            </span>
           </header>
           <div className="mt-4 divide-y divide-linesoft border-y border-line">
             {visibleChanges.map(({ change, entry }, index) => (

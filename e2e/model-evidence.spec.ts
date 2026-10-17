@@ -12,6 +12,9 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(artifacts.getByRole("checkbox", { name: "Compare zai-org/GLM-5.3", exact: true })).toHaveCount(0);
     await expect(artifacts.getByText(/Fits 384/)).toHaveCount(0);
     await expect(artifacts.getByText("328 GB weights", { exact: true }).first()).toBeVisible();
+    await expect(artifacts.getByText("No budget set", { exact: true }).first()).toBeVisible();
+    // KV estimates follow the selected context; the catalog estimate is at native context.
+    await artifacts.getByRole("button", { name: /^Native/ }).click();
     await expect(artifacts.getByText(/12 GB KV estimate/).first()).toBeVisible();
     await expect(artifacts.getByRole("link", { name: "vLLM recipe condition · 386 GB", exact: true })).toBeVisible();
     await expect(recipes.getByText("Official vLLM recipe · GLM-5.3-Flash", { exact: true })).toBeVisible();
@@ -26,6 +29,10 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(comparison.getByText(/No benchmark delta data/)).toBeVisible();
     await expect(comparison.getByText(/340–340/)).toHaveCount(0);
     await expect(comparison.getByText("n/a", { exact: true })).toHaveCount(0);
+    await expect(comparison.getByRole("img", { name: "No memory budget set" }).first()).toBeVisible();
+    await page.getByLabel("Memory budget not set").click();
+    await page.getByRole("combobox", { name: "Hardware" }).selectOption("h100x8");
+    await page.getByLabel("Memory budget, 640 GB").click();
     await expect(comparison.getByRole("img", { name: "Runtime fit unverified" }).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("comparison.png"), fullPage: true });

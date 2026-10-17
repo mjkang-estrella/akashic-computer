@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Alert01Icon, Cancel01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
+import { Alert01Icon, Cancel01Icon, MinusSignIcon, Tick01Icon } from "@hugeicons/core-free-icons";
 
 import type { FitVerdict } from "@/lib/atlas/types";
 
@@ -28,8 +28,16 @@ export function FitBadge({ fit }: { fit: FitVerdict }) {
       ? "bg-verifysoft text-verify"
       : fit.level === "tight"
         ? "bg-cautionsoft text-caution"
-        : "bg-alertsoft text-alert";
-  const icon = fit.level === "runs" ? Tick01Icon : fit.level === "tight" ? Alert01Icon : Cancel01Icon;
+        : fit.level === "unset"
+          ? "bg-panel2 text-faint"
+          : "bg-alertsoft text-alert";
+  const icon = fit.level === "runs"
+    ? Tick01Icon
+    : fit.level === "tight"
+      ? Alert01Icon
+      : fit.level === "unset"
+        ? MinusSignIcon
+        : Cancel01Icon;
 
   return (
     <span

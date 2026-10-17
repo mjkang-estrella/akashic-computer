@@ -1,37 +1,50 @@
 "use client";
 
-import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAtlasUi } from "./AtlasShell";
 import { useCatalogEntry } from "./CatalogProvider";
 import { ModelCatalogSkeleton } from "./ModelCatalogView";
 import { ArtifactBuildPicker } from "../comparison/ArtifactBuildPicker";
 import { comparisonEnabled } from "@/lib/atlas/comparisonFlags";
+import type { PublishedCatalogEntry } from "@/lib/atlas/published";
 import { ModelDetailView } from "./ModelDetailView";
+import { ModelNotFound } from "./ModelNotFound";
 
-export function ModelDetailRoute({ slug }: { slug: string }) {
+/**
+ * Reading search params in its own boundary keeps the rest of the page in the static,
+ * server-rendered HTML; only this reader renders on the client.
+ */
+function PreferredVariant({ onVariant }: { onVariant: (variant: string | null) => void }) {
+  const variant = useSearchParams().get("variant");
+  useEffect(() => onVariant(variant), [onVariant, variant]);
+  return null;
+}
+
+export function ModelDetailRoute({
+  slug,
+  initialEntry,
+}: {
+  slug: string;
+  initialEntry?: PublishedCatalogEntry | null;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const entry = useCatalogEntry(slug);
-  const { rig, checked, toggleChecked } = useAtlasUi();
+  const entry = useCatalogEntry(slug, initialEntry);
+  const [preferredVariant, setPreferredVariant] = useState<string | null>(null);
+  const { rig, context, setContext, checked, toggleChecked } = useAtlasUi();
   if (entry === undefined) return <ModelCatalogSkeleton detail />;
-  if (entry === null) {
-    return (
-      <section className="border-y border-line py-16 text-center">
-        <h2 className="font-display text-[24px] font-semibold">Model not found</h2>
-        <p className="mt-2 text-[13px] text-muted">The catalog has no published model with this slug.</p>
-        <Link href="/models" className="mt-5 inline-flex min-h-10 items-center border border-line bg-panel px-4 text-[12.5px] font-semibold hover:border-ink">
-          Browse models
-        </Link>
-      </section>
-    );
-  }
+  if (entry === null) return <ModelNotFound />;
   return (
     <>
+    <Suspense fallback={null}>
+      <PreferredVariant onVariant={setPreferredVariant} />
+    </Suspense>
     <ModelDetailView
       entry={entry}
       rig={rig}
-      preferredVariant={searchParams.get("variant")}
+      context={context}
+      onContext={setContext}
+      preferredVariant={preferredVariant}
       checked={checked}
       onBack={() => router.push("/models")}
       onCheck={toggleChecked}

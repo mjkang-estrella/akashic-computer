@@ -238,6 +238,27 @@ function parameterBillions(value: unknown): number | null {
   return amount * (match[2]?.toUpperCase() === "T" ? 1000 : 1);
 }
 
+/**
+ * Parses a repository config.json. Python-written configs sometimes carry trailing
+ * commas or NaN; a Git LFS pointer or other non-object content yields null.
+ */
+export function parseConfigJson(text: string): Record<string, unknown> | null {
+  const body = text.replace(/^\uFEFF/, "").trim();
+  if (!body.startsWith("{")) return null;
+  const lenient = body
+    .replace(/,(\s*[}\]])/g, "$1")
+    .replace(/:(\s*)(?:NaN|-?Infinity)(\s*[,}\]])/g, ":$1null$2");
+  for (const candidate of [body, lenient]) {
+    try {
+      const value: unknown = JSON.parse(candidate);
+      if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+    } catch {
+      // Try the lenient form, then report the config as unavailable.
+    }
+  }
+  return null;
+}
+
 export function isWeightBlobFile(path: string): boolean {
   return WEIGHT_BLOB_FILE.test(path);
 }

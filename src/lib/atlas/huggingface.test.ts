@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseConfigJson,
   acceptedWebhookEvent,
   classifyHuggingFaceRepo,
   estimateVram,
@@ -376,3 +377,16 @@ describe("Hugging Face webhook filtering", () => {
     expect(webhookDedupeKey(configEvent)).not.toBe(webhookDedupeKey(reverted));
   });
 });
+
+describe("repository config parsing", () => {
+  it("accepts trailing commas and NaN written by Python tooling", () => {
+    expect(parseConfigJson('{\n  "num_hidden_layers": 28,\n  "rope_scaling": {"factor": 4.0,},\n  "dropout": NaN,\n}\n'))
+      .toEqual({ num_hidden_layers: 28, rope_scaling: { factor: 4 }, dropout: null });
+  });
+  it("treats a Git LFS pointer or non-object content as unavailable", () => {
+    expect(parseConfigJson("version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1234\n")).toBeNull();
+    expect(parseConfigJson("[1, 2]")).toBeNull();
+    expect(parseConfigJson("\uFEFF{\"model_type\": \"qwen3\"}")).toEqual({ model_type: "qwen3" });
+  });
+});
+

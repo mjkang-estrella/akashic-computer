@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQueries } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -15,9 +15,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { AccountControl, connectedWorkspaceEnabled } from "../AccountControl";
 import { AkashicMark } from "@/components/brand/AkashicMark";
-import { DEFAULT_PRESET_ID, RIG_PRESETS } from "@/lib/atlas/data";
+import { DEFAULT_CONTEXT, DEFAULT_PRESET_ID, HARDWARE_PRESETS, RIG_PRESETS } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
-import type { RigProfile } from "@/lib/atlas/types";
+import type { ContextChoice, RigProfile } from "@/lib/atlas/types";
 import { findModelEntryForTarget } from "@/lib/atlas/models";
 import { CompareDrawer } from "./CompareDrawer";
 import { BenchmarkView } from "./BenchmarkView";
@@ -28,12 +28,31 @@ import { comparisonEnabled } from "@/lib/atlas/comparisonFlags";
 import { useDeploymentComparison } from "../comparison/ComparisonProvider";
 
 interface AtlasUiContextValue {
-  rig: RigProfile;
+  rig: RigProfile | null;
+  context: ContextChoice;
+  setContext: (context: ContextChoice) => void;
   checked: Set<string>;
   toggleChecked: (repo: string, on: boolean) => void;
 }
 
 const AtlasUiContext = createContext<AtlasUiContextValue | null>(null);
+
+const BUDGET_STORAGE_KEY = "akashic:memory-budget";
+
+function readSavedBudget(): { presetId: string | null; manualGb: number | null } | null {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(BUDGET_STORAGE_KEY) ?? "null");
+    if (!value || typeof value !== "object") return null;
+    const { presetId, manualGb } = value as Record<string, unknown>;
+    const knownPreset = typeof presetId === "string" &&
+      [...RIG_PRESETS, ...HARDWARE_PRESETS].some((preset) => preset.id === presetId);
+    const validManual = typeof manualGb === "number" && Number.isFinite(manualGb) && manualGb >= 4 && manualGb <= 2048;
+    if (!knownPreset && !validManual) return null;
+    return { presetId: knownPreset ? presetId : null, manualGb: validManual ? manualGb : null };
+  } catch {
+    return null;
+  }
+}
 
 export function useAtlasUi(): AtlasUiContextValue {
   const value = useContext(AtlasUiContext);
@@ -47,10 +66,33 @@ export function AtlasShell({ children }: { children: ReactNode }) {
   const { entries, families } = useCatalog();
   const { selections, replace } = useDeploymentComparison();
   const [query, setQuery] = useState("");
-  const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
+  const [presetId, setPresetId] = useState<string | null>(DEFAULT_PRESET_ID);
   const [manualGb, setManualGb] = useState<number | null>(null);
+  const [context, setContext] = useState<ContextChoice>(DEFAULT_CONTEXT);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const rig = resolveProfile(RIG_PRESETS, presetId, manualGb);
+  const rig = resolveProfile([...RIG_PRESETS, ...HARDWARE_PRESETS], presetId, manualGb);
+
+  // Only a budget the visitor chose is remembered; reading after mount keeps hydration stable.
+  useEffect(() => {
+    const saved = readSavedBudget();
+    if (!saved) return;
+    const timer = window.setTimeout(() => {
+      setPresetId(saved.presetId);
+      setManualGb(saved.manualGb);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const chooseBudget = (nextPresetId: string | null, nextManualGb: number | null) => {
+    setPresetId(nextPresetId);
+    setManualGb(nextManualGb);
+    try {
+      if (nextPresetId || nextManualGb) {
+        window.localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify({ presetId: nextPresetId, manualGb: nextManualGb }));
+      } else window.localStorage.removeItem(BUDGET_STORAGE_KEY);
+    } catch {
+      // Storage may be unavailable; the choice still applies for this session.
+    }
+  };
 
   // List summaries omit memory and benchmark evidence. Fetch only the selected models.
   const comparisonQueries = useMemo(() => Object.fromEntries(
@@ -107,7 +149,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
   const wide = !query.trim() && (pathname === "/" || pathname === "/models");
 
   return (
-    <AtlasUiContext.Provider value={{ rig, checked, toggleChecked }}>
+    <AtlasUiContext.Provider value={{ rig, context, setContext, checked, toggleChecked }}>
       <div className="min-h-screen pb-28">
         <header className="border-b border-line bg-paper">
           <div className="mx-auto grid w-full max-w-[1440px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-3 lg:grid-cols-[auto_minmax(280px,420px)_minmax(0,1fr)_auto] lg:gap-x-5">
@@ -144,11 +186,10 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               <FitBar
                 presetId={presetId}
                 manualGb={manualGb}
-                onPreset={(id) => {
-                  setPresetId(id);
-                  setManualGb(null);
-                }}
-                onManualGb={setManualGb}
+                rig={rig}
+                onPreset={(id) => chooseBudget(id, null)}
+                onManualGb={(gb) => chooseBudget(gb ? null : presetId, gb)}
+                onClear={() => chooseBudget(null, null)}
               />
             </div>
           </div>
@@ -182,6 +223,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
             <CompareDrawer
               artifacts={checkedArtifacts}
               rig={rig}
+              context={context}
               onRemove={(repo) => toggleChecked(repo, false)}
               onClear={() => setChecked(new Set())}
             />

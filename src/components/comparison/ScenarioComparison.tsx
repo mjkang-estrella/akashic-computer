@@ -118,7 +118,7 @@ function ComparisonWorkspace({ initialLeft, initialRight, initialBudget }: {
         <label className="text-[12px] font-semibold">Weight budget (GB)
           <input aria-label="Weight budget (GB)" type="number" min="0.01" step="0.01" value={budgetInput} onChange={(event) => { setBudgetInput(event.target.value); setCopyStatus(""); }} placeholder="Optional" className={`${inputClass} max-w-[200px] block`} />
         </label>
-        <button type="button" onClick={() => { setBudgetInput(String(rig.gb)); setCopyStatus(""); }} className="min-h-11 rounded-[7px] border border-line px-3 text-[12px] font-semibold">Use {rig.gb} GB as ceiling</button>
+        {rig ? <button type="button" onClick={() => { setBudgetInput(String(rig.gb)); setCopyStatus(""); }} className="min-h-11 rounded-[7px] border border-line px-3 text-[12px] font-semibold">Use {rig.gb} GB as ceiling</button> : null}
         {budgetInput.trim() && budget === null ? <p role="alert" className="text-[12px] text-caution">Enter a positive, finite weight budget.</p> : null}
       </div>
       {loading ? <p role="status" className="mt-7 text-muted">Loading published models…</p> : <div className="mt-6 grid gap-5 md:grid-cols-2">

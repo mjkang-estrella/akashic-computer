@@ -30,4 +30,11 @@ crons.hourly(
   internal.health.checkCatalogHealth,
 );
 
+crons.interval(
+  "recover stalled catalog webhooks",
+  { minutes: 15 },
+  internal.sync.recoverStalledWebhooks,
+  {},
+);
+
 export default crons;

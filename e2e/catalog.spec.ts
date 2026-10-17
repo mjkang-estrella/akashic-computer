@@ -37,7 +37,7 @@ test("loads model details through the detail query", async ({ page }) => {
   await page.goto("/models");
   const firstModel = page
     .locator("section[aria-labelledby='model-catalog-title']")
-    .getByRole("button", { name: /^Open / })
+    .getByRole("link", { name: /^Open / })
     .first();
   await expect(firstModel).toBeVisible();
   await firstModel.click();

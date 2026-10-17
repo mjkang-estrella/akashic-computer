@@ -22,6 +22,7 @@ import { upsertMaterialChange } from "./intelligence";
 import {
   classifyWithWeightMetadata,
   fetchRepo,
+  isTransientHubError,
   listRepos,
   retryDelayForError,
 } from "./huggingFaceClient";
@@ -793,7 +794,11 @@ export const removeRepository = internalMutation({
       .query("sourceRepositories")
       .withIndex("by_repo_name", (q) => q.eq("repoName", args.repoName))
       .unique();
-    if (!source) return { removed: false };
+    if (!source) {
+      // A repository created and deleted between audits was never ingested; settle the event.
+      if (args.eventId) await ctx.db.patch(args.eventId, { status: "processed", processedAt: args.now, nextRetryAt: undefined });
+      return { removed: false };
+    }
     const missingCount = args.explicit ? 3 : source.missingCount + 1;
     await ctx.db.patch(source._id, {
       missingCount,
@@ -960,6 +965,49 @@ export const processWebhook = internalAction({
   },
 });
 
+const STALLED_WEBHOOK_MS = 15 * 60_000;
+const MAX_WEBHOOK_RECOVERIES = 3;
+
+/**
+ * Re-schedules pending webhook events whose processing ended without settling them
+ * (for example an action timeout). Events awaiting a scheduled retry are left alone;
+ * an event that keeps stalling is marked failed rather than retried forever.
+ */
+export const recoverStalledWebhooks = internalMutation({
+  args: {},
+  returns: v.object({ rescheduled: v.number(), failed: v.number() }),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const pending = await ctx.db
+      .query("webhookEvents")
+      .withIndex("by_status_and_received", (q) =>
+        q.eq("status", "pending").lt("receivedAt", now - STALLED_WEBHOOK_MS))
+      .order("asc")
+      .take(50);
+    let rescheduled = 0;
+    let failed = 0;
+    for (const event of pending) {
+      if (event.nextRetryAt !== undefined && event.nextRetryAt > now - STALLED_WEBHOOK_MS) continue;
+      const recoveries = event.recoveryAttempts ?? 0;
+      if (recoveries >= MAX_WEBHOOK_RECOVERIES) {
+        await ctx.db.patch(event._id, {
+          status: "failed",
+          error: event.error ?? "Webhook processing stalled after recovery attempts",
+          processedAt: now,
+          nextRetryAt: undefined,
+        });
+        failed += 1;
+        continue;
+      }
+      await ctx.db.patch(event._id, { recoveryAttempts: recoveries + 1, nextRetryAt: now });
+      // The final attempt settles the event as processed or failed.
+      await ctx.scheduler.runAfter(0, internal.sync.processWebhook, { eventId: event._id, attempt: 2 });
+      rescheduled += 1;
+    }
+    return { rescheduled, failed };
+  },
+});
+
 export const startDailyAudit = internalMutation({
   args: { paceMs: v.optional(v.number()) },
   returns: v.object({ scheduled: v.boolean(), runId: v.id("syncRuns") }),
@@ -1090,6 +1138,7 @@ export const finishAuditSource = internalMutation({
     published: v.number(),
     skipped: v.number(),
     message: v.optional(v.string()),
+    warning: v.optional(v.string()),
     nextRetryAt: v.optional(v.number()),
     now: v.number(),
   },
@@ -1130,7 +1179,9 @@ export const finishAuditSource = internalMutation({
       failed,
       status: complete ? (failed > 0 ? "degraded" as const : "success" as const) : "running" as const,
       completedAt: complete ? args.now : undefined,
-      message: args.success ? run.message : `${args.owner}: ${args.message ?? "source audit failed"}`,
+      message: args.success
+        ? args.warning ? `${args.owner}: ${args.warning}` : run.message
+        : `${args.owner}: ${args.message ?? "source audit failed"}`,
     }));
     if (complete) {
       const state = await ctx.db
@@ -1182,6 +1233,17 @@ export const auditSource = internalAction({
       let changed = 0;
       let published = 0;
       let skipped = 0;
+      // One malformed repository must not block the rest of its source. Transient Hub
+      // errors still retry the whole source; the failed repository keeps its prior SHA,
+      // so the next audit attempts it again.
+      const repoFailures: string[] = [];
+      const recordRepoFailure = (repoId: string, error: unknown) => {
+        if (isTransientHubError(error)) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Audit skipped ${repoId}: ${message}`);
+        repoFailures.push(`${repoId}: ${message.split("\n")[0]}`);
+        skipped += 1;
+      };
       for (let offset = 0; offset < candidates.length; offset += 12) {
         const batch = candidates.slice(offset, offset + 12);
         const previous = await Promise.all(
@@ -1194,28 +1256,36 @@ export const auditSource = internalAction({
         });
         const hydrated: Array<{ repo: (typeof changedRepos)[number]; data: unknown }> = [];
         for (const repo of changedRepos) {
-          const response = await fetchRepo(repo.id);
-          if (!response.data) {
-            throw new Error(`Hugging Face repo fetch failed for ${repo.id}: ${response.status}`);
+          try {
+            const response = await fetchRepo(repo.id);
+            if (!response.data) {
+              throw new Error(`Hugging Face repo fetch failed for ${repo.id}: ${response.status}`);
+            }
+            hydrated.push({ repo, data: response.data });
+          } catch (error) {
+            recordRepoFailure(repo.id, error);
           }
-          hydrated.push({ repo, data: response.data });
         }
         for (const result of hydrated) {
-          const classification = compactClassification(
-            await classifyWithWeightMetadata(result.data, rule),
-          );
-          const outcome = await ctx.runMutation(internal.sync.applyRepoResult, {
-            classification,
-            sourceOwner: args.owner,
-            repoKey: result.repo.id,
-            runId: args.runId,
-            now: Date.now(),
-          });
-          if (outcome.status === "published") {
-            published += 1;
-            if (outcome.changed) changed += 1;
-          } else {
-            skipped += 1;
+          try {
+            const classification = compactClassification(
+              await classifyWithWeightMetadata(result.data, rule),
+            );
+            const outcome = await ctx.runMutation(internal.sync.applyRepoResult, {
+              classification,
+              sourceOwner: args.owner,
+              repoKey: result.repo.id,
+              runId: args.runId,
+              now: Date.now(),
+            });
+            if (outcome.status === "published") {
+              published += 1;
+              if (outcome.changed) changed += 1;
+            } else {
+              skipped += 1;
+            }
+          } catch (error) {
+            recordRepoFailure(result.repo.id, error);
           }
         }
       }
@@ -1233,6 +1303,9 @@ export const auditSource = internalAction({
         changed,
         published,
         skipped,
+        ...(repoFailures.length > 0 ? {
+          warning: `${repoFailures.length} ${repoFailures.length === 1 ? "repository" : "repositories"} skipped after errors; first: ${repoFailures[0]}`.slice(0, 500),
+        } : {}),
         now: Date.now(),
       });
       if (completion?.nextOwner) {

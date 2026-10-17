@@ -139,6 +139,9 @@ export interface RigPreset {
   label: string;
   gb: number;
   kind: HardwareKind;
+  /** Named hardware only: menu group and the basis of its memory budget. */
+  group?: string;
+  detail?: string;
 }
 
 export interface RigProfile {
@@ -146,9 +149,13 @@ export interface RigProfile {
   kind: HardwareKind;
   label: string;
   manual: boolean;
+  detail?: string;
 }
 
-export type FitLevel = "runs" | "tight" | "no";
+/** Tokens of context per request, or the model's native maximum. */
+export type ContextChoice = number | "native";
+
+export type FitLevel = "runs" | "tight" | "no" | "unset";
 
 export type MaterialChangeType =
   | "model_published"

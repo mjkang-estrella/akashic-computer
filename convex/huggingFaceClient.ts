@@ -3,6 +3,7 @@ import { architectureFromConfig } from "../src/lib/atlas/memory";
 import {
   classifyHuggingFaceRepo,
   isWeightBlobFile,
+  parseConfigJson,
   weightMetadataFromTree,
   type MonitoredSourceRule,
   type RepoClassification,
@@ -44,6 +45,11 @@ function requestError(response: Response, context: string): HubRequestError {
   );
 }
 
+/** Rate limits and server errors are transient; malformed repository content is not. */
+export function isTransientHubError(error: unknown): boolean {
+  return error instanceof HubRequestError;
+}
+
 export function retryDelayForError(error: unknown, attempt: number, fallbackMs: number): number {
   if (error instanceof HubRequestError) {
     return error.serverDirected
@@ -65,12 +71,16 @@ export async function fetchRepo(repoName: string): Promise<{ status: number; dat
   }
   const data = await response.json() as UnknownRecord;
   const revision = typeof data.sha === "string" && data.sha ? data.sha : "main";
+  // `resolve` follows Git LFS pointers; `raw` returns the pointer text for LFS-stored configs.
   const configResponse = await fetch(
-    `https://huggingface.co/${encoded}/raw/${encodeURIComponent(revision)}/config.json`,
+    `https://huggingface.co/${encoded}/resolve/${encodeURIComponent(revision)}/config.json`,
     { headers: headers() },
   );
-  if (configResponse.ok) data.config = await configResponse.json();
-  else if (configResponse.status === 429 || configResponse.status >= 500) {
+  if (configResponse.ok) {
+    // An unparseable config keeps the API's structured subset instead of failing the source.
+    const config = parseConfigJson(await configResponse.text());
+    if (config) data.config = config;
+  } else if (configResponse.status === 429 || configResponse.status >= 500) {
     throw requestError(configResponse, `Hugging Face config fetch failed for ${repoName}`);
   }
   return { status: response.status, data };
@@ -127,6 +137,7 @@ export async function classifyWithWeightMetadata(
     parsed.builds = buildsFromFiles(parsed.repo.id, parsed.repo.sha, metadata.files, parsed.repo.baseModels, {
       format: parsed.format, architecture,
       // A repository suffix alone cannot prove that an individual file includes MTP.
+      onOmit: ({ label, reason }) => console.warn(`Exact-file manifest omitted for ${parsed.repo.id} (${label}): ${reason}`),
     });
   }
   return result;
