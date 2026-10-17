@@ -144,6 +144,15 @@ width and only layers whose cache grows with context. The artifact retains the
 weight-only minimum separately. Repositories without sufficient architecture
 metadata keep the prior weight-based estimate and are labeled accordingly.
 
+The model page scales the stored native-context KV estimate to the visitor's
+selected context (8K, 32K, 128K or native; 32K by default). The growing-cache
+formula is linear in tokens, so this is the same formula evaluated at a shorter
+length. New sessions start without a memory budget, so no artifact is judged
+until the visitor chooses hardware or a total; a chosen budget is remembered in
+local storage. With a budget and context, an artifact is flagged only when
+weights alone, or weights plus the BF16 KV estimate at that context, exceed it.
+List summaries still use the native-context total for the homepage count.
+
 ## Deployment Recipes And Run Reports
 
 `deploymentRecipeSync:syncVllm` reads the official model index, per-model JSON,
@@ -242,6 +251,22 @@ Hugging Face `429` and server errors use `Retry-After` or
 `X-RateLimit-Reset` when supplied. Other retries use bounded exponential delay.
 The source record stores its failure count and next retry time so the Convex
 dashboard and homepage status show what is actually waiting.
+
+Only transient Hugging Face errors fail a whole source. A repository that fails
+for its own reasons (malformed metadata, a bound, an identity-repair invariant)
+is skipped, logged as `Audit skipped <repo>: <reason>`, and summarized in the
+run message; it keeps its prior SHA, so the next audit retries it. Configs are
+read through `resolve/` so Git LFS-stored `config.json` files parse, and
+trailing commas or `NaN` are tolerated; an unparseable config falls back to the
+API's structured subset. An exact-file build that exceeds 256 shards (or a
+repository with more than 256 build groups) is omitted whole rather than
+truncated, logged as `Exact-file manifest omitted`, and stays at
+repository-estimate level in comparisons.
+
+Every 15 minutes `sync:recoverStalledWebhooks` re-schedules pending webhook
+events whose processing ended without settling them (for example an action
+timeout). Events waiting on a scheduled retry are left alone, and an event that
+stalls three times is marked `failed`.
 
 Inspect freshness and failures with:
 

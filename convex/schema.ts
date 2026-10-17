@@ -330,6 +330,7 @@ export default defineSchema({
     processedAt: v.optional(v.number()),
     error: v.optional(v.string()),
     nextRetryAt: v.optional(v.number()),
+    recoveryAttempts: v.optional(v.number()),
   })
     .index("by_dedupe_key", ["dedupeKey"])
     .index("by_repo_id_status", ["repoId", "status"])

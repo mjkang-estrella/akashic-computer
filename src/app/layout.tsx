@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, STIX_Two_Text } from "next/font/google";
-import { ApplicationShell } from "@/components/ApplicationShell";
 import { AppProviders } from "@/components/AppProviders";
 import "@/components/workspace/workspace.css";
 import "./globals.css";
@@ -25,7 +24,7 @@ const stixTwo = STIX_Two_Text({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://akashic.computer"),
-  title: "Akashic Computer",
+  title: { default: "Akashic Computer", template: "%s · Akashic Computer" },
   description:
     "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
   openGraph: {
@@ -34,6 +33,11 @@ export const metadata: Metadata = {
       "Navigate open-weight model families, artifacts, quantizations, and benchmarks.",
     siteName: "Akashic Computer",
     type: "website",
+  },
+  alternates: {
+    types: {
+      "application/rss+xml": [{ url: "/feed.xml", title: "Akashic Computer material changes" }],
+    },
   },
   twitter: {
     card: "summary_large_image",
@@ -55,7 +59,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AppProviders>
-          <ApplicationShell>{children}</ApplicationShell>
+          {children}
         </AppProviders>
       </body>
     </html>

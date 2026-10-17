@@ -58,7 +58,15 @@ function absoluteHttpUrl(value: string | undefined): string | null {
   }
 }
 
-function RemoteCatalogProvider({ children }: { children: ReactNode }) {
+/** Server-rendered snapshot used until the live subscription answers. */
+export interface InitialCatalog {
+  entries: PublishedCatalogSummary[];
+  syncedAt: number | null;
+  revision: string;
+  recentChanges?: MaterialChange[];
+}
+
+function RemoteCatalogProvider({ children, initial }: { children: ReactNode; initial?: InitialCatalog }) {
   const [loadedAt, setLoadedAt] = useState(() => Math.floor(Date.now() / 60_000) * 60_000);
   useEffect(() => {
     const update = () => setLoadedAt(Math.floor(Date.now() / 60_000) * 60_000);
@@ -66,8 +74,8 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", update);
     return () => { clearInterval(timer); window.removeEventListener("focus", update); };
   }, []);
-  const result = useQuery(api.catalog.listPublished);
-  const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 });
+  const result = useQuery(api.catalog.listPublished) ?? initial;
+  const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 }) ?? initial?.recentChanges;
   const sourceHealth = useQuery(api.catalog.healthSummary, { now: loadedAt });
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
@@ -104,7 +112,7 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
 const configuredConvexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convexUrl = absoluteHttpUrl(configuredConvexUrl);
 
-export function CatalogProvider({ children }: { children: ReactNode }) {
+export function CatalogProvider({ children, initial }: { children: ReactNode; initial?: InitialCatalog }) {
   if (!convexUrl) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-[760px] items-center px-5 py-16">
@@ -119,7 +127,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   }
   return (
     <>
-      <RemoteCatalogProvider>{children}</RemoteCatalogProvider>
+      <RemoteCatalogProvider initial={initial}>{children}</RemoteCatalogProvider>
     </>
   );
 }
@@ -130,8 +138,13 @@ export function useCatalog() {
   return value;
 }
 
-export function useCatalogEntry(slug: string): ModelEntry | null | undefined {
-  const result = useQuery(api.catalog.getBySlug, { slug });
+export function useCatalogEntry(
+  slug: string,
+  initial?: PublishedCatalogEntry | null,
+): ModelEntry | null | undefined {
+  // A live null (removed model) must replace the server snapshot, so only undefined falls back.
+  const live = useQuery(api.catalog.getBySlug, { slug });
+  const result = live === undefined ? initial : live;
   if (result === undefined || result === null) return result;
   return hydratePublishedEntries([result as PublishedCatalogEntry]).entries[0] ?? null;
 }

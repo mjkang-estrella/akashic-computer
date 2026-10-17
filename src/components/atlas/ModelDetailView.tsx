@@ -11,21 +11,33 @@ import {
   CancelCircleIcon,
   ComputerCheckIcon,
   Rocket01Icon,
+  RssIcon,
   SourceCodeIcon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
-import { fitOf, memoryRange } from "@/lib/atlas/fit";
+import { contextLabel, fitOf, kvCacheAt, memoryRange } from "@/lib/atlas/fit";
+import { CONTEXT_CHOICES } from "@/lib/atlas/data";
+import { runCommandsFor } from "@/lib/atlas/runCommands";
 import { modelTransitionName } from "@/lib/atlas/motion";
-import type { RigProfile } from "@/lib/atlas/types";
+import type { ContextChoice, RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
 import { RunningModelLink } from "../workspace/RunningModelLink";
 import { FamilyLogo } from "./FamilyLogo";
+import { openBudgetMenu } from "./FitBar";
+import { RunCommands } from "./RunCommands";
+
+const kvGbLabel = (bytes: number) => {
+  const gb = bytes / 1e9;
+  return Number(gb < 10 ? gb.toFixed(1) : gb.toFixed(0)).toString();
+};
 
 export function ModelDetailView({
   entry,
   rig,
+  context,
+  onContext,
   preferredVariant,
   checked,
   onBack,
@@ -33,7 +45,9 @@ export function ModelDetailView({
   onLearn,
 }: {
   entry: ModelEntry;
-  rig: RigProfile;
+  rig: RigProfile | null;
+  context: ContextChoice;
+  onContext: (context: ContextChoice) => void;
   preferredVariant?: string | null;
   checked: Set<string>;
   onBack: () => void;
@@ -45,8 +59,20 @@ export function ModelDetailView({
       ? preferredVariant
       : entry.size.variants[0];
   const [variant, setVariant] = useState(initialVariant);
+  // A ?variant= link resolves after hydration; apply it once per distinct preference.
+  const [appliedPreference, setAppliedPreference] = useState(preferredVariant);
+  if (preferredVariant !== appliedPreference) {
+    setAppliedPreference(preferredVariant);
+    if (preferredVariant && entry.size.variants.includes(preferredVariant)) setVariant(preferredVariant);
+  }
   const artifacts = entry.artifacts.filter((artifact) => artifact.variant === variant);
   const compareLimitReached = checked.size >= 4;
+  const nativeContext = artifacts.find((artifact) => artifact.vramEstimate)?.vramEstimate?.contextTokens ?? null;
+  // The choice is shared across models; at or beyond this model's native context it means native.
+  // Without a known native context, commands keep runtime defaults instead of guessing a length.
+  const effectiveContext: ContextChoice = context === "native" || !nativeContext || context >= nativeContext
+    ? "native"
+    : context;
   const active = activeParamsLabel(entry.size.label, entry.size.activeParamsB);
   const displayRecipes = useMemo(() => {
     const grouped = new Map<string, (typeof entry.deploymentRecipes)[number]>();
@@ -190,8 +216,14 @@ export function ModelDetailView({
             <dd className="mt-0.5 font-mono text-[13px] font-semibold">{entry.size.variants.length}</dd>
           </div>
           <div>
-            <dt className="text-[11.5px] text-muted">Current profile</dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-semibold">{rig.gb} GB VRAM</dd>
+            <dt className="text-[11.5px] text-muted">Memory budget</dt>
+            <dd className="mt-0.5 font-mono text-[13px] font-semibold">
+              {rig ? `${rig.gb} GB` : (
+                <button type="button" onClick={openBudgetMenu} className="font-sans text-[12.5px] font-semibold text-meta underline-offset-2 hover:underline">
+                  Not set · choose hardware
+                </button>
+              )}
+            </dd>
           </div>
         </dl>
       </header>
@@ -261,6 +293,37 @@ export function ModelDetailView({
         </div>
 
 
+        {nativeContext ? (
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-labelledby="context-choice-label">
+            <span id="context-choice-label" className="text-[12px] font-semibold text-muted">
+              <LexiconHint term="context" onLearn={onLearn}>Context per request</LexiconHint>
+            </span>
+            <span className="flex flex-wrap gap-1.5">
+              {CONTEXT_CHOICES.filter((choice) => choice.value === "native" || choice.value < nativeContext).map((choice) => {
+                const label = choice.value === "native"
+                  ? `Native · ${entry.context !== "N/A" ? entry.context : contextLabel(nativeContext)}`
+                  : choice.label;
+                return (
+                  <button
+                    key={String(choice.value)}
+                    type="button"
+                    aria-pressed={effectiveContext === choice.value}
+                    onClick={() => onContext(choice.value)}
+                    className={`min-h-9 rounded-[7px] border px-2.5 font-mono text-[12px] font-semibold ${
+                      effectiveContext === choice.value
+                        ? "border-ink bg-ink text-paper"
+                        : "border-line bg-panel hover:border-ink"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </span>
+            <span className="text-[11px] text-muted">KV cache grows with context; estimates assume BF16 cache and one request.</span>
+          </div>
+        ) : null}
+
         {entry.runReports.length > 0 ? (
           <details className="motion-disclosure group/reports mt-3 border-y border-linesoft">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 py-2 marker:hidden">
@@ -299,7 +362,9 @@ export function ModelDetailView({
           </div>
           <div className="divide-y divide-linesoft">
             {artifacts.map((artifact) => {
-              const fit = fitOf(artifact, rig);
+              const fit = fitOf(artifact, rig, { context: effectiveContext });
+              const kv = artifact.vramEstimate ? kvCacheAt(artifact.vramEstimate, effectiveContext) : null;
+              const commands = runCommandsFor(artifact, effectiveContext);
               const exceeds = fit.level === "no";
               const selected = checked.has(artifact.repo);
               const disabled = !selected && compareLimitReached;
@@ -354,8 +419,8 @@ export function ModelDetailView({
                     <span className="text-[11px] text-muted md:hidden">Memory estimate · </span>
                     <span className="font-mono text-[13px] font-semibold">{artifact.vramEstimate ? `${artifact.vramEstimate.weightGb} GB weights` : memoryRange(artifact.minVramGb, artifact.recVramGb)}</span>
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
-                      {artifact.vramEstimate
-                        ? `+ ${artifact.vramEstimate.kvCacheGb} GB KV estimate · ${artifact.vramEstimate.contextTokens.toLocaleString("en-US")} tokens · concurrency ${artifact.vramEstimate.concurrency} · ${artifact.vramEstimate.kvCacheDtype}`
+                      {artifact.vramEstimate && kv
+                        ? `+ ${kvGbLabel(kv.bytes)} GB KV estimate · ${kv.tokens.toLocaleString("en-US")} tokens · concurrency ${artifact.vramEstimate.concurrency} · ${artifact.vramEstimate.kvCacheDtype}`
                         : "Estimate only; weight and KV breakdown unknown. Exact file not selected."}
                     </span>
                     {recipeCheckpoints.filter((item) => item.variant.minimumVramGb && item.variant.precision.toUpperCase() === artifact.format.toUpperCase()).map((item) => (
@@ -364,19 +429,26 @@ export function ModelDetailView({
                       </a>
                     ))}
                   </div>
-                  <div
-                    key={`${artifact.repo}-${rig.gb}-${fit.level}`}
-                    className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : "text-caution"}`}
-                  >
-                    <HugeiconsIcon
-                      icon={exceeds ? CancelCircleIcon : Alert01Icon}
-                      className="flex-none"
-                      size={17}
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    />
-                    {fit.text}
-                  </div>
+                  {fit.level === "unset" ? (
+                    <div className="pl-11 text-[12px] text-muted md:pl-0">
+                      <span className="text-[11px] md:hidden">Runtime assessment · </span>
+                      <span>No budget set</span>
+                    </div>
+                  ) : (
+                    <div
+                      key={`${artifact.repo}-${rig?.gb}-${String(effectiveContext)}-${fit.level}`}
+                      className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : "text-caution"}`}
+                    >
+                      <HugeiconsIcon
+                        icon={exceeds ? CancelCircleIcon : Alert01Icon}
+                        className="flex-none"
+                        size={17}
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
+                      {fit.text}
+                    </div>
+                  )}
                   <a
                     href={`https://huggingface.co/${artifact.repo}`}
                     target="_blank"
@@ -387,13 +459,16 @@ export function ModelDetailView({
                   >
                     <HugeiconsIcon icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} aria-hidden="true" />
                   </a>
+                  <RunCommands commands={commands} repo={artifact.repo} />
                 </div>
               );
             })}
           </div>
         </div>
         <p className="mt-2.5 text-[11.5px] text-muted">
-          Selected budget: {rig.gb} GB. This does not specify device count, memory per device or interconnect.
+          {rig
+            ? `Selected budget: ${rig.gb} GB. This does not specify device count, memory per device or interconnect. `
+            : "No memory budget set, so no artifact is judged against one. "}
           Weight and KV estimates exclude runtime overhead, workspace, and other cache/state allocations. Runtime fit remains unverified.
         </p>
         <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
@@ -510,7 +585,14 @@ export function ModelDetailView({
         <section className="border-t border-line py-5" aria-labelledby="model-history-title">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 id="model-history-title" className="font-display text-[18px] font-semibold">Material history</h3>
-            <span className="text-[10.5px] text-faint">Description-only commits excluded</span>
+            <span className="flex items-center gap-3">
+              <span className="text-[10.5px] text-faint">Description-only commits excluded</span>
+              <a href={`/models/${entry.slug}/feed.xml`} className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
+                <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
+                RSS
+                <span className="sr-only"> feed of changes to {entry.name}</span>
+              </a>
+            </span>
           </div>
           <ol className="mt-3 divide-y divide-linesoft border-y border-linesoft">
             {displayMaterialChanges.map((change) => (

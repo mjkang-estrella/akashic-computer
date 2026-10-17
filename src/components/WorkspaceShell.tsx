@@ -1,24 +1,13 @@
 "use client";
-import { ComparisonProvider } from "./comparison/ComparisonProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { AtlasShell } from "./atlas/AtlasShell";
-import { CatalogProvider } from "./atlas/CatalogProvider";
 import { AkashicMark } from "./brand/AkashicMark";
 import { AccountControl, connectedWorkspaceEnabled } from "./AccountControl";
 import { hasConvex } from "./AppProviders";
 
-export function ApplicationShell({ children }: { children: ReactNode }) {
+export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const workspace =
-    pathname.startsWith("/workspace") || pathname.startsWith("/computers");
-  if (!workspace)
-    return (
-      <CatalogProvider>
-        <ComparisonProvider><AtlasShell>{children}</AtlasShell></ComparisonProvider>
-      </CatalogProvider>
-    );
   return (
     <>
       <header className="ac-app-header flex flex-wrap items-center gap-5 border-b border-line bg-paper px-5 py-4">

@@ -25,4 +25,38 @@ describe("exact artifact manifests", () => {
     expect(build.bytes).toBeNull();
     expect(buildsFromFiles(repo, revision, [...files, { path: "Q8_0-00002-of-00002.gguf", bytes: 12 }], [])[0].bytes).toBe(22);
   });
+  it("separates two shardings of one file name instead of failing the repository", () => {
+    const files = [
+      { path: "transformer/model-00001-of-00002.safetensors", bytes: 10 },
+      { path: "transformer/model-00002-of-00002.safetensors", bytes: 10 },
+      { path: "transformer/model-00001-of-00003.safetensors", bytes: 5 },
+      { path: "transformer/model-00002-of-00003.safetensors", bytes: 5 },
+      { path: "transformer/model-00003-of-00003.safetensors", bytes: 5 },
+      { path: "vae/model.safetensors", bytes: 3 },
+    ];
+    const builds = buildsFromFiles("Lightricks/LTX", revision, files, [], { format: "BF16" });
+    expect(builds.map((b) => [b.label, b.complete, b.bytes]).sort()).toEqual([
+      ["transformer/model-of-00002.safetensors", true, 20],
+      ["transformer/model-of-00003.safetensors", true, 15],
+      ["vae/model.safetensors", true, 3],
+    ]);
+  });
+  it("keeps existing labels when a shard count is unambiguous", () => {
+    const builds = buildsFromFiles(repo, revision, [
+      { path: "BF16/model-00001-of-00002.safetensors", bytes: 1 },
+      { path: "BF16/model-00002-of-00002.safetensors", bytes: 1 },
+    ], []);
+    expect(builds.map((b) => b.label)).toEqual(["BF16/model.safetensors"]);
+  });
+  it("omits an oversized build whole and reports it, keeping the repository's other builds", () => {
+    const shards = Array.from({ length: 282 }, (_, index) => ({
+      path: `BF16/GLM-BF16-${String(index + 1).padStart(5, "0")}-of-00282.gguf`, bytes: 1,
+    }));
+    const omitted: string[] = [];
+    const builds = buildsFromFiles(repo, revision, [...shards, { path: "GLM-Q4_K_M.gguf", bytes: 4 }], [], {
+      onOmit: ({ label, reason }) => omitted.push(`${label}: ${reason}`),
+    });
+    expect(builds.map((b) => b.quantization)).toEqual(["Q4_K_M"]);
+    expect(omitted).toEqual(["BF16/GLM-BF16.gguf: Build exceeds 256 shards"]);
+  });
 });
