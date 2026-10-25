@@ -1,29 +1,16 @@
-"use client";
+import { CatalogSnapshot } from "@/components/atlas/CatalogProvider";
+import { HomeRoute } from "@/components/atlas/HomeRoute";
+import { homeSnapshot } from "@/lib/atlas/home";
+import { getCatalogEntries, getRecentChanges } from "@/lib/atlas/serverCatalog";
 
-import { useRouter } from "next/navigation";
-import { HomeView } from "@/components/atlas/HomeView";
-import { useAtlasUi } from "@/components/atlas/AtlasShell";
-import { useCatalog } from "@/components/atlas/CatalogProvider";
-
-export default function HomePage() {
-  const router = useRouter();
-  const { rig } = useAtlasUi();
-  const { entries, materialChanges, syncedAt, health, loading, revision } = useCatalog();
-
+export default async function HomePage() {
+  const [entries, recentChanges] = await Promise.all([getCatalogEntries(), getRecentChanges(10)]);
+  // Unreachable catalog: render loading states and let the browser subscription fill them.
+  if (!entries) return <HomeRoute />;
+  const snapshot = homeSnapshot(entries, recentChanges ?? []);
   return (
-    <HomeView
-      entries={entries}
-      materialChanges={materialChanges}
-      syncedAt={syncedAt}
-      loading={loading}
-      health={health}
-      revision={revision}
-      rig={rig}
-      onOpenModel={(entry) => router.push(`/models/${entry.slug}`)}
-      onViewModels={() => router.push("/models")}
-      onViewBenchmarks={() => router.push("/benchmarks")}
-      onOpenDoc={(slug) => router.push(`/docs/${slug}`)}
-      onViewDocs={() => router.push("/docs")}
-    />
+    <CatalogSnapshot entries={snapshot.entries} recentChanges={recentChanges}>
+      <HomeRoute snapshotStats={snapshot.stats} />
+    </CatalogSnapshot>
   );
 }

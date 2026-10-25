@@ -2,11 +2,11 @@
 import type { ReactNode } from "react";
 import { ComparisonProvider } from "./comparison/ComparisonProvider";
 import { AtlasShell } from "./atlas/AtlasShell";
-import { CatalogProvider, type InitialCatalog } from "./atlas/CatalogProvider";
+import { CatalogProvider } from "./atlas/CatalogProvider";
 
-export function CatalogShell({ children, initial }: { children: ReactNode; initial?: InitialCatalog }) {
+export function CatalogShell({ children }: { children: ReactNode }) {
   return (
-    <CatalogProvider initial={initial}>
+    <CatalogProvider>
       <ComparisonProvider><AtlasShell>{children}</AtlasShell></ComparisonProvider>
     </CatalogProvider>
   );

@@ -30,6 +30,13 @@ crons.hourly(
   internal.health.checkCatalogHealth,
 );
 
+crons.hourly(
+  "revalidate cached catalog list pages",
+  { minuteUTC: 45 },
+  internal.siteRevalidation.flush,
+  { includeListWide: true },
+);
+
 crons.interval(
   "recover stalled catalog webhooks",
   { minutes: 15 },

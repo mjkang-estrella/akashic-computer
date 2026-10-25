@@ -39,6 +39,28 @@ The log payload contains counters and operation names, not catalog records,
 messages, or credentials. Leave it unset in normal operation; use the same
 fixtures/workloads before and after changes when comparing metrics.
 
+## Site cache revalidation
+
+The Next.js site renders catalog pages from cached Convex reads and serves them
+as ISR. Each read carries a cache tag (`src/lib/atlas/cacheTags.ts`): one per
+model (page, feed and social images), `catalog:list` for pages built from the
+published list (home, benchmarks, models, sitemap), and `catalog:changes` for
+recent material changes (home, site feed). Cached pages keep only data that
+changes with the catalog itself; snapshot revision and sync time are left to
+the live browser subscription, so a sync that changes nothing public leaves
+every cached page byte-identical.
+
+Convex queues a tag when public data actually changes: a model's payload
+(through the catalog write helpers), a published summary chunk, or a new
+material change. `convex/siteRevalidation.ts` posts model tags to the site's
+`/api/revalidate` route a minute after the first change, batching a sync or
+audit into one request. List-wide tags wait for the hourly flush at minute 45,
+which also retries anything a failed request left queued. Pages regenerate on
+their next visit; time-based revalidation after one day is only a safety net.
+
+Deployments without `CATALOG_REVALIDATE_URL` and `CATALOG_REVALIDATE_SECRET`,
+such as development, queue nothing.
+
 ## Production Setup
 
 1. Deploy the Convex functions.
@@ -56,6 +78,14 @@ fixtures/workloads before and after changes when comparing metrics.
    npx convex env set --prod CATALOG_ADMIN_SECRET '<operator-secret>'
    ```
 
+   Site cache revalidation needs a secret shared with the frontend, which reads
+   it as `CATALOG_REVALIDATE_SECRET`:
+
+   ```bash
+   npx convex env set --prod CATALOG_REVALIDATE_URL 'https://akashic.computer/api/revalidate'
+   npx convex env set --prod CATALOG_REVALIDATE_SECRET '<revalidate-secret>'
+   ```
+
 3. Synchronize the source configuration and run the first audit before assigning
    the frontend Convex URL.
 
@@ -66,7 +96,8 @@ fixtures/workloads before and after changes when comparing metrics.
    ```
 
 4. Set `NEXT_PUBLIC_CONVEX_URL` in the frontend deployment to the cloud URL
-   printed by Convex, then redeploy the frontend.
+   printed by Convex, and `CATALOG_REVALIDATE_SECRET` to the value given to
+   Convex, then redeploy the frontend.
 
 ## Hugging Face Webhooks
 

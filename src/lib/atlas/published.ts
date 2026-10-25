@@ -101,6 +101,77 @@ export function catalogSummary(entry: PublishedCatalogEntry): PublishedCatalogSu
   };
 }
 
+/**
+ * The fields list pages render before the live subscription answers. Pages send these
+ * instead of full summaries, keeping only the artifact repositories they join benchmark
+ * results on.
+ */
+export interface CatalogListItem {
+  slug: string;
+  name: string;
+  timestamp: number;
+  dateLabel: string;
+  quantizations: string[];
+  providers: string[];
+  category: PublishedCatalogSummary["category"];
+  capabilities: PublishedCatalogSummary["capabilities"];
+  family: Pick<FamilyIdentity, "id" | "name" | "vendor">;
+  release: Pick<ReleaseIdentity, "id" | "name" | "date">;
+  size: Pick<PublishedSize, "label" | "paramsB" | "activeParamsB" | "isMoe" | "variants">;
+  artifacts: Array<Pick<PublishedArtifactSummary, "repo">>;
+}
+
+export function catalogListItem(
+  entry: PublishedCatalogSummary,
+  keepArtifact: (repo: string) => boolean = () => false,
+): CatalogListItem {
+  return withoutUndefined({
+    slug: entry.slug,
+    name: entry.name,
+    timestamp: entry.timestamp,
+    dateLabel: entry.dateLabel,
+    quantizations: entry.quantizations,
+    providers: entry.providers,
+    category: entry.category,
+    capabilities: entry.capabilities,
+    family: { id: entry.family.id, name: entry.family.name, vendor: entry.family.vendor },
+    release: { id: entry.release.id, name: entry.release.name, date: entry.release.date },
+    size: {
+      label: entry.size.label,
+      paramsB: entry.size.paramsB,
+      activeParamsB: entry.size.activeParamsB,
+      isMoe: entry.size.isMoe,
+      variants: entry.size.variants,
+    },
+    artifacts: entry.artifacts
+      .filter((artifact) => keepArtifact(artifact.repo))
+      .map((artifact) => ({ repo: artifact.repo })),
+  });
+}
+
+/**
+ * Fields a list item omits become placeholders that list pages never render. Artifact
+ * memory estimates are unknown, so they never count as fitting a budget.
+ */
+export function hydrateCatalogListItems(items: CatalogListItem[]): ReturnType<typeof hydratePublishedEntries> {
+  return hydratePublishedEntries(items.map((item): PublishedCatalogSummary => ({
+    ...item,
+    id: item.slug,
+    effectiveDate: item.dateLabel,
+    updated: false,
+    context: "",
+    family: { ...item.family, tags: "" },
+    release: { ...item.release, ctx: "", license: "" },
+    artifacts: item.artifacts.map((artifact) => ({
+      ...artifact,
+      format: "Unknown",
+      variant: "",
+      runtimes: [],
+      recVramGb: Number.POSITIVE_INFINITY,
+    })),
+  })));
+}
+
 export function hydratePublishedEntries(
   payloads: Array<PublishedCatalogEntry | PublishedCatalogSummary>,
 ): {

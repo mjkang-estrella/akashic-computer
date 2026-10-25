@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { BenchmarksRoute } from "@/components/atlas/BenchmarksRoute";
+import { CatalogSnapshot } from "@/components/atlas/CatalogProvider";
+import { benchmarkSnapshot } from "@/lib/atlas/benchmarks";
+import { getCatalogEntries } from "@/lib/atlas/serverCatalog";
 
 export const metadata: Metadata = {
   title: "Benchmarks",
@@ -7,6 +10,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/benchmarks" },
 };
 
-export default function BenchmarksPage() {
-  return <BenchmarksRoute />;
+export default async function BenchmarksPage() {
+  const entries = await getCatalogEntries();
+  if (!entries) return <BenchmarksRoute />;
+  return (
+    <CatalogSnapshot entries={benchmarkSnapshot(entries)}>
+      <BenchmarksRoute />
+    </CatalogSnapshot>
+  );
 }

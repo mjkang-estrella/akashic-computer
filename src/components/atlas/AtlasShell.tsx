@@ -63,7 +63,7 @@ export function useAtlasUi(): AtlasUiContextValue {
 export function AtlasShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { entries, families } = useCatalog();
+  const { entries, families, loading } = useCatalog();
   const { selections, replace } = useDeploymentComparison();
   const [query, setQuery] = useState("");
   const [presetId, setPresetId] = useState<string | null>(DEFAULT_PRESET_ID);
@@ -208,6 +208,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
                 query={query}
                 entries={entries}
                 families={families}
+                loading={loading}
                 onSelect={selectSearchResult}
                 onClear={() => setQuery("")}
               />

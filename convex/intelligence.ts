@@ -1,4 +1,6 @@
 import { patchCatalogEntry } from "./catalogSnapshot";
+import { queueSiteRevalidation } from "./siteRevalidation";
+import { CATALOG_CHANGES_TAG } from "../src/lib/atlas/cacheTags";
 import { v } from "convex/values";
 import { internalMutation, query, type MutationCtx } from "./_generated/server";
 import { changeDateLabel } from "../src/lib/atlas/intelligence";
@@ -87,6 +89,7 @@ export async function upsertMaterialChange(
     reviewStatus: change.reviewStatus ?? "automatic",
     createdAt: now,
   });
+  await queueSiteRevalidation(ctx, [CATALOG_CHANGES_TAG]);
   const entry = await ctx.db
     .query("catalogEntries")
     .withIndex("by_slug", (q) => q.eq("slug", change.modelSlug))

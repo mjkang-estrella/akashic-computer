@@ -1,11 +1,7 @@
 import { CatalogShell } from "@/components/CatalogShell";
-import { getCatalogSnapshot, getRecentChanges } from "@/lib/atlas/serverCatalog";
 
-export default async function CatalogLayout({ children }: { children: React.ReactNode }) {
-  const [snapshot, recentChanges] = await Promise.all([getCatalogSnapshot(), getRecentChanges(10)]);
-  return (
-    <CatalogShell initial={snapshot ? { ...snapshot, recentChanges } : undefined}>
-      {children}
-    </CatalogShell>
-  );
+// No catalog data here: anything awaited in this layout would be embedded in every page.
+// Pages that render lists pass their own entries through CatalogSnapshot.
+export default function CatalogLayout({ children }: { children: React.ReactNode }) {
+  return <CatalogShell>{children}</CatalogShell>;
 }

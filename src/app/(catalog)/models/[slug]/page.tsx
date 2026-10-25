@@ -7,7 +7,8 @@ import { getCatalogEntry } from "@/lib/atlas/serverCatalog";
 
 type Props = { params: Promise<{ slug: string }> };
 
-// Render each model on its first visit, then serve it as ISR with the catalog's 5-minute revalidation.
+// Render each model on its first visit, then serve it as ISR until Convex revalidates its
+// tag; the page carries only this model's entry, so other models' changes leave it as is.
 export async function generateStaticParams() {
   return [];
 }
@@ -24,9 +25,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: {
       canonical: `/models/${slug}`,
-      types: {
-        "application/rss+xml": [{ url: `/models/${slug}/feed.xml`, title: `${entry.name} material changes` }],
-      },
+      // Like the visible RSS link, advertise the feed only once it has items; crawlers
+      // otherwise fetch an empty feed for every model.
+      ...(entry.materialChanges.length > 0
+        ? { types: { "application/rss+xml": [{ url: `/models/${slug}/feed.xml`, title: `${entry.name} material changes` }] } }
+        : {}),
     },
     openGraph: { title: entry.name, description, type: "article", url: `/models/${slug}` },
     twitter: { card: "summary_large_image", title: entry.name, description },
