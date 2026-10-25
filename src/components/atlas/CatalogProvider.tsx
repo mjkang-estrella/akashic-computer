@@ -5,7 +5,9 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { ModelEntry } from "@/lib/atlas/models";
 import {
+  hydrateCatalogListItems,
   hydratePublishedEntries,
+  type CatalogListItem,
   type PublishedCatalogEntry,
   type PublishedCatalogSummary,
 } from "@/lib/atlas/published";
@@ -33,6 +35,8 @@ interface CatalogContextValue {
     lastCompletedAuditAt: number | null;
   } | null;
   loading: boolean;
+  /** True while a page's server-rendered entries stand in for the live subscription. */
+  snapshot: boolean;
 }
 
 const loadingCatalog: CatalogContextValue = {
@@ -43,9 +47,11 @@ const loadingCatalog: CatalogContextValue = {
   syncedAt: null,
   health: null,
   loading: true,
+  snapshot: false,
 };
 
 const CatalogContext = createContext<CatalogContextValue | null>(null);
+const SnapshotContext = createContext<CatalogContextValue | null>(null);
 
 function absoluteHttpUrl(value: string | undefined): string | null {
   if (!value) return null;
@@ -58,15 +64,7 @@ function absoluteHttpUrl(value: string | undefined): string | null {
   }
 }
 
-/** Server-rendered snapshot used until the live subscription answers. */
-export interface InitialCatalog {
-  entries: PublishedCatalogSummary[];
-  syncedAt: number | null;
-  revision: string;
-  recentChanges?: MaterialChange[];
-}
-
-function RemoteCatalogProvider({ children, initial }: { children: ReactNode; initial?: InitialCatalog }) {
+function RemoteCatalogProvider({ children }: { children: ReactNode }) {
   const [loadedAt, setLoadedAt] = useState(() => Math.floor(Date.now() / 60_000) * 60_000);
   useEffect(() => {
     const update = () => setLoadedAt(Math.floor(Date.now() / 60_000) * 60_000);
@@ -74,8 +72,8 @@ function RemoteCatalogProvider({ children, initial }: { children: ReactNode; ini
     window.addEventListener("focus", update);
     return () => { clearInterval(timer); window.removeEventListener("focus", update); };
   }, []);
-  const result = useQuery(api.catalog.listPublished) ?? initial;
-  const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 }) ?? initial?.recentChanges;
+  const result = useQuery(api.catalog.listPublished);
+  const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 });
   const sourceHealth = useQuery(api.catalog.healthSummary, { now: loadedAt });
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
@@ -104,6 +102,7 @@ function RemoteCatalogProvider({ children, initial }: { children: ReactNode; ini
         lastCompletedAuditAt: sourceHealth.lastCompletedAuditAt,
       } : null,
       loading: false,
+      snapshot: false,
     };
   }, [recentChanges, result, sourceHealth]);
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
@@ -112,7 +111,7 @@ function RemoteCatalogProvider({ children, initial }: { children: ReactNode; ini
 const configuredConvexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convexUrl = absoluteHttpUrl(configuredConvexUrl);
 
-export function CatalogProvider({ children, initial }: { children: ReactNode; initial?: InitialCatalog }) {
+export function CatalogProvider({ children }: { children: ReactNode }) {
   if (!convexUrl) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-[760px] items-center px-5 py-16">
@@ -125,17 +124,45 @@ export function CatalogProvider({ children, initial }: { children: ReactNode; in
       </main>
     );
   }
-  return (
-    <>
-      <RemoteCatalogProvider initial={initial}>{children}</RemoteCatalogProvider>
-    </>
-  );
+  return <RemoteCatalogProvider>{children}</RemoteCatalogProvider>;
+}
+
+/**
+ * Server-rendered entries for one page, shown until the live subscription answers. Pages
+ * pass only what they render (see CatalogListItem); the shared layout carries none, so a
+ * model page's HTML holds its own entry rather than the whole catalog. The revision and
+ * sync time stay unresolved because they change on every sync and would make each cached
+ * page differ from the last.
+ */
+export function CatalogSnapshot({
+  children,
+  entries,
+  recentChanges,
+}: {
+  children: ReactNode;
+  entries: CatalogListItem[];
+  recentChanges?: MaterialChange[];
+}) {
+  const value = useMemo<CatalogContextValue>(() => ({
+    ...hydrateCatalogListItems(entries),
+    materialChanges: recentChanges ?? [],
+    revision: loadingCatalog.revision,
+    syncedAt: null,
+    health: null,
+    loading: false,
+    snapshot: true,
+  }), [entries, recentChanges]);
+  return <SnapshotContext.Provider value={value}>{children}</SnapshotContext.Provider>;
 }
 
 export function useCatalog() {
-  const value = useContext(CatalogContext);
-  if (!value) throw new Error("useCatalog must be used inside CatalogProvider");
-  return value;
+  const live = useContext(CatalogContext);
+  const snapshot = useContext(SnapshotContext);
+  if (!live) throw new Error("useCatalog must be used inside CatalogProvider");
+  return useMemo(
+    () => (live.loading && snapshot ? { ...snapshot, health: live.health } : live),
+    [live, snapshot],
+  );
 }
 
 export function useCatalogEntry(

@@ -1,7 +1,9 @@
 import { materialChangesRss, rssResponse } from "@/lib/atlas/feed";
 import { getRecentChanges } from "@/lib/atlas/serverCatalog";
 
-export const revalidate = 300;
+// Matches CATALOG_REVALIDATE_SECONDS, a safety net behind on-demand tag revalidation.
+// Segment config must be a literal.
+export const revalidate = 86400;
 
 export async function GET() {
   const changes = await getRecentChanges(24);

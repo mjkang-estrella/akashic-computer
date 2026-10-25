@@ -32,6 +32,7 @@ import type * as http from "../http.js";
 import type * as huggingFaceClient from "../huggingFaceClient.js";
 import type * as intelligence from "../intelligence.js";
 import type * as ioMetrics from "../ioMetrics.js";
+import type * as siteRevalidation from "../siteRevalidation.js";
 import type * as sourceConfig from "../sourceConfig.js";
 import type * as sourceConfigSync from "../sourceConfigSync.js";
 import type * as sync from "../sync.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   huggingFaceClient: typeof huggingFaceClient;
   intelligence: typeof intelligence;
   ioMetrics: typeof ioMetrics;
+  siteRevalidation: typeof siteRevalidation;
   sourceConfig: typeof sourceConfig;
   sourceConfigSync: typeof sourceConfigSync;
   sync: typeof sync;

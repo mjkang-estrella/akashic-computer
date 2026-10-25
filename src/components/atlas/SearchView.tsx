@@ -79,12 +79,15 @@ export function SearchView({
   query,
   entries,
   families,
+  loading = false,
   onSelect,
   onClear,
 }: {
   query: string;
   entries: ModelEntry[];
   families: Family[];
+  /** The live catalog has not answered yet, so an empty result means nothing. */
+  loading?: boolean;
   onSelect: (target: SearchTarget) => void;
   onClear: () => void;
 }) {
@@ -106,7 +109,11 @@ export function SearchView({
         </p>
       </header>
 
-      {groups.length === 0 ? (
+      {groups.length === 0 && loading ? (
+        <p role="status" className="py-16 text-center text-[13px] text-muted">
+          Loading the catalog…
+        </p>
+      ) : groups.length === 0 ? (
         <div className="py-16 text-center">
           <HugeiconsIcon icon={SearchRemoveIcon} className="mx-auto text-faint" size={24} strokeWidth={1.8} aria-hidden="true" />
           <h3 className="mt-3 font-display text-[19px] font-semibold">No matching model</h3>

@@ -14,6 +14,13 @@ import {
 } from "@hugeicons/core-free-icons";
 import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
 import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
+import {
+  modelSizesFitting,
+  newestReleaseEntries,
+  recentlyUpdatedEntries,
+  releaseTimestamp,
+  type HomeCatalogStats,
+} from "@/lib/atlas/home";
 import type { ModelEntry } from "@/lib/atlas/models";
 import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
 import type { MaterialChange, RigProfile } from "@/lib/atlas/types";
@@ -65,11 +72,6 @@ function formatSyncTime(value: number): string {
   }).format(value);
 }
 
-function releaseTimestamp(entry: ModelEntry): number {
-  const parsed = Date.parse(entry.release.date);
-  return Number.isFinite(parsed) ? parsed : entry.timestamp;
-}
-
 function releaseDateLabel(entry: ModelEntry): string {
   return new Date(releaseTimestamp(entry)).toISOString().slice(0, 10);
 }
@@ -113,8 +115,10 @@ function CatalogStatus({
   const delayed = health?.catalogStale;
   const degraded = health?.catalogDegraded;
 
+  // A server-rendered snapshot carries no revision; it resolves once the live catalog answers.
+  const resolving = loading || revision === "loading";
   let label = "Live catalog connected";
-  if (loading) label = "Refreshing the live catalog";
+  if (resolving) label = "Refreshing the live catalog";
   else if (health?.sourceTotal) {
     if (delayed) label = "Catalog refresh overdue";
     else if (degraded) {
@@ -136,7 +140,7 @@ function CatalogStatus({
           size={15}
           strokeWidth={1.8}
           aria-hidden="true"
-          className={loading ? "animate-spin motion-reduce:animate-none" : ""}
+          className={resolving ? "animate-spin motion-reduce:animate-none" : ""}
         />
         <span>{label}</span>
         <HugeiconsIcon
@@ -167,11 +171,9 @@ function CatalogStatus({
   );
 }
 
-function CatalogField({ entries }: { entries: ModelEntry[] }) {
+function CatalogField({ entries, stats }: { entries: ModelEntry[]; stats: HomeCatalogStats }) {
   const bars = useMemo(() => {
-    const recent = [...entries]
-      .sort((a, b) => b.timestamp - a.timestamp || b.size.paramsB - a.size.paramsB)
-      .slice(0, 28);
+    const recent = recentlyUpdatedEntries(entries);
     const maximum = Math.max(1, ...recent.map((entry) => entry.size.paramsB));
     return recent.map((entry) => {
       const normalized = Math.log10(entry.size.paramsB + 1) / Math.log10(maximum + 1);
@@ -190,18 +192,10 @@ function CatalogField({ entries }: { entries: ModelEntry[] }) {
       };
     });
   }, [entries]);
-  const familyCount = useMemo(
-    () => new Set(entries.map((entry) => entry.family.id)).size,
-    [entries],
-  );
-  const formatCount = useMemo(
-    () => new Set(entries.flatMap((entry) => entry.quantizations)).size,
-    [entries],
-  );
 
   return (
     <figure
-      aria-label={`${entries.length} model sizes across ${familyCount} families and ${formatCount} weight formats`}
+      aria-label={`${stats.modelSizes} model sizes across ${stats.families} families and ${stats.weightFormats} weight formats`}
       className="relative min-h-[248px] overflow-hidden border-y border-line py-5 lg:min-h-[296px] lg:border-y-0 lg:border-r lg:pr-10"
     >
       <figcaption className="sr-only">
@@ -231,19 +225,19 @@ function CatalogField({ entries }: { entries: ModelEntry[] }) {
       <div className="mt-5 grid grid-cols-3 border-t border-line pt-3">
         <span>
           <strong className="block font-mono text-[13px] font-semibold">
-            {entries.length}
+            {stats.modelSizes}
           </strong>
           <span className="mt-0.5 block text-[10.5px] text-muted">model sizes</span>
         </span>
         <span className="border-l border-linesoft pl-4">
           <strong className="block font-mono text-[13px] font-semibold">
-            {familyCount}
+            {stats.families}
           </strong>
           <span className="mt-0.5 block text-[10.5px] text-muted">families</span>
         </span>
         <span className="border-l border-linesoft pl-4">
           <strong className="block font-mono text-[13px] font-semibold">
-            {formatCount}
+            {stats.weightFormats}
           </strong>
           <span className="mt-0.5 block text-[10.5px] text-muted">weight formats</span>
         </span>
@@ -272,6 +266,7 @@ function HomeLoadingRows() {
 
 export function HomeView({
   entries,
+  stats,
   materialChanges,
   syncedAt,
   loading,
@@ -284,7 +279,9 @@ export function HomeView({
   onOpenDoc,
   onViewDocs,
 }: {
+  /** May be a server-rendered subset; catalog-wide counts come from `stats`. */
   entries: ModelEntry[];
+  stats: HomeCatalogStats;
   materialChanges: MaterialChange[];
   syncedAt: number | null;
   loading: boolean;
@@ -338,25 +335,8 @@ export function HomeView({
   );
   // List summaries carry the weights + native-context KV estimate only.
   const budgetGb = rig?.gb ?? null;
-  const runnableEntries = useMemo(
-    () =>
-      budgetGb === null ? 0 : entries.filter((entry) =>
-        entry.artifacts.some((artifact) => artifact.recVramGb <= budgetGb),
-      ).length,
-    [entries, budgetGb],
-  );
-  const recentEntries = useMemo(
-    () =>
-      [...entries]
-        .sort(
-          (a, b) =>
-            releaseTimestamp(b) - releaseTimestamp(a) ||
-            a.name.localeCompare(b.name) ||
-            b.size.paramsB - a.size.paramsB,
-        )
-        .slice(0, 6),
-    [entries],
-  );
+  const runnableEntries = budgetGb === null ? 0 : modelSizesFitting(stats, budgetGb);
+  const recentEntries = useMemo(() => newestReleaseEntries(entries), [entries]);
   const benchmarkCoverage = useMemo(() => {
     const resolved = resolveOfficialBenchmarks(entries);
     const comparable = resolved.filter((benchmark) => benchmark.results.length >= 2);
@@ -391,7 +371,7 @@ export function HomeView({
     <section className="pb-10 pt-6 sm:pt-8">
       <header className="grid gap-6 border-b border-line pb-8 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
         <div className="order-2 lg:order-1">
-          <CatalogField entries={entries} />
+          <CatalogField entries={entries} stats={stats} />
         </div>
         <div className="order-1 lg:order-2 lg:pl-2">
           <h2 className="max-w-[18ch] text-balance font-display text-[36px] font-semibold leading-[1.08] sm:text-[44px] lg:text-[52px]">
@@ -431,7 +411,7 @@ export function HomeView({
                 </span>
               ) : loading
                 ? `Checking listed artifacts against ${rig.gb} GB`
-                : `${rig.gb} GB: ${runnableEntries} of ${entries.length} model sizes have an artifact estimated to fit at full context`}
+                : `${rig.gb} GB: ${runnableEntries} of ${stats.modelSizes} model sizes have an artifact estimated to fit at full context`}
             </p>
           </div>
         </div>

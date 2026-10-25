@@ -430,6 +430,15 @@ export default defineSchema({
     syncedAt: v.number(),
   }).index("by_key", ["key"]),
 
+  /** Next.js cache tags awaiting revalidation on the site; see siteRevalidation.ts. */
+  siteRevalidations: defineTable({
+    tag: v.string(),
+    listWide: v.boolean(),
+    requestedAt: v.number(),
+  })
+    .index("by_tag", ["tag"])
+    .index("by_list_wide", ["listWide", "requestedAt"]),
+
   catalogHealthAlerts: defineTable({
     kind: v.union(
       v.literal("webhook_stale"),

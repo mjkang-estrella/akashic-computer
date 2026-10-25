@@ -1,4 +1,5 @@
 import type { ModelEntry } from "./models";
+import { catalogListItem, type CatalogListItem, type PublishedCatalogSummary } from "./published";
 
 export type BenchmarkCategoryId =
   | "knowledge"
@@ -913,4 +914,24 @@ export function resolveOfficialBenchmarks(entries: ModelEntry[]): ResolvedBenchm
 
     return { ...benchmark, results };
   }).filter((benchmark) => benchmark.results.length >= 2);
+}
+
+const OFFICIAL_BENCHMARK_REPOS = new Set(
+  OFFICIAL_BENCHMARKS.flatMap((benchmark) => benchmark.results.map((result) => result.repo)),
+);
+
+/** Whether an artifact repository carries any official benchmark result. */
+export function hasOfficialBenchmarkResult(repo: string): boolean {
+  return OFFICIAL_BENCHMARK_REPOS.has(repo);
+}
+
+/**
+ * Leaderboards only ever show models with official results, so the benchmarks page sends
+ * just those, in list order so repository matches and ties resolve as they would against
+ * the full list.
+ */
+export function benchmarkSnapshot(entries: PublishedCatalogSummary[]): CatalogListItem[] {
+  return entries
+    .filter((entry) => entry.artifacts.some((artifact) => hasOfficialBenchmarkResult(artifact.repo)))
+    .map((entry) => catalogListItem(entry, hasOfficialBenchmarkResult));
 }

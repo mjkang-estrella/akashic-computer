@@ -3,6 +3,8 @@ import { v } from "convex/values";
 import { convexValuesEqual, MAX_CATALOG_ENTRIES, SUMMARY_BUCKETS, SUMMARY_SNAPSHOT_KEY, updateCatalogSummary } from "./catalogSnapshot";
 import { internal } from "./_generated/api";
 import { logIoMetrics } from "./ioMetrics";
+import { queueSiteRevalidation } from "./siteRevalidation";
+import { CATALOG_LIST_TAG } from "../src/lib/atlas/cacheTags";
 import {
   publishedCatalogEntryValue,
   publishedCatalogListValue,
@@ -192,6 +194,8 @@ export const rebuildPublishedSnapshot = internalMutation({
         .withIndex("by_snapshot_and_chunk", q => q.eq("snapshotKey", STATE_KEY)).take(MAX_SNAPSHOT_CHUNKS);
       for (const chunk of legacy) await ctx.db.delete(chunk._id);
     }
+    // A new revision or sync time alone leaves list pages unchanged; they omit both.
+    if (changedChunks > 0) await queueSiteRevalidation(ctx, [CATALOG_LIST_TAG]);
     await logIoMetrics(ctx, "catalog.rebuildPublishedSnapshot");
     return { rebuilt: true, chunks: stateValue.chunkCount, changedChunks };
   },

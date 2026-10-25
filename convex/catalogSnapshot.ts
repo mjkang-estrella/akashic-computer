@@ -5,6 +5,8 @@ import {
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { queueSiteRevalidation } from "./siteRevalidation";
+import { catalogModelTag } from "../src/lib/atlas/cacheTags";
 
 const SNAPSHOT_SCHEDULE_TTL_MS = 10 * 60 * 1000;
 
@@ -127,6 +129,7 @@ export async function insertCatalogEntry(
 ) {
   const id = await ctx.db.insert("catalogEntries", value);
   await updateCatalogSummary(ctx, value.slug, value.payload);
+  await queueSiteRevalidation(ctx, [catalogModelTag(value.slug)]);
   return id;
 }
 
@@ -139,6 +142,10 @@ export async function patchCatalogEntry(
     throw new Error("Catalog slug changes require delete and insert");
   await ctx.db.patch(entry._id, patch);
   if (patch.payload) await updateCatalogSummary(ctx, entry.slug, patch.payload);
+  // Only the public payload reaches the model's page, feed and images.
+  if (patch.payload && !convexValuesEqual(entry.payload, patch.payload)) {
+    await queueSiteRevalidation(ctx, [catalogModelTag(entry.slug)]);
+  }
 }
 
 export async function deleteCatalogEntry(
@@ -147,4 +154,5 @@ export async function deleteCatalogEntry(
 ) {
   await ctx.db.delete(entry._id);
   await updateCatalogSummary(ctx, entry.slug, null);
+  await queueSiteRevalidation(ctx, [catalogModelTag(entry.slug)]);
 }
