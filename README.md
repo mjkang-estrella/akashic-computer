@@ -33,6 +33,18 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Website analytics
+
+Cloudflare Web Analytics is installed in `src/app/layout.tsx` using the site's
+public beacon token. It loads after hydration, only in production builds on
+`akashic.computer`; localhost and preview hostnames do not load the beacon.
+Cloudflare handles client-side route tracking without additional page-view events.
+
+Use manual JS snippet installation for this site in Cloudflare, rather than also
+enabling automatic injection. After deployment, check Web Analytics for incoming
+page views and verify navigation between catalog pages. These metrics measure
+website activity separately from Convex function calls and controller polling.
+
 ## Convex
 
 Convex is the only runtime source of truth for the public catalog.
