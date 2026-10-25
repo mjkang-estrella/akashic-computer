@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { IBM_Plex_Mono, IBM_Plex_Sans, STIX_Two_Text } from "next/font/google";
 import { AppProviders } from "@/components/AppProviders";
 import "@/components/workspace/workspace.css";
@@ -61,6 +62,20 @@ export default function RootLayout({
         <AppProviders>
           {children}
         </AppProviders>
+        {process.env.NODE_ENV === "production" && (
+          <Script id="cloudflare-web-analytics" strategy="afterInteractive">
+            {`
+              if (window.location.hostname === "akashic.computer" &&
+                  !document.querySelector('script[src="https://static.cloudflareinsights.com/beacon.min.js"]')) {
+                const beacon = document.createElement("script");
+                beacon.type = "module";
+                beacon.src = "https://static.cloudflareinsights.com/beacon.min.js";
+                beacon.setAttribute("data-cf-beacon", '{"token":"03f2cdba095846aaae1ff02db2550f38"}');
+                document.body.appendChild(beacon);
+              }
+            `}
+          </Script>
+        )}
       </body>
     </html>
   );
