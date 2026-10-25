@@ -7,7 +7,8 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 cannot install browsers on Ubuntu 26.04, which ubuntu-latest now selects.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXT_PUBLIC_CONVEX_URL: https://artful-nightingale-491.convex.cloud
