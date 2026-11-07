@@ -47,6 +47,22 @@ describe("capability snapshot identity and comparisons", () => {
       expect(Object.values(current.scores).every(v => v === null)).toBe(true);
     }
   });
+  it("prefers reasoning mode when both configurations have no effort level", () => {
+    const current = getCapabilityComparisons(entry("nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16", "Nemotron 3 Nano")).Instruct.models.find(m => m.current)!;
+    expect(current.configuration).toContain("Reasoning");
+    expect(current.sourceUrl).not.toContain("non-reasoning");
+    expect(current.scores.terminalBench40).not.toBeNull();
+    expect(current.scores.hleDiamond).not.toBeNull();
+  });
+  it("identifies every model in creator-report configurations and tooltips", () => {
+    const model = entry("Qwen/Qwen3.5-27B", "Qwen3.5 27B");
+    model.size.paramsB = 27;
+    const comparison = getCapabilityComparisons(model).Instruct;
+    expect(comparison.source).toBe("Creator reports");
+    expect(comparison.models.length).toBeGreaterThan(1);
+    for (const row of comparison.models) expect(row.configuration).toContain(row.name);
+    expect(new Set(comparison.models.map(m => m.configuration)).size).toBe(comparison.models.length);
+  });
   it("isolates model variants", () => {
     const model = entry("deepseek-ai/DeepSeek-V4.1-Flash");
     model.size.variants.push("Base");

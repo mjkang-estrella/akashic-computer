@@ -23,7 +23,7 @@ for (const line of payload.split("\n")) {
   try { visit(JSON.parse(raw)); } catch { /* Ignore non-JSON rows. */ }
 }
 const anchors = new Set(["gpt-6-luna", "gemini-3-8-flash", "claude-haiku-5-5", "gpt-6-astra", "claude-opus-5-5", "gemini-4-carbon"]);
-const fields = ["id", "slug", "name", "releaseDate", "isOpenWeights", "parameters", "modelWeightsSourceUrl", "effort", "release", "intelligenceIndex", "terminalBench40", "hleDiamond", "gpqa", "livecodebench"];
+const fields = ["id", "slug", "name", "releaseDate", "isOpenWeights", "isReasoning", "parameters", "modelWeightsSourceUrl", "effort", "release", "intelligenceIndex", "terminalBench40", "hleDiamond", "gpqa", "livecodebench"];
 const models = [...candidates.values()].filter(row => row.modelWeightsSourceUrl || anchors.has(row.slug))
   .map(row => Object.fromEntries(fields.map(field => [field, row[field] ?? null])));
 if (!models.length) throw new Error("No public chart data found; existing snapshot left untouched.");

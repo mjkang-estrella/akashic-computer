@@ -52,7 +52,8 @@ function groupOf(model: SnapshotModel): CapabilityGroup {
 function preferredConfigurations(models: SnapshotModel[]): SnapshotModel[] {
   const byRepo = new Map<string, SnapshotModel>();
   for (const model of [...models].sort((a, b) =>
-    (b.effort?.level ?? 0) - (a.effort?.level ?? 0) || a.slug.localeCompare(b.slug))) {
+    (b.effort?.level ?? 0) - (a.effort?.level ?? 0) ||
+    Number(b.isReasoning) - Number(a.isReasoning) || a.slug.localeCompare(b.slug))) {
     const repo = weightsRepo(model.modelWeightsSourceUrl);
     if (repo && !byRepo.has(repo)) byRepo.set(repo, model);
   }
@@ -92,9 +93,10 @@ function creatorComparison(entry: PublishedCatalogEntry, repos: Set<string>, gro
   const models = [currentRepo, ...peers].map((repo, index): CapabilityModel => {
     const aa = aaByRepo.get(repo.toLowerCase());
     const evidence = selected.flatMap(b => b.results).find(r => r.repo === repo)!;
+    const name = index === 0 ? entry.name : aa?.release?.name ?? repo.split("/")[1];
     return {
-      id: repo, repo, name: index === 0 ? entry.name : aa?.release?.name ?? repo.split("/")[1],
-      configuration: evidence.note ?? "Creator-reported configuration; see source", current: index === 0, closed: false,
+      id: repo, repo, name,
+      configuration: `${name} · ${evidence.note ?? "Creator-reported configuration; see source"}`, current: index === 0, closed: false,
       sourceUrl: evidence.sourceUrl,
       scores: Object.fromEntries(selected.map(b => [b.id, b.results.find(r => r.repo === repo)?.score ?? null])),
       evidence: Object.fromEntries(selected.flatMap(b => {
