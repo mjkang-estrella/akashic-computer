@@ -26,6 +26,8 @@ import { LexiconHint } from "./LexiconHint";
 import { RunningModelLink } from "../workspace/RunningModelLink";
 import { FamilyLogo } from "./FamilyLogo";
 import { openBudgetMenu } from "./FitBar";
+import { ModelCapabilityCharts } from "./ModelCapabilityCharts";
+import type { CapabilityComparisons } from "@/lib/atlas/capabilityTypes";
 import { RunCommands } from "./RunCommands";
 
 const kvGbLabel = (bytes: number) => {
@@ -35,6 +37,7 @@ const kvGbLabel = (bytes: number) => {
 
 export function ModelDetailView({
   entry,
+  capabilityComparisons,
   rig,
   context,
   onContext,
@@ -45,6 +48,7 @@ export function ModelDetailView({
   onLearn,
 }: {
   entry: ModelEntry;
+  capabilityComparisons?: CapabilityComparisons;
   rig: RigProfile | null;
   context: ContextChoice;
   onContext: (context: ContextChoice) => void;
@@ -227,6 +231,8 @@ export function ModelDetailView({
           </div>
         </dl>
       </header>
+
+      {capabilityComparisons?.[variant] ? <ModelCapabilityCharts comparison={capabilityComparisons[variant]} /> : null}
 
       {entry.benchmarkRefs.length > 0 ? (
         <section className="border-b border-line py-5" aria-labelledby="benchmark-evidence-title">

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ModelDetailRoute } from "@/components/atlas/ModelDetailRoute";
 import { modelDescription } from "@/lib/atlas/models";
 import { hydratePublishedEntries } from "@/lib/atlas/published";
+import { getCapabilityComparisons } from "@/lib/atlas/capabilityData";
 import { getCatalogEntry } from "@/lib/atlas/serverCatalog";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -41,5 +42,5 @@ export default async function ModelPage({ params }: Props) {
   const published = await getCatalogEntry(slug);
   // Undefined means the catalog was unreachable; the browser subscription decides then.
   if (published === null) notFound();
-  return <ModelDetailRoute slug={slug} initialEntry={published} />;
+  return <ModelDetailRoute slug={slug} initialEntry={published} capabilityComparisons={published ? getCapabilityComparisons(published) : {}} />;
 }
