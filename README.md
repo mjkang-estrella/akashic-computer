@@ -93,3 +93,35 @@ The optional [deployment comparison workflow](docs/deployment-comparison.md) add
 - `DESIGN.md`
 - `docs/product-brief.md`
 - `docs/design-agent-prompt.md`
+
+## Model capability comparisons
+
+Model pages show three vertical capability charts above artifacts and runtime
+recipes. The dated Artificial Analysis snapshot is in
+`src/lib/atlas/snapshots/artificial-analysis.json`. It is manually captured from
+public page chart data; no API key, background scraper, or scheduled sync is used.
+The initial snapshot is November 6, 2026, Intelligence Index v5.0.1, with
+Terminal-Bench 4.0 and HLE-Diamond. The original DeepSeek V4.1 Flash has no v5
+Intelligence score in that source; 1017 is a separate checkpoint.
+
+Scores join only exact Hugging Face checkpoint URLs and the selected artifact
+variant. Quantizations, fine-tunes, and dated releases do not inherit another
+checkpoint's results. The highest published effort configuration is selected,
+not the highest score. Exact settings and sources are available in the disclosure.
+Flash roles take priority over parameter scale; other models use named flagship
+roles or compact/mid-size/large scale. Curated peer priorities and closed anchors
+live in `capabilityData.ts`. Models without AA coverage use existing creator
+reports where available, kept separate from independent measurements.
+
+To refresh manually, save a public AA model page's HTML and confirm its displayed
+Intelligence Index version, then run:
+
+```bash
+node scripts/import-aa-capabilities.mjs /path/to/saved-page.html 2026-11-06 5.0.1 https://artificialanalysis.ai/models/deepseek-v4-1-flash
+npm run test -- src/lib/atlas/capabilityData.test.ts
+```
+
+Review the snapshot diff and version before committing. The importer parses JSON
+embedded in the public page, never executes its scripts, and records a SHA-256
+of the source HTML. Only selected peers are serialized into each model page;
+the full snapshot stays out of the client bundle. Missing scores remain unknown.

@@ -8,6 +8,7 @@ import { ModelCatalogSkeleton } from "./ModelCatalogView";
 import { ArtifactBuildPicker } from "../comparison/ArtifactBuildPicker";
 import { comparisonEnabled } from "@/lib/atlas/comparisonFlags";
 import type { PublishedCatalogEntry } from "@/lib/atlas/published";
+import type { CapabilityComparisons } from "@/lib/atlas/capabilityTypes";
 import { ModelDetailView } from "./ModelDetailView";
 import { ModelNotFound } from "./ModelNotFound";
 
@@ -24,9 +25,11 @@ function PreferredVariant({ onVariant }: { onVariant: (variant: string | null) =
 export function ModelDetailRoute({
   slug,
   initialEntry,
+  capabilityComparisons,
 }: {
   slug: string;
   initialEntry?: PublishedCatalogEntry | null;
+  capabilityComparisons?: CapabilityComparisons;
 }) {
   const router = useRouter();
   const entry = useCatalogEntry(slug, initialEntry);
@@ -41,6 +44,7 @@ export function ModelDetailRoute({
     </Suspense>
     <ModelDetailView
       entry={entry}
+      capabilityComparisons={capabilityComparisons}
       rig={rig}
       context={context}
       onContext={setContext}
