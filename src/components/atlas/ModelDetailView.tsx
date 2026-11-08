@@ -15,7 +15,7 @@ import {
   SourceCodeIcon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
-import { modelDescription, type ModelEntry } from "@/lib/atlas/models";
+import type { ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
 import { contextLabel, fitOf, kvCacheAt, memoryRange } from "@/lib/atlas/fit";
 import { CONTEXT_CHOICES } from "@/lib/atlas/data";
@@ -148,20 +148,12 @@ export function ModelDetailView({
             {entry.dateLabel}
           </span>
         </div>
-        <p className="mt-5 max-w-[72ch] text-[13px] leading-6 text-muted">
-          {modelDescription(entry)}
-        </p>
 
         {entry.introduction ? (
           <details className="motion-disclosure group/introduction mt-5 border-y border-linesoft">
             <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
-              <span className="min-w-0 flex-1">
-                <span className="block font-display text-[15px] font-semibold">
-                  {entry.introduction.heading}
-                </span>
-                <span className="mt-0.5 block max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
-                  {entry.introduction.summary}
-                </span>
+              <span className="min-w-0 flex-1 font-display text-[15px] font-semibold">
+                {entry.introduction.heading}
               </span>
               <HugeiconsIcon
                 icon={ArrowDown01Icon}
@@ -236,12 +228,9 @@ export function ModelDetailView({
 
       {entry.benchmarkRefs.length > 0 ? (
         <section className="border-b border-line py-5" aria-labelledby="benchmark-evidence-title">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 id="benchmark-evidence-title" className="font-display text-[17px] font-semibold">
-              Benchmark evidence
-            </h3>
-            <span className="text-[11.5px] text-muted">Sourced results, not inferred</span>
-          </div>
+          <h3 id="benchmark-evidence-title" className="font-display text-[17px] font-semibold">
+            Benchmark evidence
+          </h3>
           <div className="mt-3 divide-y divide-linesoft border-y border-linesoft">
             {entry.benchmarkRefs.map((benchmark) => (
               <a
@@ -265,14 +254,9 @@ export function ModelDetailView({
 
       <section className="py-5" aria-labelledby="artifact-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h3 id="artifact-title" className="font-display text-[19px] font-semibold">
-              Available artifacts
-            </h3>
-            <p className="mt-1 text-[12.5px] text-muted">
-              Original checkpoints and quantized weights linked to this model. Repositories may contain multiple download files.
-            </p>
-          </div>
+          <h3 id="artifact-title" className="font-display text-[19px] font-semibold">
+            Available artifacts
+          </h3>
           {entry.size.variants.length > 1 ? (
             <div className="flex flex-wrap gap-1.5" aria-label="Model variant">
               {entry.size.variants.map((item) => (
@@ -326,7 +310,7 @@ export function ModelDetailView({
                 );
               })}
             </span>
-            <span className="text-[11px] text-muted">KV cache grows with context; estimates assume BF16 cache and one request.</span>
+            <span className="text-[11px] text-muted">KV estimates: BF16 cache, one request.</span>
           </div>
         ) : null}
 
@@ -427,7 +411,7 @@ export function ModelDetailView({
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
                       {artifact.vramEstimate && kv
                         ? `+ ${kvGbLabel(kv.bytes)} GB KV estimate · ${kv.tokens.toLocaleString("en-US")} tokens · concurrency ${artifact.vramEstimate.concurrency} · ${artifact.vramEstimate.kvCacheDtype}`
-                        : "Estimate only; weight and KV breakdown unknown. Exact file not selected."}
+                        : "Estimate; weight/KV breakdown unknown. No exact file selected."}
                     </span>
                     {recipeCheckpoints.filter((item) => item.variant.minimumVramGb && item.variant.precision.toUpperCase() === artifact.format.toUpperCase()).map((item) => (
                       <a key={`${item.recipe.recipeUrl}:${item.variant.key}`} href={item.recipe.recipeUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[10px] font-semibold text-meta underline-offset-2 hover:underline">
@@ -472,21 +456,14 @@ export function ModelDetailView({
           </div>
         </div>
         <p className="mt-2.5 text-[11.5px] text-muted">
-          {rig
-            ? `Selected budget: ${rig.gb} GB. This does not specify device count, memory per device or interconnect. `
-            : "No memory budget set, so no artifact is judged against one. "}
-          Weight and KV estimates exclude runtime overhead, workspace, and other cache/state allocations. Runtime fit remains unverified.
-        </p>
-        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-faint">
-          <HugeiconsIcon icon={StarIcon} size={13} strokeWidth={1.9} aria-hidden="true" className="text-meta" />
-          A star marks an exact checkpoint referenced by an official deployment recipe.
+          Estimates exclude runtime overhead, workspace, and other cache/state. Runtime fit is unverified.
+          {rig ? " Budget does not specify device count, per-device memory, or interconnect." : ""}
         </p>
       </section>
       <section className="border-t border-line py-5" aria-labelledby="recipes-title">
         <h3 id="recipes-title" className="font-display text-[19px] font-semibold">Runtime recipes</h3>
         <p className="mt-1 max-w-[76ch] text-[12.5px] text-muted">
-          Requirements apply only to each linked recipe and its configuration, not every way to run this model.
-          Check the upstream runtime version, context length, concurrency, KV cache and device topology.
+          Requirements are specific to the linked recipe’s runtime, context, concurrency, cache, and hardware.
         </p>
         {displayRecipes.length > 0 ? (
           <div className="mt-4 divide-y divide-linesoft border-y border-line">
@@ -494,15 +471,10 @@ export function ModelDetailView({
               <details key={recipe.recipeUrl} className="motion-disclosure group/recipe">
                 <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
                   <HugeiconsIcon icon={Rocket01Icon} size={17} strokeWidth={1.8} aria-hidden="true" className="flex-none text-meta" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-[12.5px] font-semibold">Official {recipe.runtime} recipe · {recipe.title}</span>
-                      <span className="rounded-[4px] bg-metasoft px-1.5 py-0.5 font-mono text-[10px] text-meta">
-                        {recipe.runtime}{recipe.minimumRuntimeVersion ? ` ${recipe.minimumRuntimeVersion}+` : ""}
-                      </span>
-                    </span>
-                    <span className="mt-0.5 block max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
-                      {recipe.description}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <span className="text-[12.5px] font-semibold">Official {recipe.runtime} recipe · {recipe.title}</span>
+                    <span className="rounded-[4px] bg-metasoft px-1.5 py-0.5 font-mono text-[10px] text-meta">
+                      {recipe.runtime}{recipe.minimumRuntimeVersion ? ` ${recipe.minimumRuntimeVersion}+` : ""}
                     </span>
                   </span>
                   <HugeiconsIcon
@@ -548,7 +520,7 @@ export function ModelDetailView({
                           ))}
                         </div>
                       ) : (
-                        <p className="mt-1 text-[11.5px] text-muted">No hardware is marked verified upstream. This does not mean unsupported.</p>
+                        <p className="mt-1 text-[11.5px] text-muted">Hardware unverified, not unsupported.</p>
                       )}
                     </div>
                     <div>
@@ -557,7 +529,7 @@ export function ModelDetailView({
                         Recipe capabilities
                       </p>
                       <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-                        {[...recipe.tasks, ...recipe.features].join(" · ") || "See the upstream recipe for supported features."}
+                        {[...recipe.tasks, ...recipe.features].join(" · ") || "See recipe for features."}
                       </p>
                     </div>
                     </div>
@@ -580,7 +552,7 @@ export function ModelDetailView({
           <div className="mt-4 border-y border-linesoft py-3">
             <p className="text-[12px] font-semibold">No exact official deployment recipe match</p>
             <p className="mt-0.5 max-w-[76ch] text-[11.5px] leading-relaxed text-muted">
-              Absence means unverified, not unsupported. Akashic Computer only attaches recipes through exact artifact IDs.
+              Unverified, not unsupported.
             </p>
           </div>
         )}
@@ -591,14 +563,11 @@ export function ModelDetailView({
         <section className="border-t border-line py-5" aria-labelledby="model-history-title">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 id="model-history-title" className="font-display text-[18px] font-semibold">Material history</h3>
-            <span className="flex items-center gap-3">
-              <span className="text-[10.5px] text-faint">Description-only commits excluded</span>
-              <a href={`/models/${entry.slug}/feed.xml`} className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
-                <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
-                RSS
-                <span className="sr-only"> feed of changes to {entry.name}</span>
-              </a>
-            </span>
+            <a href={`/models/${entry.slug}/feed.xml`} className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
+              <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
+              RSS
+              <span className="sr-only"> feed of changes to {entry.name}</span>
+            </a>
           </div>
           <ol className="mt-3 divide-y divide-linesoft border-y border-linesoft">
             {displayMaterialChanges.map((change) => (
