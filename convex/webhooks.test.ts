@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from "convex-test";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { classifyHuggingFaceRepo, compactClassification } from "../src/lib/atlas/huggingface";
@@ -9,6 +9,7 @@ import { publishableEntry } from "../src/lib/atlas/published";
 import { MINIMAX_H3_ENTRY, QWEN_ENTRY } from "../test/catalogFixture";
 
 const modules = import.meta.glob("./**/*.*s");
+afterEach(() => vi.restoreAllMocks());
 
 async function monitoredTest() {
   const t = convexTest(schema, modules);
@@ -352,7 +353,8 @@ describe("webhook ingestion", () => {
     expect(published).toMatchObject({ introduction: { heading: "Protected introduction" } });
   });
 
-  it("preserves distinct variants that share one canonical repository", async () => {
+  it.each([true, false])("preserves shared-repository variants and stable replays (source dates: %s)", async (hasDates) => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-01"));
     const t = convexTest(schema, modules);
     const entry = MINIMAX_H3_ENTRY;
     const payload = publishableEntry(entry);
@@ -404,8 +406,10 @@ describe("webhook ingestion", () => {
       id: "MiniMaxAI/MiniMax-H3",
       author: "MiniMaxAI",
       sha: "h3-sha",
-      createdAt: "2026-07-28T00:00:00.000Z",
-      lastModified: "2026-08-03T00:00:00.000Z",
+      ...(hasDates ? {
+        createdAt: "2026-07-28T00:00:00.000Z",
+        lastModified: "2026-08-03T00:00:00.000Z",
+      } : {}),
       pipeline_tag: "image-text-to-video",
       tags: ["video-generation"],
       siblings: [{ rfilename: "FL2VA/model.safetensors" }],
@@ -446,6 +450,7 @@ describe("webhook ingestion", () => {
       failed: 0,
       retries: 0,
     }));
+    clock.mockReturnValue(Date.parse("2026-11-01"));
     const replayOutcome = await t.mutation(internal.sync.applyRepoResult, {
       classification,
       sourceOwner: "MiniMaxAI",
@@ -456,6 +461,7 @@ describe("webhook ingestion", () => {
     expect(replayOutcome).toMatchObject({ status: "published", changed: false });
     const unchangedEntry = await t.run(async (ctx) => await ctx.db.query("catalogEntries").first());
     expect(unchangedEntry?.publishedAt).toBe(2);
+    expect(unchangedEntry?.payload).toEqual(state.entry?.payload);
   });
 
   it("uses the newest weight commit rather than a newer description commit", async () => {
