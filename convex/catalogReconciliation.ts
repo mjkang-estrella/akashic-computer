@@ -82,6 +82,7 @@ function artifactFor(
   role: string,
   variant: string,
   fallbackParamsB?: number,
+  previousUpdatedAt?: number,
 ): PublishedArtifact {
   const estimate = parsed.paramsB
     ? null
@@ -104,7 +105,12 @@ function artifactFor(
     qualityRank: 99,
     gated: parsed.repo.gated,
     vramEstimated: true,
-    lastUpdatedAt: significantTimestamp(parsed.repo),
+    // A sync time is not a source update. Keep known dates, or leave this optional
+    // field unknown, so reprocessing an undated artifact cannot change its payload.
+    lastUpdatedAt: timestamp(parsed.repo.weightsLastModified) ??
+      timestamp(parsed.repo.createdAt) ??
+      timestamp(parsed.repo.lastModified) ??
+      previousUpdatedAt,
   };
 }
 
@@ -238,7 +244,7 @@ export function mergeParsedIntoPayload(
   );
   const existing = existingIndex >= 0 ? original.artifacts[existingIndex] : undefined;
   const variant = existing?.variant ?? parsed.variant;
-  const nextArtifact = artifactFor(parsed, role, variant, original.size.paramsB);
+  const nextArtifact = artifactFor(parsed, role, variant, original.size.paramsB, existing?.lastUpdatedAt);
   const artifacts = existing
     ? original.artifacts.map((artifact, index) =>
         index === existingIndex ? { ...artifact, ...nextArtifact, qualityRank: artifact.qualityRank } : artifact)
