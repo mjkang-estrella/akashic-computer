@@ -61,6 +61,67 @@ test("does not translate retired query-string tabs", async ({ page }) => {
   await expect(page).toHaveURL(/\?tab=model$/);
 });
 
+test("hydrates incoming family filters and cleans unknown parameters", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto("/models?family=qwen&quant=not-a-quant&provider=not-a-provider&catalogVariant=not-a-variant");
+  const filters = page.getByRole("complementary", { name: "Model filters" });
+  await expect(filters.getByRole("combobox", { name: "Family", exact: true })).toHaveValue("qwen");
+  await expect(filters.getByRole("combobox", { name: "Quantization", exact: true })).toHaveValue("all");
+  await expect(page.getByRole("button", { name: /Remove .*Qwen.* filter/ })).toBeVisible();
+  await filters.getByRole("combobox", { name: "Parameters", exact: true }).selectOption("compact");
+  await expect(page).toHaveURL(/family=qwen&size=compact$/);
+  expect(errors.filter((message) => /hydration|didn't match|did not match/i.test(message))).toEqual([]);
+});
+
+test("limits rows and resets the window when filters change", async ({ page }) => {
+  await page.goto("/models");
+  const rows = page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / });
+  await expect(rows).toHaveCount(100);
+  await page.getByRole("button", { name: "Show more", exact: true }).click();
+  await expect(rows).toHaveCount(200);
+  const filters = page.getByRole("complementary", { name: "Model filters" });
+  await filters.getByRole("combobox", { name: "Parameters", exact: true }).selectOption("compact");
+  await expect.poll(() => rows.count()).toBeLessThanOrEqual(100);
+});
+
+test("traps mobile filter focus and restores it on close", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/models");
+  const trigger = page.getByRole("button", { name: "Filters", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Filters", exact: true });
+  const close = dialog.getByRole("button", { name: "Close filters", exact: true });
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.getByRole("combobox", { name: "Provider", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await close.click();
+  await expect(trigger).toBeFocused();
+});
+
+
+test("responds to browser back and forward filter state", async ({ page }) => {
+  await page.goto("/models?family=qwen");
+  const family = page.getByRole("complementary", { name: "Model filters" }).getByRole("combobox", { name: "Family", exact: true });
+  await expect(family).toHaveValue("qwen");
+  // Add a separate history entry, then exercise the store's popstate subscription.
+  await page.evaluate(() => {
+    window.history.pushState(null, "", "/models");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(family).toHaveValue("all");
+  await page.goBack();
+  await expect(family).toHaveValue("qwen");
+  await page.goForward();
+  await expect(family).toHaveValue("all");
+});
+
 test("home links expose destinations and docs have one page heading", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Open-weight models, organized.");
