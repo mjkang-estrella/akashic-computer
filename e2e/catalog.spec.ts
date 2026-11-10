@@ -60,3 +60,23 @@ test("does not translate retired query-string tabs", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();
   await expect(page).toHaveURL(/\?tab=model$/);
 });
+
+for (const width of [1280, 390, 360]) {
+  test(`keeps ranked benchmarks readable at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/benchmarks");
+    await expect(page.getByRole("heading", { name: "Open model leaderboards", level: 1 })).toBeVisible();
+    const list = page.getByRole("list", { name: /ranked results/ }).first();
+    await expect(list).toBeVisible();
+    expect(await list.getByRole("listitem").count()).toBeLessThanOrEqual(8);
+    const section = list.locator("xpath=ancestor::section");
+    const disclosure = section.getByRole("button", { name: /Show all|Show top/ });
+    if (await disclosure.count()) {
+      await disclosure.click();
+      await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+      await disclosure.click();
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("benchmarks.png"), fullPage: true });
+  });
+}
