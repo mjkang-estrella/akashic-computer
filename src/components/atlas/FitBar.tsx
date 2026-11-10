@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { HARDWARE_PRESETS, RIG_PRESETS } from "@/lib/atlas/data";
 import type { RigProfile } from "@/lib/atlas/types";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -34,10 +35,44 @@ export function FitBar({
   onManualGb: (gb: number | null) => void;
   onClear: () => void;
 }) {
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const [draft, setDraft] = useState(String(manualGb ?? ""));
+  const [previousManualGb, setPreviousManualGb] = useState(manualGb);
+  if (manualGb !== previousManualGb) {
+    setPreviousManualGb(manualGb);
+    setDraft(String(manualGb ?? ""));
+  }
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const menu = menuRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) menu.open = false;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      const menu = menuRef.current;
+      if (event.key === "Escape" && menu?.open) {
+        event.preventDefault();
+        menu.open = false;
+        menu.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+  const commitDraft = () => {
+    const value = parseInt(draft, 10);
+    const gb = Number.isFinite(value) ? Math.min(2048, Math.max(4, value)) : null;
+    setDraft(String(gb ?? ""));
+    // Tabbing through an untouched field must not count as choosing a budget.
+    if (gb !== manualGb) onManualGb(gb);
+  };
   const hardwareId = !manualGb && HARDWARE_PRESETS.some((preset) => preset.id === presetId) ? presetId : "";
 
   return (
-    <details data-budget-menu className="group relative">
+    <details ref={menuRef} data-budget-menu className="group relative">
       <summary
         aria-label={rig ? `Memory budget, ${rig.gb} GB` : "Memory budget not set"}
         title={rig ? `${rig.label} · ${rig.gb} GB` : "Set a memory budget to check fit"}
@@ -102,14 +137,14 @@ export function FitBar({
               max={2048}
               placeholder="GB"
               aria-label="Manual memory budget in GB"
-              value={manualGb ?? ""}
-              onChange={(event) => {
-                const value = parseInt(event.target.value, 10);
-                onManualGb(
-                  Number.isFinite(value)
-                    ? Math.min(2048, Math.max(4, value))
-                    : null,
-                );
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={commitDraft}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitDraft();
+                }
               }}
               className="w-16 rounded-md border border-line bg-panel px-2 py-1 font-mono text-[12.5px] text-ink"
             />

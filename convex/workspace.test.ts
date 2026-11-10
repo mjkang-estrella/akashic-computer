@@ -48,6 +48,44 @@ async function setup() {
   };
 }
 describe("account workspace", () => {
+  it("returns the newest eligible deployment heartbeat without reading the clock", async () => {
+    const { t, owner, ids } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.connector, { lastSeenAt: 1 });
+      await ctx.db.patch(ids.deployment, { artifactRepo: "Qwen/model" });
+      const connectorId = await ctx.db.insert("connectors", {
+        ownerId: ids.owner, name: "Newer", credentialHash: "newer", lastSeenAt: 2,
+      });
+      await ctx.db.insert("deployments", {
+        ownerId: ids.owner, connectorId, localId: "newer", model: "newer",
+        status: "online", observedAt: 2, artifactRepo: "Qwen/model",
+      });
+    });
+    expect(await owner.query(api.workspace.runningDeployment, { repo: "Qwen/model" }))
+      .toMatchObject({ model: "newer", lastSeenAt: 2 });
+    await t.run(async (ctx) => {
+      const connectors = await ctx.db.query("connectors").collect();
+      for (const connector of connectors) await ctx.db.patch(connector._id, { revokedAt: 3 });
+    });
+    expect(await owner.query(api.workspace.runningDeployment, { repo: "Qwen/model" })).toBeNull();
+  });
+  it("returns the newest unapproved enrollment even after expiry", async () => {
+    const { t, owner, ids } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("enrollments", {
+        ownerId: ids.owner, codeHash: "old", credentialHash: "", name: "Old", expiresAt: 1,
+      });
+      await ctx.db.insert("enrollments", {
+        ownerId: ids.owner, codeHash: "new", credentialHash: "ready", name: "New", expiresAt: 2,
+      });
+      await ctx.db.insert("enrollments", {
+        ownerId: ids.owner, codeHash: "approved", credentialHash: "ready", name: "Approved",
+        expiresAt: 3, connectorId: ids.connector,
+      });
+    });
+    expect(await owner.query(api.workspace.pendingEnrollment, {}))
+      .toEqual({ name: "New", ready: true, codeHash: "new", expiresAt: 2 });
+  });
   it("requires login and isolates account data", async () => {
     const { t, owner, other, ids } = await setup();
     await expect(t.query(api.workspace.overview, {})).rejects.toThrow();

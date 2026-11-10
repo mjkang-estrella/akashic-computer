@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AiVisionRecognitionIcon,
@@ -31,8 +30,9 @@ import {
 } from "@/lib/atlas/taxonomy";
 import type { Family } from "@/lib/atlas/types";
 import { FamilyLogo } from "./FamilyLogo";
+import { catalogFilterParams, catalogWindow, parseCatalogFilters, type SizeBand } from "./modelCatalogFilters";
+import { getCatalogSearch, getServerCatalogSearch, replaceCatalogSearch, subscribeCatalogSearch } from "./modelCatalogUrl";
 
-type SizeBand = "all" | "compact" | "medium" | "large" | "frontier";
 type CategoryFilter = "all" | ModelCategoryId;
 
 const SIZE_BANDS: { id: SizeBand; label: string }[] = [
@@ -111,7 +111,7 @@ export function ModelCatalogSkeleton({ detail = false }: { detail?: boolean }) {
       <span className="sr-only" role="status">Loading models</span>
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-5">
         <div>
-          <h2 id="model-catalog-loading-title" className="font-display text-[25px] font-semibold">Models</h2>
+          <h1 id="model-catalog-loading-title" className="font-display text-[25px] font-semibold">Models</h1>
           <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-muted">
             Open-weight releases by model and parameter size, ordered by their most recent release or material update.
           </p>
@@ -190,10 +190,6 @@ function inSizeBand(entry: ModelEntry, band: SizeBand): boolean {
   return entry.size.paramsB > 80;
 }
 
-function validValue<T extends string>(value: string | null, values: readonly T[], fallback: T): T {
-  return value && values.includes(value as T) ? (value as T) : fallback;
-}
-
 function setUrlParam(params: URLSearchParams, key: string, value: string, defaultValue = "all") {
   if (value === defaultValue) params.delete(key);
   else params.set(key, value);
@@ -256,15 +252,16 @@ function FilterPanel({
   const visibleCapabilities = MODEL_CAPABILITIES.filter(
     (item) => (capabilityCounts.get(item.id) ?? 0) > 0 || capabilities.has(item.id),
   );
+  const panelId = useId();
   const selectClass =
     "mt-1.5 h-9 w-full rounded-[7px] border border-line bg-panel px-2.5 text-[12.5px] font-semibold outline-none focus:border-ink";
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="category-filter-title">
-        <h3 id="category-filter-title" className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+      <section aria-labelledby={`${panelId}-category`}>
+        <h2 id={`${panelId}-category`} className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
           Category
-        </h3>
+        </h2>
         <div className="mt-2 space-y-1">
           <button
             type="button"
@@ -296,10 +293,10 @@ function FilterPanel({
         </div>
       </section>
 
-      <section aria-labelledby="capability-filter-title">
-        <h3 id="capability-filter-title" className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+      <section aria-labelledby={`${panelId}-capability`}>
+        <h2 id={`${panelId}-capability`} className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
           Capabilities
-        </h3>
+        </h2>
         <div className="mt-2 space-y-0.5">
           {visibleCapabilities.map((item) => (
             <label
@@ -319,15 +316,15 @@ function FilterPanel({
         </div>
       </section>
 
-      <section aria-labelledby="property-filter-title">
-        <h3 id="property-filter-title" className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
+      <section aria-labelledby={`${panelId}-property`}>
+        <h2 id={`${panelId}-property`} className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
           Properties
-        </h3>
+        </h2>
         <div className="mt-2 space-y-3">
           <label className="block text-[11.5px] font-semibold text-muted">
-            Company
+            Family
             <select value={familyId} onChange={(event) => onFamily(event.target.value)} className={selectClass}>
-              <option value="all">All companies</option>
+              <option value="all">All families</option>
               {families.map((family) => (
                 <option key={family.id} value={family.id}>{family.vendor} / {family.name}</option>
               ))}
@@ -379,29 +376,17 @@ function FilterPanel({
 export function ModelCatalogView({
   entries: modelEntries,
   families,
-  onOpen,
 }: {
   entries: ModelEntry[];
   families: Family[];
-  onOpen: (entry: ModelEntry) => void;
 }) {
-  const searchParams = useSearchParams();
+  const search = useSyncExternalStore(subscribeCatalogSearch, getCatalogSearch, getServerCatalogSearch);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const categoryIds = ["all", ...MODEL_CATEGORIES.map((item) => item.id)] as CategoryFilter[];
-  const category = validValue(searchParams.get("category"), categoryIds, "all");
-  const capabilities = useMemo(() => {
-    const capabilityIds = MODEL_CAPABILITIES.map((item) => item.id);
-    return new Set(
-      (searchParams.get("capability") ?? "")
-        .split(",")
-        .filter((value): value is ModelCapabilityId => capabilityIds.includes(value as ModelCapabilityId)),
-    );
-  }, [searchParams]);
-  const familyId = searchParams.get("family") ?? "all";
-  const sizeBand = validValue(searchParams.get("size"), SIZE_BANDS.map((item) => item.id), "all");
-  const variant = searchParams.get("catalogVariant") ?? "all";
-  const quant = searchParams.get("quant") ?? "all";
-  const provider = searchParams.get("provider") ?? "all";
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const [pagination, setPagination] = useState({ search, pages: 1 });
+  if (pagination.search !== search) setPagination({ search, pages: 1 });
 
   const variants = useMemo(
     () => [...new Set(modelEntries.flatMap((entry) => entry.size.variants))].sort(),
@@ -416,16 +401,41 @@ export function ModelCatalogView({
     [modelEntries],
   );
 
+  const availableFamilies = useMemo(
+    () => families.filter((family) => modelEntries.some((entry) => entry.family.id === family.id)),
+    [families, modelEntries],
+  );
+  const filters = useMemo(() => parseCatalogFilters(search, {
+    families: availableFamilies.map((family) => family.id), variants, quantizations, providers,
+  }), [search, availableFamilies, variants, quantizations, providers]);
+  const { category, capabilities, familyId, sizeBand, variant, quant, provider } = filters;
+
   useEffect(() => {
     if (!filtersOpen) return;
     const previousOverflow = document.body.style.overflow;
+    const filterButton = filterButtonRef.current;
+    closeButtonRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setFiltersOpen(false);
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex="0"]',
+      ) ?? []);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
+      filterButton?.focus();
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [filtersOpen]);
@@ -472,11 +482,10 @@ export function ModelCatalogView({
   const filtered = filterCount > 0;
 
   const replaceParams = (update: (params: URLSearchParams) => void) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = catalogFilterParams(window.location.search, filters);
     update(params);
     const query = params.toString();
-    // The page is rendered per request; history updates keep filtering client-side.
-    window.history.replaceState(null, "", query ? `/models?${query}` : "/models");
+    replaceCatalogSearch(query);
   };
   const updateCategory = (value: CategoryFilter) => replaceParams((params) => setUrlParam(params, "category", value));
   const updateFamily = (value: string) => replaceParams((params) => setUrlParam(params, "family", value));
@@ -484,7 +493,7 @@ export function ModelCatalogView({
   const updateVariant = (value: string) => replaceParams((params) => setUrlParam(params, "catalogVariant", value));
   const updateQuant = (value: string) => replaceParams((params) => setUrlParam(params, "quant", value));
   const updateProvider = (value: string) => replaceParams((params) => setUrlParam(params, "provider", value));
-  const resetFilters = () => window.history.replaceState(null, "", "/models");
+  const resetFilters = () => replaceCatalogSearch("");
   const toggleCapability = (item: ModelCapabilityId) => {
     replaceParams((params) => {
       const next = new Set(capabilities);
@@ -495,7 +504,7 @@ export function ModelCatalogView({
     });
   };
   const filterPanelProps: FilterPanelProps = {
-    families,
+    families: availableFamilies,
     totalEntries: modelEntries.length,
     category,
     categoryCounts,
@@ -532,7 +541,7 @@ export function ModelCatalogView({
     })),
     familyId !== "all" && {
       key: "family",
-      label: families.find((family) => family.id === familyId)?.vendor ?? familyId,
+      label: families.find((family) => family.id === familyId)?.name ?? familyId,
       clear: () => updateFamily("all"),
     },
     sizeBand !== "all" && {
@@ -546,11 +555,13 @@ export function ModelCatalogView({
   ].filter((item): item is { key: string; label: string; clear: () => void } => Boolean(item));
   const populatedCategories = MODEL_CATEGORIES.filter((item) => (categoryCounts.get(item.id) ?? 0) > 0);
 
+  const visibleEntries = catalogWindow(entries, pagination.search === search ? pagination.pages : 1);
+
   return (
     <section className="pt-5" aria-labelledby="model-catalog-title">
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-5">
         <div>
-          <h2 id="model-catalog-title" className="font-display text-[25px] font-semibold">Models</h2>
+          <h1 id="model-catalog-title" className="font-display text-[25px] font-semibold">Models</h1>
           <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-muted">
             Open-weight releases by model and parameter size, ordered by their most recent release or material update.
           </p>
@@ -593,6 +604,7 @@ export function ModelCatalogView({
           <div className={`min-h-[52px] flex-wrap items-center gap-2 border-b border-line py-2.5 ${filtered ? "flex" : "flex xl:hidden"}`}>
             <button
               type="button"
+              ref={filterButtonRef}
               onClick={() => setFiltersOpen(true)}
               className="flex min-h-9 items-center gap-2 rounded-[7px] border border-line bg-panel px-3 text-[12.5px] font-semibold xl:hidden"
             >
@@ -620,7 +632,7 @@ export function ModelCatalogView({
 
           {entries.length === 0 ? (
             <div className="py-16 text-center">
-              <h3 className="font-display text-[19px] font-semibold">No matching models</h3>
+              <h2 className="font-display text-[19px] font-semibold">No matching models</h2>
               <p className="mt-1 text-[13px] text-muted">Broaden one of the filters to restore the catalog.</p>
               <button type="button" onClick={resetFilters} className="mt-4 min-h-10 rounded-[7px] border border-line bg-panel px-3 text-[12.5px] font-semibold hover:border-ink">
                 Reset filters
@@ -636,15 +648,11 @@ export function ModelCatalogView({
                 <span className="sr-only col-start-7">Open</span>
               </div>
               <div className="divide-y divide-linesoft">
-                {entries.map((entry, index) => (
+                {visibleEntries.map((entry, index) => (
                   <Link
                     key={entry.slug}
                     href={`/models/${entry.slug}`}
-                    onClick={(event) => {
-                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-                      event.preventDefault();
-                      onOpen(entry);
-                    }}
+                    prefetch={false}
                     aria-label={`Open ${entry.name}`}
                     className="group grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2"
                   >
@@ -685,16 +693,24 @@ export function ModelCatalogView({
               </div>
             </div>
           )}
+          <div className="flex items-center justify-between gap-3 py-4">
+            <p role="status" className="text-[12.5px] text-muted">Showing {visibleEntries.length} of {entries.length}</p>
+            {visibleEntries.length < entries.length && (
+              <button type="button" onClick={() => setPagination({ search, pages: pagination.pages + 1 })} className="min-h-10 rounded-[7px] border border-line bg-panel px-3 text-[12.5px] font-semibold hover:border-ink">
+                Show more
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {filtersOpen && (
         <div className="fixed inset-0 z-50 xl:hidden">
           <button type="button" onClick={() => setFiltersOpen(false)} className="filter-backdrop absolute inset-0 bg-ink/20" aria-label="Close filters" />
-          <aside role="dialog" aria-modal="true" aria-labelledby="mobile-filter-title" className="filter-sheet absolute inset-y-0 right-0 w-[min(88vw,360px)] overflow-y-auto border-l border-line bg-paper px-5 pb-8 shadow-xl">
+          <aside ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="mobile-filter-title" className="filter-sheet absolute inset-y-0 right-0 w-[min(88vw,360px)] overflow-y-auto border-l border-line bg-paper px-5 pb-8 shadow-xl">
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-paper py-4">
               <h2 id="mobile-filter-title" className="font-display text-[19px] font-semibold">Filters</h2>
-              <button type="button" onClick={() => setFiltersOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-[7px] text-muted hover:bg-panel2 hover:text-ink" aria-label="Close filters">
+              <button ref={closeButtonRef} type="button" onClick={() => setFiltersOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-[7px] text-muted hover:bg-panel2 hover:text-ink" aria-label="Close filters">
                 <HugeiconsIcon icon={Cancel01Icon} size={19} strokeWidth={1.8} aria-hidden="true" />
               </button>
             </header>

@@ -117,6 +117,51 @@ describe("webhook ingestion", () => {
     });
   });
 
+  it("schedules one run before processing and a second bounded run after processing starts", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = await monitoredTest();
+      const first = {
+        dedupeKey: "race:a", repoId: "race", repoName: "Qwen/model", owner: "Qwen",
+        scope: "repo", action: "update", headSha: "a", receivedAt: 1_000,
+      };
+      const accepted = await t.mutation(internal.webhooks.receive, first);
+      if (accepted.status !== "accepted") throw new Error("Expected accepted event");
+      expect(await t.mutation(internal.webhooks.receive, {
+        ...first, dedupeKey: "race:b", headSha: "b", receivedAt: 2_000,
+      })).toMatchObject({ status: "coalesced" });
+      const scheduled = () => t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+      expect(await scheduled()).toHaveLength(1);
+      await t.mutation(internal.sync.startWebhookProcessing, { eventId: accepted.eventId });
+      const next = await t.mutation(internal.webhooks.receive, {
+        ...first, dedupeKey: "race:c", headSha: "c", receivedAt: 3_000,
+      });
+      expect(next.status).toBe("accepted");
+      expect(await t.mutation(internal.webhooks.receive, {
+        ...first, dedupeKey: "race:d", headSha: "d", receivedAt: 4_000,
+      })).toMatchObject({ status: "coalesced" });
+      expect(await scheduled()).toHaveLength(2);
+      const runId = await t.mutation(internal.sync.startWebhookRun, { owner: "Qwen", now: 5_000 });
+      await t.mutation(internal.sync.scheduleWebhookRetry, {
+        eventId: accepted.eventId, runId, attempt: 0, error: "Temporary failure", delayMs: 30_000, now: 5_000,
+      });
+      expect(await t.run((ctx) => ctx.db.get(accepted.eventId)))
+        .toMatchObject({ processingStartedAt: expect.any(Number), nextRetryAt: 35_000, headSha: "b" });
+      expect(await t.mutation(internal.sync.startWebhookProcessing, { eventId: accepted.eventId }))
+        .toMatchObject({ status: "pending" });
+      await t.mutation(internal.sync.completeUnchangedWebhook, {
+        eventId: accepted.eventId, runId, now: 6_000,
+      });
+      const events = await t.run((ctx) => ctx.db.query("webhookEvents").collect());
+      expect(events.find((event) => event._id === accepted.eventId)).toMatchObject({ status: "processed", headSha: "b" });
+      expect(events.filter((event) => event.status === "pending")).toEqual([
+        expect.objectContaining({ headSha: "d", receivedAt: 4_000 }),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retains a delete tombstone and removes only the unavailable artifact", async () => {
     const t = await monitoredTest();
     const entry = QWEN_ENTRY;
@@ -222,7 +267,7 @@ describe("webhook ingestion", () => {
     try {
       const t = await monitoredTest();
       const now = Date.now();
-      const insert = (repoName: string, extra: { receivedAt: number; recoveryAttempts?: number; nextRetryAt?: number }) =>
+      const insert = (repoName: string, extra: { receivedAt: number; recoveryAttempts?: number; nextRetryAt?: number; processingStartedAt?: number }) =>
         t.run((ctx) => ctx.db.insert("webhookEvents", {
           dedupeKey: `${repoName}:delete`,
           repoId: repoName,
@@ -234,13 +279,14 @@ describe("webhook ingestion", () => {
           ...extra,
         }));
       const ids = [
-        await insert("Qwen/stalled", { receivedAt: now - 60 * 60_000 }),
+        await insert("Qwen/stalled", { receivedAt: now - 60 * 60_000, processingStartedAt: now - 59 * 60_000 }),
         await insert("Qwen/exhausted", { receivedAt: now - 60 * 60_000, recoveryAttempts: 3 }),
         await insert("Qwen/awaiting-retry", { receivedAt: now - 60 * 60_000, nextRetryAt: now + 60_000 }),
         await insert("Qwen/recent", { receivedAt: now - 60_000 }),
       ];
       expect(await t.mutation(internal.sync.recoverStalledWebhooks, {})).toEqual({ rescheduled: 1, failed: 1 });
       const events = await t.run((ctx) => Promise.all(ids.map((id) => ctx.db.get(id))));
+      expect(events[0]?.processingStartedAt).toBe(now - 59 * 60_000);
       expect(events.map((event) => [event?.status, event?.recoveryAttempts])).toEqual([
         ["pending", 1],
         ["failed", 3],

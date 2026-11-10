@@ -58,7 +58,7 @@ export const receive = internalMutation({
       .withIndex("by_repo_id_status", (q) => q.eq("repoId", args.repoId).eq("status", "pending"))
       .order("desc")
       .first();
-    const superseded = Boolean(pending && args.receivedAt - pending.receivedAt < 30_000);
+    const superseded = Boolean(pending && pending.processingStartedAt === undefined && args.receivedAt - pending.receivedAt < 30_000);
     const eventId = await ctx.db.insert("webhookEvents", {
       ...args,
       status: superseded ? "superseded" : "pending",
