@@ -51,7 +51,7 @@ describe("memory evidence", () => {
       .toEqual({ level: "tight", text: "Runtime fit unverified" });
   });
   it("formats memory amounts consistently", () => {
-    expect([1e9, 9.94e9, 10e9, 14.2e9].map(gbLabel)).toEqual(["1.0", "9.9", "10", "14"]);
+    expect([1e9, 9.94e9, 10e9, 14.2e9].map(gbLabel)).toEqual(["1", "9.9", "10", "14"]);
   });
   it("labels context lengths compactly", () => {
     expect([8192, 32768, 262144, 1048576, 40960, 1000].map(contextLabel)).toEqual(["8K", "32K", "256K", "1M", "40K", "1,000"]);

@@ -66,7 +66,8 @@ export function FitBar({
     const value = parseInt(draft, 10);
     const gb = Number.isFinite(value) ? Math.min(2048, Math.max(4, value)) : null;
     setDraft(String(gb ?? ""));
-    onManualGb(gb);
+    // Tabbing through an untouched field must not count as choosing a budget.
+    if (gb !== manualGb) onManualGb(gb);
   };
   const hardwareId = !manualGb && HARDWARE_PRESETS.some((preset) => preset.id === presetId) ? presetId : "";
 

@@ -49,7 +49,7 @@ export function kvCacheAt(estimate: VramEstimateDetails, context: ContextChoice)
 
 export const gbLabel = (bytes: number) => {
   const gb = bytes / 1e9;
-  return gb < 10 ? gb.toFixed(1) : gb.toFixed(0);
+  return Number(gb < 10 ? gb.toFixed(1) : gb.toFixed(0)).toString();
 };
 
 /**

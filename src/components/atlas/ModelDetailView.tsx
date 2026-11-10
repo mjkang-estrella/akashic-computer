@@ -356,6 +356,8 @@ export function ModelDetailView({
               const kv = artifact.vramEstimate ? kvCacheAt(artifact.vramEstimate, effectiveContext) : null;
               const commands = runCommandsFor(artifact, effectiveContext);
               const exceeds = fit.level === "no";
+              // Amber is reserved for an unknown estimate or one within a tenth of the budget.
+              const nearLimit = fit.estimateGb === undefined || fit.estimateGb > (rig?.gb ?? 0) * 0.9;
               const selected = checked.has(artifact.repo);
               const disabled = !selected && compareLimitReached;
               const recipeCheckpoints = displayRecipes.flatMap((recipe) => recipe.variants
@@ -427,9 +429,9 @@ export function ModelDetailView({
                   ) : (
                     <div
                       key={`${artifact.repo}-${rig?.gb}-${String(effectiveContext)}-${fit.level}`}
-                      className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : fit.estimateGb === undefined || fit.estimateGb > (rig?.gb ?? 0) * 0.9 ? "text-caution" : "text-ink"}`}
+                      className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : nearLimit ? "text-caution" : "text-ink"}`}
                     >
-                      {exceeds || fit.estimateGb === undefined || fit.estimateGb > (rig?.gb ?? 0) * 0.9 ? (
+                      {exceeds || nearLimit ? (
                         <HugeiconsIcon
                           icon={exceeds ? CancelCircleIcon : Alert01Icon}
                           className="flex-none"
@@ -442,7 +444,7 @@ export function ModelDetailView({
                         <span className="text-[11px] font-normal text-muted md:hidden">Runtime assessment · </span>
                         {!exceeds && fit.estimateGb !== undefined && rig ? (
                           <>
-                            <span className="font-mono tabular-nums">≈ {gbLabel(fit.estimateGb * 1e9)} of {gbLabel(rig.gb * 1e9)} GB</span>
+                            <span className="font-mono tabular-nums">≈ {gbLabel(fit.estimateGb * 1e9)} of {rig.gb} GB</span>
                             <span className="mt-0.5 block text-[10px] font-normal text-muted">{fit.text}</span>
                           </>
                         ) : fit.text}
