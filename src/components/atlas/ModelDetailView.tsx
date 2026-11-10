@@ -17,7 +17,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { ModelEntry } from "@/lib/atlas/models";
 import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
-import { contextLabel, fitOf, kvCacheAt, memoryRange } from "@/lib/atlas/fit";
+import { contextLabel, fitOf, gbLabel, kvCacheAt, memoryRange } from "@/lib/atlas/fit";
 import { CONTEXT_CHOICES } from "@/lib/atlas/data";
 import { runCommandsFor } from "@/lib/atlas/runCommands";
 import { modelTransitionName } from "@/lib/atlas/motion";
@@ -427,16 +427,26 @@ export function ModelDetailView({
                   ) : (
                     <div
                       key={`${artifact.repo}-${rig?.gb}-${String(effectiveContext)}-${fit.level}`}
-                      className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : "text-caution"}`}
+                      className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : fit.estimateGb === undefined || fit.estimateGb > (rig?.gb ?? 0) * 0.9 ? "text-caution" : "text-ink"}`}
                     >
-                      <HugeiconsIcon
-                        icon={exceeds ? CancelCircleIcon : Alert01Icon}
-                        className="flex-none"
-                        size={17}
-                        strokeWidth={2}
-                        aria-hidden="true"
-                      />
-                      {fit.text}
+                      {exceeds || fit.estimateGb === undefined || fit.estimateGb > (rig?.gb ?? 0) * 0.9 ? (
+                        <HugeiconsIcon
+                          icon={exceeds ? CancelCircleIcon : Alert01Icon}
+                          className="flex-none"
+                          size={17}
+                          strokeWidth={2}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      <span>
+                        <span className="text-[11px] font-normal text-muted md:hidden">Runtime assessment · </span>
+                        {!exceeds && fit.estimateGb !== undefined && rig ? (
+                          <>
+                            <span className="font-mono tabular-nums">≈ {gbLabel(fit.estimateGb * 1e9)} of {gbLabel(rig.gb * 1e9)} GB</span>
+                            <span className="mt-0.5 block text-[10px] font-normal text-muted">{fit.text}</span>
+                          </>
+                        ) : fit.text}
+                      </span>
                     </div>
                   )}
                   <a

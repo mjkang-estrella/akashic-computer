@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { artifact } from "../../../test/catalogFixture";
-import { contextLabel, fitOf, kvCacheAt, memoryAssumptions, memoryRange } from "./fit";
+import { contextLabel, fitOf, gbLabel, kvCacheAt, memoryAssumptions, memoryRange } from "./fit";
 
 const fp8 = { ...artifact("zai-org/GLM-5.3-Flash", "FP8"), minVramGb: 328, recVramGb: 340,
   vramEstimate: { weightGb: 328, kvCacheGb: 12, kvCacheDtype: "BF16" as const, contextTokens: 1048576, concurrency: 1 as const, cacheMethod: "mla" as const } };
 const rig = (gb: number) => ({ gb, kind: "dgx" as const, label: "Combined device memory", manual: true });
 describe("memory evidence", () => {
   it.each([328, 340, 384, 386, 1024])("does not certify runtime fit at %i GB", (gb) => {
-    expect(fitOf(fp8, rig(gb))).toEqual({ level: "tight", text: "Runtime fit unverified" });
+    expect(fitOf(fp8, rig(gb))).toEqual({ level: "tight", text: "Runtime fit unverified", estimateGb: 328 });
   });
   it("distinguishes a weight-only deficit from runtime requirements", () => {
     expect(fitOf(fp8, rig(327)).level).toBe("no");
     expect(fitOf(fp8, rig(328)).level).toBe("tight");
-    expect(fitOf({ ...fp8, vramEstimate: undefined }, rig(1)).level).toBe("tight");
+    expect(fitOf({ ...fp8, vramEstimate: undefined }, rig(1))).toEqual({
+      level: "no", text: "Estimated minimum 328 GB exceeds 1 GB; offload not assessed", estimateGb: 328,
+    });
   });
   it("collapses equal bounds and rejects absent estimates", () => {
     expect(memoryRange(340, 340)).toBe("340 GB");
@@ -33,10 +35,23 @@ describe("memory evidence", () => {
   it("adds context-scaled KV only when a context is chosen", () => {
     expect(fitOf(fp8, rig(330)).level).toBe("tight");
     expect(fitOf(fp8, rig(330), { context: "native" })).toEqual({
-      level: "no", text: "Weights + native-context BF16 KV exceed 330 GB; offload not assessed",
+      level: "no", text: "Weights + native-context BF16 KV exceed 330 GB; offload not assessed", estimateGb: 340,
     });
     expect(fitOf(fp8, rig(330), { context: 131072 }).level).toBe("tight");
     expect(memoryAssumptions(fp8, 131072)).toBe("+ 1.5 GB KV estimate · 131,072 tokens · concurrency 1 · BF16");
+  });
+  it("retains the compared estimate for deficits and headroom", () => {
+    expect(fitOf(fp8, rig(1)).estimateGb).toBe(328);
+    expect(fitOf(fp8, rig(1), { context: "native" }).estimateGb).toBe(340);
+    expect(fitOf(fp8, rig(400), { context: 131072 }).estimateGb).toBe(329.5);
+    expect(fitOf({ ...fp8, vramEstimate: undefined }, rig(400)).estimateGb).toBe(328);
+  });
+  it.each([Infinity, NaN, 0, -1])("leaves unknown minimum %s unjudged", (minVramGb) => {
+    expect(fitOf({ ...fp8, vramEstimate: undefined, minVramGb, recVramGb: Infinity }, rig(1)))
+      .toEqual({ level: "tight", text: "Runtime fit unverified" });
+  });
+  it("formats memory amounts consistently", () => {
+    expect([1e9, 9.94e9, 10e9, 14.2e9].map(gbLabel)).toEqual(["1.0", "9.9", "10", "14"]);
   });
   it("labels context lengths compactly", () => {
     expect([8192, 32768, 262144, 1048576, 40960, 1000].map(contextLabel)).toEqual(["8K", "32K", "256K", "1M", "40K", "1,000"]);
