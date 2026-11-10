@@ -464,7 +464,7 @@ export function ModelDetailView({
         </p>
       </section>
       <section className="border-t border-line py-5" aria-labelledby="recipes-title">
-        <h3 id="recipes-title" className="font-display text-[19px] font-semibold">Runtime recipes</h3>
+        <h2 id="recipes-title" className="font-display text-[19px] font-semibold">Runtime recipes</h2>
         <p className="mt-1 max-w-[76ch] text-[12.5px] text-muted">
           Requirements are specific to the linked recipe’s runtime, context, concurrency, cache, and hardware.
         </p>
@@ -565,7 +565,7 @@ export function ModelDetailView({
       {displayMaterialChanges.length > 0 ? (
         <section className="border-t border-line py-5" aria-labelledby="model-history-title">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 id="model-history-title" className="font-display text-[18px] font-semibold">Material history</h3>
+            <h2 id="model-history-title" className="font-display text-[18px] font-semibold">Material history</h2>
             <a href={`/models/${entry.slug}/feed.xml`} className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
               <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
               RSS
