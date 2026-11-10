@@ -2,7 +2,6 @@
 
 import { Suspense, createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useQueries } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { hydratePublishedEntries, type PublishedCatalogEntry } from "@/lib/atlas/published";
@@ -22,11 +21,11 @@ import { AkashicMark } from "@/components/brand/AkashicMark";
 import { DEFAULT_CONTEXT, DEFAULT_PRESET_ID, HARDWARE_PRESETS, RIG_PRESETS } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
 import type { ContextChoice, RigProfile } from "@/lib/atlas/types";
+import { CompareDrawer } from "./CompareDrawer";
 import { FitBar } from "./FitBar";
 import { comparisonEnabled } from "@/lib/atlas/comparisonFlags";
 import { useDeploymentComparison } from "../comparison/ComparisonProvider";
 
-const CompareDrawer = dynamic(() => import("./CompareDrawer").then((module) => module.CompareDrawer));
 
 interface AtlasUiContextValue {
   rig: RigProfile | null;

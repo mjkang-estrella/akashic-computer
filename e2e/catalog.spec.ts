@@ -44,7 +44,7 @@ test("loads model details through the detail query", async ({ page }) => {
   await expect(page).toHaveURL(/\/models\/[a-z0-9-]+$/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Available artifacts" })).toBeVisible();
-  await page.getByRole("link", { name: "Models", exact: true }).click();
+  await page.getByRole("article").getByRole("link", { name: "Models", exact: true }).click();
   await expect(page).toHaveURL(/\/models$/);
 });
 
@@ -94,7 +94,7 @@ test("preserves artifact selections between model detail pages", async ({ page }
   await artifact.check();
   const drawer = page.getByRole("region", { name: "Artifact comparison", exact: true });
   await expect(drawer).toBeVisible();
-  await page.getByRole("link", { name: "Models", exact: true }).click();
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Models", exact: true }).click();
   await page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / }).first().click();
   await expect(page.getByRole("heading", { name: "Available artifacts" })).toBeVisible();
   await expect(drawer).toBeVisible();
