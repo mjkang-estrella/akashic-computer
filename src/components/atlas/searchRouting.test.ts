@@ -6,12 +6,13 @@ describe("catalog subscriptions", () => {
   it("keeps full lists on discovery and comparison routes", () => {
     for (const path of ["/", "/models", "/benchmarks", "/search", "/compare", "/compare/scenario"]) {
       expect(catalogSubscriptions(path).list).toBe(true);
-      expect(catalogSubscriptions(path).home).toBe(path === "/");
+      expect(catalogSubscriptions(path).health).toBe(path === "/");
+      expect(catalogSubscriptions(path).changes).toBe(path === "/" || path.startsWith("/compare"));
     }
   });
   it("skips lists and home feeds on detail and docs routes", () => {
     for (const path of ["/models/example", "/docs", "/docs/lexicon", "/workspace"]) {
-      expect(catalogSubscriptions(path)).toEqual({ list: false, home: false });
+      expect(catalogSubscriptions(path)).toEqual({ list: false, changes: false, health: false });
     }
   });
 });

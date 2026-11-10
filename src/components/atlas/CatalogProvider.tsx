@@ -66,9 +66,12 @@ function absoluteHttpUrl(value: string | undefined): string | null {
 }
 
 export function catalogSubscriptions(pathname: string) {
+  const comparison = pathname === "/compare" || pathname.startsWith("/compare/");
   return {
-    list: ["/", "/models", "/benchmarks", "/search"].includes(pathname) || pathname === "/compare" || pathname.startsWith("/compare/"),
-    home: pathname === "/",
+    list: ["/", "/models", "/benchmarks", "/search"].includes(pathname) || comparison,
+    // Home lists recent changes; saved comparisons flag changes to their selected models.
+    changes: pathname === "/" || comparison,
+    health: pathname === "/",
   };
 }
 
@@ -82,8 +85,8 @@ function RemoteCatalogProvider({ children }: { children: ReactNode }) {
     return () => { clearInterval(timer); window.removeEventListener("focus", update); };
   }, []);
   const result = useQuery(api.catalog.listPublished, subscriptions.list ? {} : "skip");
-  const recentChanges = useQuery(api.intelligence.listRecentChanges, subscriptions.home ? { limit: 10 } : "skip");
-  const sourceHealth = useQuery(api.catalog.healthSummary, subscriptions.home ? { now: loadedAt } : "skip");
+  const recentChanges = useQuery(api.intelligence.listRecentChanges, subscriptions.changes ? { limit: 10 } : "skip");
+  const sourceHealth = useQuery(api.catalog.healthSummary, subscriptions.health ? { now: loadedAt } : "skip");
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
     const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogSummary[]);
