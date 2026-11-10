@@ -72,7 +72,7 @@ export function ModelCapabilityCharts({ comparison }: { comparison: CapabilityCo
   const hasAnchors = comparison.models.some(m => m.closed);
   return <section className="border-b border-line py-5" aria-labelledby="capability-title">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h3 id="capability-title" className="font-display text-[19px] font-semibold">Capability</h3>
+      <h2 id="capability-title" className="font-display text-[19px] font-semibold">Capability</h2>
       <div className="flex flex-wrap items-center gap-4 text-[12px]">
         <span className="rounded-[4px] bg-panel2 px-2 py-1 text-muted">{comparison.group}</span>
         {hasAnchors ? <label className="inline-flex min-h-9 cursor-pointer items-center gap-2"><input type="checkbox" checked={includeClosed} onChange={e => setIncludeClosed(e.target.checked)} className="accent-meta" />Closed anchors</label> : null}

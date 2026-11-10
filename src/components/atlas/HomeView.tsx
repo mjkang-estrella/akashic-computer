@@ -13,7 +13,7 @@ import {
   RssIcon,
 } from "@hugeicons/core-free-icons";
 import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
-import { DOC_ARTICLES } from "@/lib/atlas/docsArticles";
+import Link from "next/link";
 import {
   modelSizesFitting,
   newestReleaseEntries,
@@ -33,11 +33,12 @@ const FEATURED_BENCHMARK_IDS = [
   "livecodebench-v6",
 ] as const;
 
-const FEATURED_DOC_SLUGS = [
-  "model-checkpoint-artifact-runtime",
-  "quantization",
-  "memory-and-context",
-] as const;
+export interface FeaturedDoc {
+  slug: string;
+  title: string;
+  summary: string;
+  readMinutes: number;
+}
 
 interface CatalogHealth {
   level: "healthy" | "degraded" | "stale";
@@ -78,15 +79,14 @@ function releaseDateLabel(entry: ModelEntry): string {
 
 function SectionLink({
   children,
-  onClick,
+  href,
 }: {
   children: string;
-  onClick: () => void;
+  href: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Link
+      href={href}
       className="group inline-flex min-h-11 items-center gap-1.5 text-[12.5px] font-semibold text-meta hover:text-ink"
     >
       {children}
@@ -97,7 +97,7 @@ function SectionLink({
         aria-hidden="true"
         className="transition-transform group-hover:translate-x-0.5"
       />
-    </button>
+    </Link>
   );
 }
 
@@ -273,11 +273,7 @@ export function HomeView({
   health,
   revision,
   rig,
-  onOpenModel,
-  onViewModels,
-  onViewBenchmarks,
-  onOpenDoc,
-  onViewDocs,
+  featuredDocs,
 }: {
   /** May be a server-rendered subset; catalog-wide counts come from `stats`. */
   entries: ModelEntry[];
@@ -288,11 +284,7 @@ export function HomeView({
   health: CatalogHealth | null;
   revision: string;
   rig: RigProfile | null;
-  onOpenModel: (entry: ModelEntry) => void;
-  onViewModels: () => void;
-  onViewBenchmarks: () => void;
-  onOpenDoc: (slug: string) => void;
-  onViewDocs: () => void;
+  featuredDocs: FeaturedDoc[];
 }) {
   const [previousVisit, setPreviousVisit] = useState<number | null | undefined>(undefined);
 
@@ -362,10 +354,6 @@ export function HomeView({
     };
   }, [entries]);
   const featuredBenchmarks = benchmarkCoverage.featured;
-  const featuredDocs = FEATURED_DOC_SLUGS.flatMap((slug) => {
-    const article = DOC_ARTICLES.find((candidate) => candidate.slug === slug);
-    return article ? [article] : [];
-  });
 
   return (
     <section className="pb-10 pt-6 sm:pt-8">
@@ -374,9 +362,9 @@ export function HomeView({
           <CatalogField entries={entries} stats={stats} />
         </div>
         <div className="order-1 lg:order-2 lg:pl-2">
-          <h2 className="max-w-[18ch] text-balance font-display text-[36px] font-semibold leading-[1.08] sm:text-[44px] lg:text-[52px]">
+          <h1 className="max-w-[18ch] text-balance font-display text-[36px] font-semibold leading-[1.08] sm:text-[44px] lg:text-[52px]">
             Open-weight models, organized.
-          </h2>
+          </h1>
           <p className="mt-4 max-w-[58ch] text-[14.5px] leading-relaxed text-muted">
             Browse current releases, quantized artifacts, VRAM estimates, and
             creator-reported benchmark evidence without collapsing technical
@@ -423,25 +411,24 @@ export function HomeView({
             label: "Browse model releases",
             detail: "Families, sizes, and quantizations",
             icon: CubeIcon,
-            onClick: onViewModels,
+            href: "/models",
           },
           {
             label: "Compare benchmark evidence",
             detail: "Official creator-reported results",
             icon: ChartColumnIcon,
-            onClick: onViewBenchmarks,
+            href: "/benchmarks",
           },
           {
             label: "Understand model mechanics",
             detail: "Quantization, MoE, and memory",
             icon: BookOpen02Icon,
-            onClick: () => onOpenDoc("quantization"),
+            href: "/docs/quantization",
           },
         ].map((item) => (
-          <button
+          <Link
             key={item.label}
-            type="button"
-            onClick={item.onClick}
+            href={item.href}
             className="group flex min-h-[72px] items-center gap-3 border-b border-linesoft py-3 text-left last:border-b-0 hover:bg-panel md:border-r md:border-b-0 md:px-5 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
           >
             <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.7} aria-hidden="true" className="flex-none text-faint group-hover:text-ink" />
@@ -450,7 +437,7 @@ export function HomeView({
               <span className="mt-0.5 block text-[11px] text-muted">{item.detail}</span>
             </span>
             <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
-          </button>
+          </Link>
         ))}
       </nav>
 
@@ -458,9 +445,9 @@ export function HomeView({
         <section className="border-b border-line py-7" aria-labelledby="material-changes-title">
           <header className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 id="material-changes-title" className="font-display text-[22px] font-semibold">
+              <h2 id="material-changes-title" className="font-display text-[22px] font-semibold">
                 Material changes
-              </h3>
+              </h2>
               <p className="mt-0.5 max-w-[68ch] text-[12px] text-muted">
                 Weight, artifact, runtime, and official recipe changes. Documentation-only commits are excluded.
               </p>
@@ -481,13 +468,13 @@ export function HomeView({
                 className={`${index >= 3 ? "hidden sm:grid" : "grid"} gap-2 py-3.5 sm:grid-cols-[108px_minmax(180px,0.7fr)_minmax(260px,1.3fr)_auto] sm:items-center sm:gap-5`}
               >
                 <span className="font-mono text-[11px] text-faint">{change.dateLabel}</span>
-                <button
-                  type="button"
-                  onClick={() => onOpenModel(entry)}
+                <Link
+                  href={`/models/${entry.slug}`}
+                  prefetch={false}
                   className="truncate text-left text-[12.5px] font-semibold hover:text-meta hover:underline hover:underline-offset-3"
                 >
                   {change.modelName}
-                </button>
+                </Link>
                 <span className="min-w-0">
                   <span className="block text-[12.5px] font-semibold">{change.title}</span>
                   <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">{change.summary}</span>
@@ -515,14 +502,14 @@ export function HomeView({
         <section aria-labelledby="recent-models-title" className="min-w-0">
           <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 id="recent-models-title" className="font-display text-[22px] font-semibold">
+              <h2 id="recent-models-title" className="font-display text-[22px] font-semibold">
                 New models
-              </h3>
+              </h2>
               <p className="mt-0.5 text-[12px] text-muted">
                 Recently published model-size releases.
               </p>
             </div>
-            <SectionLink onClick={onViewModels}>View all models</SectionLink>
+            <SectionLink href="/models">View all models</SectionLink>
           </header>
 
           <div className="mt-3">
@@ -557,10 +544,10 @@ export function HomeView({
                     const remaining =
                       entry.quantizations.length - visibleQuantizations.length;
                     return (
-                      <button
+                      <Link
                         key={entry.slug}
-                        type="button"
-                        onClick={() => onOpenModel(entry)}
+                        href={`/models/${entry.slug}`}
+                        prefetch={false}
                         aria-label={`Open ${entry.name}`}
                         className="group grid min-h-[96px] w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 text-left transition-colors hover:bg-panel sm:min-h-[82px] sm:grid-cols-[minmax(200px,1fr)_100px_minmax(150px,0.8fr)_110px_20px] sm:items-center sm:gap-0 sm:px-2 sm:py-4"
                       >
@@ -610,7 +597,7 @@ export function HomeView({
                           aria-hidden="true"
                           className="hidden text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink sm:block"
                         />
-                      </button>
+                      </Link>
                     );
                   })}
                 </div>
@@ -622,14 +609,14 @@ export function HomeView({
         <section aria-labelledby="benchmark-pulse-title" className="min-w-0">
           <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 id="benchmark-pulse-title" className="font-display text-[22px] font-semibold">
+              <h2 id="benchmark-pulse-title" className="font-display text-[22px] font-semibold">
                 Benchmark pulse
-              </h3>
+              </h2>
               <p className="mt-0.5 text-[12px] text-muted">
                 {benchmarkCoverage.benchmarkCount} comparable benchmarks across {benchmarkCoverage.modelCount} catalog models.
               </p>
             </div>
-            <SectionLink onClick={onViewBenchmarks}>View all benchmarks</SectionLink>
+            <SectionLink href="/benchmarks">View all benchmarks</SectionLink>
           </header>
 
           <div className="mt-3 border-y border-line">
@@ -669,9 +656,9 @@ export function HomeView({
                   >
                     <header className="flex items-baseline justify-between gap-3">
                       <div>
-                        <h4 className="font-display text-[17px] font-semibold">
+                        <h3 className="font-display text-[17px] font-semibold">
                           {benchmark.name}
-                        </h4>
+                        </h3>
                         <p className="mt-0.5 font-mono text-[11px] text-faint">
                           {benchmark.metric} · {benchmark.results.length} models · higher is better
                         </p>
@@ -691,9 +678,9 @@ export function HomeView({
                           : result.score.toFixed(1);
                         return (
                           <li key={result.repo}>
-                            <button
-                              type="button"
-                              onClick={() => onOpenModel(result.entry)}
+                            <Link
+                              href={`/models/${result.entry.slug}`}
+                              prefetch={false}
                               aria-label={`Open ${result.modelName ?? result.entry.name}, ranked ${result.rank} with a score of ${score}`}
                               className="group w-full text-left"
                             >
@@ -722,7 +709,7 @@ export function HomeView({
                                   }}
                                 />
                               </span>
-                            </button>
+                            </Link>
                           </li>
                         );
                       })}
@@ -753,21 +740,20 @@ export function HomeView({
       <section className="mt-12 border-t border-line pt-8" aria-labelledby="understand-title">
         <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 id="understand-title" className="font-display text-[22px] font-semibold">
+            <h2 id="understand-title" className="font-display text-[22px] font-semibold">
               Understand the catalog
-            </h3>
+            </h2>
             <p className="mt-0.5 text-[12px] text-muted">
               Build the vocabulary needed to evaluate local-model options.
             </p>
           </div>
-          <SectionLink onClick={onViewDocs}>Read the docs</SectionLink>
+          <SectionLink href="/docs">Read the docs</SectionLink>
         </header>
         <div className="mt-3 grid border-y border-line md:grid-cols-3">
           {featuredDocs.map((article) => (
-            <button
+            <Link
               key={article.slug}
-              type="button"
-              onClick={() => onOpenDoc(article.slug)}
+              href={`/docs/${article.slug}`}
               className="group min-h-32 border-b border-linesoft py-5 text-left last:border-b-0 md:border-r md:border-b-0 md:px-5 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
             >
               <span className="flex items-center gap-2">
@@ -788,7 +774,7 @@ export function HomeView({
               <span className="mt-3 block font-mono text-[10.5px] text-faint">
                 {article.readMinutes} min read
               </span>
-            </button>
+            </Link>
           ))}
         </div>
       </section>

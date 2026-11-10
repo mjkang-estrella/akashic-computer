@@ -1,36 +1,29 @@
+import Link from "next/link";
 import { DOC_ARTICLES, docArticleBySlug } from "@/lib/atlas/docsArticles";
 import { DocsArticleView, LexiconArticleView } from "./DocsArticleView";
 
 const CATEGORIES = ["Foundations", "Architecture", "Weights", "Deployment"] as const;
 
-export function LearnView({
-  slug,
-  onOpen,
-  onBack,
-}: {
-  slug: string | null;
-  onOpen: (slug: string) => void;
-  onBack: () => void;
-}) {
+export function LearnView({ slug }: { slug: string | null }) {
   if (slug === "lexicon") {
-    return <LexiconArticleView onBack={onBack} />;
+    return <LexiconArticleView />;
   }
 
   const article = docArticleBySlug(slug);
   if (article) {
-    return <DocsArticleView article={article} onOpen={onOpen} onBack={onBack} />;
+    return <DocsArticleView article={article} />;
   }
 
   return (
     <section className="pt-5">
       <header className="max-w-[820px] border-b border-line pb-6">
-        <h2
+        <h1
           id="docs-index-title"
           tabIndex={-1}
           className="max-w-[20ch] text-balance font-display text-[34px] font-semibold leading-tight outline-none"
         >
           Technical guides to local models
-        </h2>
+        </h1>
         <p className="mt-3 max-w-[68ch] text-[14px] leading-relaxed text-muted">
           Full-length explanations of model architecture, weight formats, memory, and
           inference software. Read in sequence or open the concept blocking your current
@@ -52,13 +45,12 @@ export function LearnView({
               deployment.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpen("lexicon")}
+          <Link
+            href="/docs/lexicon"
             className="min-h-11 justify-self-start rounded-[7px] border border-line bg-panel px-3 text-[12px] font-semibold hover:border-ink sm:justify-self-end lg:mt-4 lg:justify-self-start"
           >
             Open lexicon
-          </button>
+          </Link>
         </aside>
 
         <div className="min-w-0">
@@ -70,13 +62,12 @@ export function LearnView({
 
             return (
               <section key={category} className="border-b border-line pb-7 pt-1 first:pt-0">
-                <h3 className="font-display text-[20px] font-semibold">{category}</h3>
+                <h2 className="font-display text-[20px] font-semibold">{category}</h2>
                 <div className="mt-3 border-y border-line">
                   {articles.map((candidate) => (
-                    <button
+                    <Link
                       key={candidate.slug}
-                      type="button"
-                      onClick={() => onOpen(candidate.slug)}
+                      href={`/docs/${candidate.slug}`}
                       className="group grid min-h-24 w-full gap-2 border-b border-linesoft px-1 py-4 text-left last:border-b-0 sm:grid-cols-[minmax(190px,0.8fr)_minmax(0,1.2fr)_80px_18px] sm:items-start sm:gap-5"
                     >
                       <span className="font-display text-[16px] font-semibold leading-snug group-hover:underline">
@@ -91,7 +82,7 @@ export function LearnView({
                       <span aria-hidden="true" className="hidden text-faint sm:block">
                         →
                       </span>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </section>

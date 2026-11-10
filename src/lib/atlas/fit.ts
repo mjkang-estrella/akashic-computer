@@ -47,7 +47,7 @@ export function kvCacheAt(estimate: VramEstimateDetails, context: ContextChoice)
   };
 }
 
-const gbLabel = (bytes: number) => {
+export const gbLabel = (bytes: number) => {
   const gb = bytes / 1e9;
   return Number(gb < 10 ? gb.toFixed(1) : gb.toFixed(0)).toString();
 };
@@ -64,20 +64,24 @@ export function fitOf(
 ): FitVerdict {
   if (!rig) return { level: "unset", text: "No memory budget set" };
   const estimate = artifact.vramEstimate;
-  const weightGb = estimate?.weightGb;
-  if (weightGb && rig.gb < weightGb) {
-    return { level: "no", text: `Weights alone exceed ${rig.gb} GB; offload not assessed` };
+  const kv = estimate && options.context !== undefined ? kvCacheAt(estimate, options.context) : null;
+  const totalGb = estimate
+    ? estimate.weightGb + (kv ? kv.bytes / 1e9 : 0)
+    : artifact.minVramGb;
+  const estimateGb = Number.isFinite(totalGb) && totalGb > 0 ? totalGb : undefined;
+  if (estimate && rig.gb < estimate.weightGb) {
+    return { level: "no", text: `Weights alone exceed ${rig.gb} GB; offload not assessed`, estimateGb };
   }
-  if (estimate && options.context !== undefined) {
-    const kv = kvCacheAt(estimate, options.context);
-    if (rig.gb < estimate.weightGb + kv.bytes / 1e9) {
-      return {
-        level: "no",
-        text: `Weights + ${options.context === "native" || kv.capped ? "native-context" : contextLabel(kv.tokens)} BF16 KV exceed ${rig.gb} GB; offload not assessed`,
-      };
-    }
+  if (estimateGb !== undefined && rig.gb < estimateGb) {
+    return {
+      level: "no",
+      text: estimate && kv
+        ? `Weights + ${options.context === "native" || kv.capped ? "native-context" : contextLabel(kv.tokens)} BF16 KV exceed ${rig.gb} GB; offload not assessed`
+        : `Estimated minimum ${gbLabel(estimateGb * 1e9)} GB exceeds ${rig.gb} GB; offload not assessed`,
+      estimateGb,
+    };
   }
-  return { level: "tight", text: "Runtime fit unverified" };
+  return { level: "tight", text: "Runtime fit unverified", ...(estimateGb !== undefined ? { estimateGb } : {}) };
 }
 
 export function memoryRange(min: number, max: number): string {

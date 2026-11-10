@@ -50,7 +50,6 @@ export function ModelDetailRoute({
       onContext={setContext}
       preferredVariant={preferredVariant}
       checked={checked}
-      onBack={() => router.push("/models")}
       onCheck={toggleChecked}
       onLearn={(term) => router.push(term ? `/docs/lexicon#term-${encodeURIComponent(term)}` : "/docs")}
     />

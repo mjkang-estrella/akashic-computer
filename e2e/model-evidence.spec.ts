@@ -41,7 +41,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(comparison.getByRole("img", { name: "Runtime fit unverified" }).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("comparison.png"), fullPage: true });
-    await page.getByRole("button", { name: "Models", exact: true }).click();
+    await page.getByRole("link", { name: "Models", exact: true }).click();
     await expect(comparison.getByRole("heading", { name: "Compare artifacts · 2 selected" })).toBeVisible();
     await comparison.getByRole("button", { name: "Clear artifact comparison" }).click();
     await expect(comparison).toHaveCount(0);
