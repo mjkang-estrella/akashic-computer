@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { ModelEntry } from "@/lib/atlas/models";
@@ -64,17 +65,25 @@ function absoluteHttpUrl(value: string | undefined): string | null {
   }
 }
 
+export function catalogSubscriptions(pathname: string) {
+  return {
+    list: ["/", "/models", "/benchmarks", "/search"].includes(pathname) || pathname === "/compare" || pathname.startsWith("/compare/"),
+    home: pathname === "/",
+  };
+}
+
 function RemoteCatalogProvider({ children }: { children: ReactNode }) {
-  const [loadedAt, setLoadedAt] = useState(() => Math.floor(Date.now() / 60_000) * 60_000);
+  const subscriptions = catalogSubscriptions(usePathname());
+  const [loadedAt, setLoadedAt] = useState(() => Math.floor(Date.now() / 300_000) * 300_000);
   useEffect(() => {
-    const update = () => setLoadedAt(Math.floor(Date.now() / 60_000) * 60_000);
-    const timer = setInterval(update, 1_000);
+    const update = () => setLoadedAt(Math.floor(Date.now() / 300_000) * 300_000);
+    const timer = setInterval(update, 60_000);
     window.addEventListener("focus", update);
     return () => { clearInterval(timer); window.removeEventListener("focus", update); };
   }, []);
-  const result = useQuery(api.catalog.listPublished);
-  const recentChanges = useQuery(api.intelligence.listRecentChanges, { limit: 10 });
-  const sourceHealth = useQuery(api.catalog.healthSummary, { now: loadedAt });
+  const result = useQuery(api.catalog.listPublished, subscriptions.list ? {} : "skip");
+  const recentChanges = useQuery(api.intelligence.listRecentChanges, subscriptions.home ? { limit: 10 } : "skip");
+  const sourceHealth = useQuery(api.catalog.healthSummary, subscriptions.home ? { now: loadedAt } : "skip");
   const value = useMemo<CatalogContextValue>(() => {
     if (!result) return loadingCatalog;
     const hydrated = hydratePublishedEntries(result.entries as PublishedCatalogSummary[]);
@@ -172,6 +181,8 @@ export function useCatalogEntry(
   // A live null (removed model) must replace the server snapshot, so only undefined falls back.
   const live = useQuery(api.catalog.getBySlug, { slug });
   const result = live === undefined ? initial : live;
-  if (result === undefined || result === null) return result;
-  return hydratePublishedEntries([result as PublishedCatalogEntry]).entries[0] ?? null;
+  return useMemo(() => {
+    if (result === undefined || result === null) return result;
+    return hydratePublishedEntries([result as PublishedCatalogEntry]).entries[0] ?? null;
+  }, [result]);
 }

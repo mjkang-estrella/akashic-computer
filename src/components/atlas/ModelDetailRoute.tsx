@@ -51,7 +51,7 @@ export function ModelDetailRoute({
       preferredVariant={preferredVariant}
       checked={checked}
       onBack={() => router.push("/models")}
-      onCheck={toggleChecked}
+      onCheck={(repo, on) => toggleChecked(repo, on, entry.slug)}
       onLearn={(term) => router.push(term ? `/docs/lexicon#term-${encodeURIComponent(term)}` : "/docs")}
     />
     {comparisonEnabled ? <section aria-label="Exact quantized files" className="my-6"><h2 className="font-display text-2xl">Compare exact quantizations</h2><p className="my-3 text-sm text-muted">Download sizes exclude runtime memory.</p>{[...new Set(entry.artifacts.map((a) => a.repo))].map((repo) => <ArtifactBuildPicker key={repo} repo={repo} modelSlug={entry.slug} modelName={entry.name} />)}</section> : null}
