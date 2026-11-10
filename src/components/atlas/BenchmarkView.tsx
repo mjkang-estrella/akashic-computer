@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import {
@@ -61,11 +61,11 @@ export function BenchmarkView({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-8 pt-5 lg:grid-cols-[190px_minmax(0,1fr)]">
       <aside className="min-w-0 self-start lg:sticky lg:top-4" aria-label="Benchmark categories">
-        <h2 className="font-display text-[19px] font-semibold">Benchmarks</h2>
+        <p className="font-display text-[19px] font-semibold">Benchmarks</p>
         <p className="mt-1 max-w-[30ch] text-[12.5px] leading-relaxed text-muted">
           Official scores published by model creators.
         </p>
-        <nav className="mt-4 flex gap-1.5 overflow-x-auto pb-1 lg:block" aria-label="Filter benchmarks">
+        <nav className="mt-4 flex flex-wrap gap-1.5 pb-1 lg:block" aria-label="Filter benchmarks">
           <CategoryButton
             label="All benchmarks"
             count={benchmarks.length}
@@ -87,7 +87,7 @@ export function BenchmarkView({
       <div id="benchmark-results" className="min-w-0">
         <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
           <div>
-            <h2 className="font-display text-[25px] font-semibold">Open model leaderboards</h2>
+            <h1 className="font-display text-[25px] font-semibold">Open model leaderboards</h1>
             <p className="mt-1 max-w-[72ch] text-[13px] leading-relaxed text-muted">
               Models are ranked from higher to lower within the exact benchmark version shown.
             </p>
@@ -104,7 +104,7 @@ export function BenchmarkView({
 
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <h3 className="font-display text-[18px] font-semibold">No matching benchmark results</h3>
+            <h2 className="font-display text-[18px] font-semibold">No matching benchmark results</h2>
             <p className="mt-1 text-[13px] text-muted">
               Search by benchmark, model, family, or company.
             </p>
@@ -119,19 +119,19 @@ export function BenchmarkView({
               >
                 <header className="min-h-[118px]">
                   <div>
-                    <span className="font-mono text-[10.5px] font-semibold uppercase text-faint">
+                    <span className="font-mono text-[11px] font-semibold uppercase text-faint">
                       {BENCHMARK_CATEGORIES.find((item) => item.id === benchmark.category)?.label}
                     </span>
-                    <h3 className="mt-0.5 font-display text-[21px] font-semibold">{benchmark.name}</h3>
+                    <h2 className="mt-0.5 font-display text-[21px] font-semibold">{benchmark.name}</h2>
                     <p className="mt-1 max-w-[68ch] text-[12.5px] leading-relaxed text-muted">
                       {benchmark.description}
                     </p>
                   </div>
                   <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[11px]">
                     <dt className="text-faint">Metric</dt>
-                    <dd className="truncate font-mono font-semibold">{benchmark.metric}</dd>
+                    <dd className="break-words font-mono font-semibold">{benchmark.metric}</dd>
                     <dt className="text-faint">Protocol</dt>
-                    <dd className="truncate text-muted" title={benchmark.protocol}>{benchmark.protocol}</dd>
+                    <dd className="break-words text-muted" title={benchmark.protocol}>{benchmark.protocol}</dd>
                   </dl>
                 </header>
 
@@ -145,16 +145,6 @@ export function BenchmarkView({
   );
 }
 
-const BAR_COLORS: Record<string, string> = {
-  qwen: "#7667db",
-  deepseek: "#2b62d6",
-  llama: "#4d8052",
-  "gpt-oss": "#252525",
-  glm: "#202020",
-  minimax: "#e83973",
-  kimi: "#1687df",
-};
-
 function BenchmarkBarChart({
   benchmark,
   onOpen,
@@ -162,95 +152,53 @@ function BenchmarkBarChart({
   benchmark: ReturnType<typeof resolveOfficialBenchmarks>[number];
   onOpen: (entry: ModelEntry) => void;
 }) {
-  const chartWidth = Math.max(420, benchmark.results.length * 58);
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const results = expanded ? benchmark.results : benchmark.results.slice(0, 8);
 
   return (
-    <div
-      className="mt-4 overflow-x-auto border-y border-line"
-      tabIndex={0}
-      aria-label={`${benchmark.name} ranking chart; scroll horizontally for more models`}
-    >
-      <div className="relative h-[292px] w-full pt-5" style={{ minWidth: chartWidth }}>
-        <div className="pointer-events-none absolute inset-x-0 top-5 h-[200px]" aria-hidden="true">
-          {[100, 75, 50, 25, 0].map((tick) => (
-            <span
-              key={tick}
-              className="absolute inset-x-0 border-t border-linesoft"
-              style={{ top: `${100 - tick}%` }}
-            >
-              <span className="absolute -top-2.5 left-0 bg-paper pr-1 font-mono text-[9px] text-faint">
-                {tick}
-              </span>
-            </span>
-          ))}
-        </div>
-
-        <ol
-          className="relative ml-7 grid h-[272px] items-end gap-1"
-          style={{ gridTemplateColumns: `repeat(${benchmark.results.length}, minmax(50px, 1fr))` }}
-        >
-          {benchmark.results.map((result) => {
-            const displayName = result.modelName ?? result.entry.name;
-            const barHeight = Math.max(
-              2,
-              Math.min(100, (result.score / benchmark.maxScore) * 100),
-            );
-            const score = Number.isInteger(result.score)
-              ? result.score.toFixed(0)
-              : result.score.toFixed(1);
-
-            return (
-              <li key={result.repo} className="grid h-full min-w-0 grid-rows-[200px_72px]">
-                <div className="flex min-h-0 items-end justify-center px-1">
-                  <button
-                    type="button"
-                    onClick={() => onOpen(result.entry)}
-                    className="group relative w-full max-w-[46px] opacity-90 transition-opacity hover:opacity-100"
-                    style={{
-                      height: `${barHeight}%`,
-                      backgroundColor: BAR_COLORS[result.entry.family.id] ?? "#5f6d66",
-                    }}
-                    title={`${displayName}: ${score} ${benchmark.metric}`}
-                    aria-label={`Open ${displayName}, ranked ${result.rank} with a score of ${score}`}
-                  >
-                    <span className="absolute inset-x-0 -top-5 text-center font-mono text-[10.5px] font-semibold tabular-nums text-ink">
-                      {score}
-                    </span>
-                  </button>
-                </div>
-                <div className="flex min-w-0 flex-col items-center border-t border-line px-1 pt-2 text-center">
-                  <span className="flex items-center gap-1 text-[9.5px] text-faint">
-                    <span className="font-mono">#{result.rank}</span>
-                    <FamilyLogo
-                      familyId={result.entry.family.id}
-                      familyName={result.entry.family.name}
-                      size={15}
-                    />
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onOpen(result.entry)}
-                    title={`${displayName} · ${parameterCountLabel(result.entry.size)}`}
-                    className="mt-1 line-clamp-2 min-h-7 w-full text-[10.5px] font-semibold leading-[1.25] hover:underline hover:underline-offset-2"
-                  >
-                    {displayName}
-                  </button>
-                  <a
-                    href={result.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={`${result.sourceLabel}${result.note ? ` · ${result.note}` : ""}`}
-                    aria-label={`Open ${result.sourceLabel} for ${displayName}`}
-                    className="mt-auto flex h-4 w-4 items-center justify-center text-faint hover:text-ink"
-                  >
-                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={10} strokeWidth={1.8} aria-hidden="true" />
-                  </a>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
+    <div className="mt-4 border-y border-line">
+      <ol id={listId} aria-label={`${benchmark.name} ranked results`} className="divide-y divide-linesoft">
+        {results.map((result) => {
+          const displayName = result.modelName ?? result.entry.name;
+          const score = Number.isInteger(result.score) ? result.score.toFixed(0) : result.score.toFixed(1);
+          return (
+            <li key={result.repo} value={result.rank} className="grid min-w-0 grid-cols-[2ch_20px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-3 text-[12px]">
+              <span aria-hidden="true" className="self-start font-mono tabular-nums text-muted">{result.rank}</span>
+              <FamilyLogo familyId={result.entry.family.id} familyName={result.entry.family.name} size={20} />
+              <button
+                type="button"
+                onClick={() => onOpen(result.entry)}
+                className="min-w-0 break-words text-left font-semibold hover:underline hover:underline-offset-2"
+                aria-label={`Open ${displayName}, ranked ${result.rank} with a score of ${score}`}
+              >
+                {displayName}
+              </button>
+              <a href={result.sourceUrl} target="_blank" rel="noreferrer"
+                aria-label={`Open ${result.sourceLabel} for ${displayName}`}
+                className="flex min-h-8 min-w-8 items-center justify-center text-muted hover:text-ink">
+                <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.8} aria-hidden="true" />
+              </a>
+              <div aria-hidden="true" className="col-start-3 flex items-center gap-3">
+                <span className="h-2 flex-1 bg-panel2">
+                  <span className="block h-full bg-ink/75" style={{ width: `${Math.max(0, Math.min(100, result.score / benchmark.maxScore * 100))}%` }} />
+                </span>
+                <span className="font-mono text-[13px] font-medium tabular-nums">{score}</span>
+              </div>
+              <p className="col-start-3 col-end-5 break-words text-[11px] leading-relaxed text-muted">
+                {parameterCountLabel(result.entry.size)} · {result.sourceLabel}{result.note ? ` · ${result.note}` : ""}
+                <span className="sr-only"> · {score} {benchmark.metric}</span>
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+      {benchmark.results.length > 8 ? (
+        <button type="button" aria-expanded={expanded} aria-controls={listId}
+          onClick={() => setExpanded(!expanded)} className="my-2 min-h-9 rounded-[7px] border border-line px-3 text-[12px] font-semibold hover:border-ink">
+          {expanded ? "Show top 8" : `Show all ${benchmark.results.length}`}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -276,7 +224,7 @@ function CategoryButton({
       }`}
     >
       <span>{label}</span>
-      <span className={`font-mono text-[10.5px] ${active ? "text-paper/65" : "text-faint"}`}>{count}</span>
+      <span className={`font-mono text-[11px] ${active ? "text-paper/65" : "text-faint"}`}>{count}</span>
     </button>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   useConvexAuth,
@@ -72,7 +72,15 @@ function SignedInWorkspace({ view }: { view: "work" | "computers" }) {
     api.workspace.conversationProgress,
     id ? { id } : "skip",
   );
-  const pending = useQuery(api.workspace.pendingEnrollment);
+  const enrollment = useQuery(api.workspace.pendingEnrollment);
+  const [now, setNow] = useState(() => Date.now());
+  const expiresAt = enrollment?.expiresAt;
+  useEffect(() => {
+    if (expiresAt === undefined) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [expiresAt]);
+  const pending = enrollment && enrollment.expiresAt > now ? enrollment : null;
   const create = useMutation(api.workspace.createConversation);
   const send = useMutation(api.workspace.submitJob);
   const cancel = useMutation(api.workspace.cancelJob);

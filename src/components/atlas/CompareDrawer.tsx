@@ -1,12 +1,13 @@
+"use client";
+
+import { useId, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { BENCHES } from "@/lib/atlas/data";
 import { contextLabel, fitOf, memoryEstimateLabel, memoryAssumptions } from "@/lib/atlas/fit";
-import { learnTermForFormat } from "@/lib/atlas/learn";
 import type { Artifact, ContextChoice, RigProfile } from "@/lib/atlas/types";
 import { uploaderDisplay } from "@/lib/atlas/naming";
 import { DeltaChip, FitBadge } from "./badges";
-import { LexiconHint } from "./LexiconHint";
 
 export function CompareDrawer({
   artifacts,
@@ -21,6 +22,8 @@ export function CompareDrawer({
   onRemove: (repo: string) => void;
   onClear: () => void;
 }) {
+  const [expanded, setExpanded] = useState(true);
+  const contentId = useId();
   const labelCell = "whitespace-nowrap px-2.5 py-1.5 text-xs text-muted align-top";
 
   return (
@@ -35,12 +38,17 @@ export function CompareDrawer({
             <h3 className="text-[13px] font-semibold uppercase tracking-[0.1em]">
               Compare artifacts · {artifacts.length} selected
             </h3>
-            <p className="mt-0.5 text-[11.5px] text-muted" aria-live="polite">
+            <p hidden={!expanded} className="mt-0.5 text-[11.5px] text-muted" aria-live="polite">
               {artifacts.length === 1
                 ? "Choose one more artifact to compare. Up to four selections are preserved while you browse."
                 : "Selections stay available across families and filters. Choose up to four artifacts."}
             </p>
           </div>
+          <div className="flex flex-none items-center gap-1">
+          <button type="button" aria-expanded={expanded} aria-controls={contentId}
+            onClick={() => setExpanded(!expanded)} className="min-h-11 rounded px-2 text-[12px] font-semibold md:min-h-8">
+            {expanded ? "Collapse" : "Expand"}
+          </button>
           <button
             onClick={onClear}
             aria-label="Clear artifact comparison"
@@ -48,15 +56,17 @@ export function CompareDrawer({
           >
             Clear <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.8} aria-hidden="true" />
           </button>
+          </div>
         </div>
 
+        <div id={contentId} hidden={!expanded}>
         <div className="mt-3 divide-y divide-linesoft md:hidden">
-          {artifacts.map((artifact, index) => {
+          {artifacts.map((artifact) => {
             const fit = fitOf(artifact, rig, { context });
             return (
               <section key={artifact.repo} className="py-3 first:pt-0">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-display text-[13px] font-semibold">Artifact {index + 1}</span>
+                  <span className="font-display text-[13px] font-semibold">{artifact.format} · {uploaderDisplay(artifact.repo)}</span>
                   <button
                     type="button"
                     onClick={() => onRemove(artifact.repo)}
@@ -67,18 +77,6 @@ export function CompareDrawer({
                   </button>
                 </div>
                 <dl className="mt-1.5 space-y-1 text-[12.5px]">
-                  <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
-                    <dt className="text-muted"><LexiconHint term="quantization">Quant</LexiconHint></dt>
-                    <dd className="font-mono font-semibold">
-                      <LexiconHint term={learnTermForFormat(artifact.format)} className="text-ink">
-                        {artifact.format}
-                      </LexiconHint>
-                    </dd>
-                  </div>
-                  <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
-                    <dt className="text-muted"><LexiconHint term="provider">Provider</LexiconHint></dt>
-                    <dd>{uploaderDisplay(artifact.repo)}</dd>
-                  </div>
                   <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
                     <dt className="text-muted">Repository</dt>
                     <dd className="min-w-0">
@@ -124,7 +122,7 @@ export function CompareDrawer({
                 {artifacts.map((artifact) => (
                   <th key={artifact.repo} className="border-b border-line px-2.5 py-1.5 text-left">
                     <span className="flex items-center justify-between gap-2">
-                      <span className="font-display text-[13px] font-semibold">Artifact</span>
+                      <span className="font-display text-[13px] font-semibold">{artifact.format} · {uploaderDisplay(artifact.repo)}</span>
                       <button
                         type="button"
                         onClick={() => onRemove(artifact.repo)}
@@ -148,20 +146,6 @@ export function CompareDrawer({
                     </a>
                   </td>
                 ))}
-              </tr>
-              <tr>
-                <td className={labelCell}><LexiconHint term="quantization">Quant</LexiconHint></td>
-                {artifacts.map((artifact) => (
-                  <td key={artifact.repo} className="px-2.5 py-1.5 align-top font-mono text-[12.5px] font-semibold">
-                    <LexiconHint term={learnTermForFormat(artifact.format)} className="text-ink">
-                      {artifact.format}
-                    </LexiconHint>
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className={labelCell}><LexiconHint term="provider">Provider</LexiconHint></td>
-                {artifacts.map((artifact) => <td key={artifact.repo} className="px-2.5 py-1.5 align-top text-[12.5px]">{uploaderDisplay(artifact.repo)}</td>)}
               </tr>
               <tr>
                 <td className={labelCell}>Memory estimate</td>
@@ -194,6 +178,7 @@ export function CompareDrawer({
           </details>
         ) : <p className="mt-2 text-[11.5px] text-muted">No benchmark delta data for the selected artifacts. Missing results are not zero scores.</p>}
 
+        </div>
       </div>
     </div>
   );

@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { IBM_Plex_Mono, IBM_Plex_Sans, STIX_Two_Text } from "next/font/google";
 import { AppProviders } from "@/components/AppProviders";
-import "@/components/workspace/workspace.css";
 import "./globals.css";
-import "@/components/comparison/comparison.css";
 
 const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",

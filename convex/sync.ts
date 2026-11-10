@@ -120,6 +120,26 @@ export const eventById = internalQuery({
   },
 });
 
+// Freeze the event before any external reads. Retries and stalled-event recovery
+// may start it again, but it must never absorb newer deliveries after this point.
+export const startWebhookProcessing = internalMutation({
+  args: { eventId: v.id("webhookEvents") },
+  returns: eventResultValue,
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    if (!event || event.status !== "pending") return null;
+    await ctx.db.patch(event._id, { processingStartedAt: Date.now() });
+    return {
+      status: event.status,
+      owner: event.owner,
+      repoId: event.repoId,
+      repoName: event.repoName,
+      scope: event.scope,
+      action: event.action,
+    };
+  },
+});
+
 export const syncRunById = internalQuery({
   args: { runId: v.id("syncRuns") },
   returns: runResultValue,
@@ -888,7 +908,7 @@ export const processWebhook = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const event = await ctx.runQuery(internal.sync.eventById, { eventId: args.eventId });
+    const event = await ctx.runMutation(internal.sync.startWebhookProcessing, { eventId: args.eventId });
     if (!event || event.status !== "pending") return null;
     const runId = args.runId ?? (await ctx.runMutation(internal.sync.startWebhookRun, { owner: event.owner, now: Date.now() }));
     try {

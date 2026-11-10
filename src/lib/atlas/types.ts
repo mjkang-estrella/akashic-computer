@@ -247,6 +247,7 @@ export interface RunReport {
 }
 
 export interface FitVerdict {
+  estimateGb?: number;
   level: FitLevel;
   text: string;
 }
