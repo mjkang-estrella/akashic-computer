@@ -169,6 +169,8 @@ The palette resembles archival paper and technical ink, with restrained semantic
 
 **The Data Alignment Rule.** Comparable numbers use IBM Plex Mono and tabular numerals.
 
+**The Minimum Type Rule.** All text uses at least the 11px Label size.
+
 ## Elevation
 
 The system is flat by default. Depth comes from tonal layering, one-pixel rules, and the relationship between paper and reading panels. The artifact comparison drawer is the only elevated surface because it temporarily sits above the catalog.

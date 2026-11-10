@@ -104,6 +104,7 @@
       {"name": "The Paper Dominance Rule", "body": "Ink and paper must carry the composition before any accent color appears.", "section": "colors"},
       {"name": "The Editorial Identity Rule", "body": "Serif type names the product and models. It never appears inside buttons, filters, badges, or utility labels.", "section": "typography"},
       {"name": "The Data Alignment Rule", "body": "Comparable numbers use IBM Plex Mono and tabular numerals.", "section": "typography"},
+      {"name": "The Minimum Type Rule", "body": "All text uses at least the 11px Label size.", "section": "typography"},
       {"name": "The Flat Catalog Rule", "body": "Static panels never use shadows. If a panel needs emphasis, strengthen its hierarchy or border instead.", "section": "elevation"}
     ],
     "dos": [

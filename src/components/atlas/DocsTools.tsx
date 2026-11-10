@@ -88,7 +88,7 @@ export function InferenceStackExplorer() {
             onClick={() => setSelectedId(layer.id)}
             className={`${segmentedButton(selected.id === layer.id)} flex-1 basis-[120px]`}
           >
-            <span className="block font-mono text-[10px] font-normal opacity-65">
+            <span className="block font-mono text-[11px] font-normal opacity-65">
               {index + 1}
             </span>
             {layer.label}
@@ -283,7 +283,7 @@ export function PostTrainingPipeline() {
             onClick={() => setSelectedId(stage.id)}
             className={`${segmentedButton(selected.id === stage.id)} min-w-[150px] flex-1`}
           >
-            <span className="block font-mono text-[10px] font-normal opacity-65">
+            <span className="block font-mono text-[11px] font-normal opacity-65">
               {index + 1}
             </span>
             {stage.label}
@@ -559,7 +559,7 @@ export function RuntimeMatrix() {
     >
       <table className="w-full min-w-[720px] border-collapse text-left">
         <thead>
-          <tr className="font-mono text-[10px] font-semibold text-faint">
+          <tr className="font-mono text-[11px] font-semibold text-faint">
             <th className="border-b border-line px-2 py-2.5">Runtime</th>
             <th className="border-b border-line px-2 py-2.5">Role</th>
             <th className="border-b border-line px-2 py-2.5">Useful when</th>
@@ -578,7 +578,7 @@ export function RuntimeMatrix() {
               <td className="max-w-[32ch] px-2 py-3 align-top text-[12px] leading-relaxed text-muted">
                 {runtime.bestFor}
               </td>
-              <td className="max-w-[30ch] px-2 py-3 align-top font-mono text-[10.5px] leading-relaxed text-faint">
+              <td className="max-w-[30ch] px-2 py-3 align-top font-mono text-[11px] leading-relaxed text-faint">
                 {runtime.artifactPath}
               </td>
             </tr>

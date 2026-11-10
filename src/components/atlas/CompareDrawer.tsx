@@ -93,11 +93,11 @@ export function CompareDrawer({
                 </dl>
                 <dl className="mt-2.5 grid grid-cols-2 gap-3 border-t border-linesoft pt-2.5">
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Memory estimate</dt>
-                    <dd className="mt-0.5 font-mono text-[13px]">{memoryEstimateLabel(artifact)}<span className="mt-1 block font-sans text-[10px] text-muted">{memoryAssumptions(artifact, context)}</span></dd>
+                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Memory estimate</dt>
+                    <dd className="mt-0.5 font-mono text-[13px]">{memoryEstimateLabel(artifact)}<span className="mt-1 block font-sans text-[11px] text-muted">{memoryAssumptions(artifact, context)}</span></dd>
                   </div>
                   <div>
-                    <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">Runtime</dt>
+                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Runtime</dt>
                     <dd className="mt-0.5 flex items-start gap-1.5">
                       <FitBadge fit={fit} />
                       <span aria-hidden="true" className="text-[11px] leading-snug text-muted">{fit.text}</span>
@@ -149,7 +149,7 @@ export function CompareDrawer({
               </tr>
               <tr>
                 <td className={labelCell}>Memory estimate</td>
-                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{memoryEstimateLabel(artifact)}<span className="mt-1 block max-w-[240px] whitespace-normal font-sans text-[10px] text-muted">{memoryAssumptions(artifact, context)}</span></td>)}
+                {artifacts.map((artifact) => <td key={artifact.repo} className="whitespace-nowrap px-2.5 py-1.5 align-top font-mono text-[13px] tabular-nums">{memoryEstimateLabel(artifact)}<span className="mt-1 block max-w-[240px] whitespace-normal font-sans text-[11px] text-muted">{memoryAssumptions(artifact, context)}</span></td>)}
               </tr>
               <tr>
                 <td className={labelCell}>Runtime</td>

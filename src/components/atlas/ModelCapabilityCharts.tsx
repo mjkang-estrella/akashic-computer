@@ -22,7 +22,7 @@ function BenchmarkChart({ metric, models }: { metric: CapabilityMetric; models: 
     return right - left || Number(b.current) - Number(a.current) || a.name.localeCompare(b.name);
   });
   const maximum = Math.max(25, Math.ceil(Math.max(0, ...sorted.map(m => m.scores[metric.id] ?? 0)) / 25) * 25);
-  const left = 34, top = 18, baseline = 208, step = (width - left - 8) / Math.max(1, sorted.length);
+  const left = 40, top = 18, baseline = 208, step = (width - left - 8) / Math.max(1, sorted.length);
   const barWidth = Math.min(44, step * 0.73);
   return <figure className="min-w-0" aria-labelledby={titleId}>
     <figcaption id={titleId} className="font-display text-[17px] font-semibold">{metric.name}</figcaption>
@@ -33,7 +33,7 @@ function BenchmarkChart({ metric, models }: { metric: CapabilityMetric; models: 
           const value = maximum * tick / 4, y = baseline - (baseline - top) * tick / 4;
           return <g key={tick}>
             <line x1={left} x2={width - 8} y1={y} y2={y} stroke="var(--line)" strokeDasharray="2 4" />
-            <text x={left - 7} y={y + 4} textAnchor="end" fill="var(--muted)" className="font-mono text-[10px]">{scoreLabel(value)}</text>
+            <text x={left - 7} y={y + 4} textAnchor="end" fill="var(--muted)" className="font-mono text-[11px]">{scoreLabel(value)}</text>
           </g>;
         })}
         {sorted.map((model, index) => {

@@ -76,7 +76,7 @@ export function LearnView({ slug }: { slug: string | null }) {
                       <span className="max-w-[54ch] text-[12.5px] leading-relaxed text-muted">
                         {candidate.summary}
                       </span>
-                      <span className="font-mono text-[10.5px] text-faint sm:text-right">
+                      <span className="font-mono text-[11px] text-faint sm:text-right">
                         {candidate.readMinutes} min
                       </span>
                       <span aria-hidden="true" className="hidden text-faint sm:block">

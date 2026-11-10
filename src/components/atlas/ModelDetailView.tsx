@@ -172,7 +172,7 @@ export function ModelDetailView({
               <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                 {entry.introduction.highlights.map((highlight) => (
                   <div key={`${highlight.label}-${highlight.value}`} className="min-w-0">
-                    <dt className="text-[10.5px] text-faint">{highlight.label}</dt>
+                    <dt className="text-[11px] text-faint">{highlight.label}</dt>
                     <dd className="mt-0.5 text-[12.5px] font-semibold leading-relaxed">{highlight.value}</dd>
                   </div>
                 ))}
@@ -331,9 +331,9 @@ export function ModelDetailView({
                   <div key={report.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(160px,0.8fr)_minmax(180px,1fr)_repeat(2,minmax(100px,0.5fr))] sm:items-center sm:gap-4">
                     <span>
                       <span className="block text-[12px] font-semibold">{report.hardwareProfile}</span>
-                      <span className="font-mono text-[10.5px] text-faint">{report.runtime} {report.runtimeVersion}</span>
+                      <span className="font-mono text-[11px] text-faint">{report.runtime} {report.runtimeVersion}</span>
                     </span>
-                    <span className="font-mono text-[10.5px] text-muted">{report.artifactRepo}</span>
+                    <span className="font-mono text-[11px] text-muted">{report.artifactRepo}</span>
                     <span className="font-mono text-[11.5px]">{report.peakMemoryGb ? `${report.peakMemoryGb} GB peak` : "Memory not reported"}</span>
                     <span className="font-mono text-[11.5px]">{report.throughputTokensPerSecond ? `${report.throughputTokensPerSecond} tok/s` : report.verificationStatus}</span>
                   </div>
@@ -390,7 +390,7 @@ export function ModelDetailView({
                       {recipeCheckpoint ? (
                         <span
                           title={`Official checkpoint in ${recipeCheckpoint.recipe.title}`}
-                          className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[10px] font-semibold text-meta"
+                          className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[11px] font-semibold text-meta"
                         >
                           <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" className="recipe-star" />
                           Recipe checkpoint
@@ -399,7 +399,7 @@ export function ModelDetailView({
                     </span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       {artifact.runtimes.map((runtime) => (
-                        <span key={runtime} className="rounded-[4px] bg-panel/70 px-1.5 py-px font-mono text-[10.5px] text-muted">
+                        <span key={runtime} className="rounded-[4px] bg-panel/70 px-1.5 py-px font-mono text-[11px] text-muted">
                           {runtime}
                         </span>
                       ))}
@@ -407,19 +407,19 @@ export function ModelDetailView({
                   </div>
                   <div className="min-w-0 pl-11 md:pl-0">
                     <span className="block text-[12.5px] font-semibold">{uploaderDisplay(artifact.repo)}</span>
-                    <span className="mt-0.5 block break-all font-mono text-[10.5px] text-muted">{artifact.repo}</span><RunningModelLink repo={artifact.repo}/>
-                    {artifact.confidence !== "verified" ? <span className="text-[10px] text-caution">Model link unverified</span> : null}
+                    <span className="mt-0.5 block break-all font-mono text-[11px] text-muted">{artifact.repo}</span><RunningModelLink repo={artifact.repo}/>
+                    {artifact.confidence !== "verified" ? <span className="text-[11px] text-caution">Model link unverified</span> : null}
                   </div>
                   <div className="pl-11 md:pl-0">
                     <span className="text-[11px] text-muted md:hidden">Memory estimate · </span>
                     <span className="font-mono text-[13px] font-semibold">{artifact.vramEstimate ? `${artifact.vramEstimate.weightGb} GB weights` : memoryRange(artifact.minVramGb, artifact.recVramGb)}</span>
-                    <span className="mt-0.5 block text-[10px] leading-relaxed text-muted">
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">
                       {artifact.vramEstimate && kv
                         ? `+ ${kvGbLabel(kv.bytes)} GB KV estimate · ${kv.tokens.toLocaleString("en-US")} tokens · concurrency ${artifact.vramEstimate.concurrency} · ${artifact.vramEstimate.kvCacheDtype}`
                         : "Estimate; weight/KV breakdown unknown. No exact file selected."}
                     </span>
                     {recipeCheckpoints.filter((item) => item.variant.minimumVramGb && item.variant.precision.toUpperCase() === artifact.format.toUpperCase()).map((item) => (
-                      <a key={`${item.recipe.recipeUrl}:${item.variant.key}`} href={item.recipe.recipeUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[10px] font-semibold text-meta underline-offset-2 hover:underline">
+                      <a key={`${item.recipe.recipeUrl}:${item.variant.key}`} href={item.recipe.recipeUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[11px] font-semibold text-meta underline-offset-2 hover:underline">
                         {item.recipe.runtime} recipe condition · {item.variant.minimumVramGb} GB
                       </a>
                     ))}
@@ -448,7 +448,7 @@ export function ModelDetailView({
                         {!exceeds && fit.estimateGb !== undefined && rig ? (
                           <>
                             <span className="font-mono tabular-nums">≈ {gbLabel(fit.estimateGb * 1e9)} of {rig.gb} GB</span>
-                            <span className="mt-0.5 block text-[10px] font-normal text-muted">{fit.text}</span>
+                            <span className="mt-0.5 block text-[11px] font-normal text-muted">{fit.text}</span>
                           </>
                         ) : fit.text}
                       </span>
@@ -488,7 +488,7 @@ export function ModelDetailView({
                   <HugeiconsIcon icon={Rocket01Icon} size={17} strokeWidth={1.8} aria-hidden="true" className="flex-none text-meta" />
                   <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                     <span className="text-[12.5px] font-semibold">Official {recipe.runtime} recipe · {recipe.title}</span>
-                    <span className="rounded-[4px] bg-metasoft px-1.5 py-0.5 font-mono text-[10px] text-meta">
+                    <span className="rounded-[4px] bg-metasoft px-1.5 py-0.5 font-mono text-[11px] text-meta">
                       {recipe.runtime}{recipe.minimumRuntimeVersion ? ` ${recipe.minimumRuntimeVersion}+` : ""}
                     </span>
                   </span>
@@ -505,15 +505,15 @@ export function ModelDetailView({
                     <div className="border-t border-linesoft pb-4 pt-3">
                   <dl className="grid gap-3 sm:grid-cols-3">
                     <div>
-                      <dt className="text-[10.5px] text-faint">Minimum runtime</dt>
+                      <dt className="text-[11px] text-faint">Minimum runtime</dt>
                       <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.minimumRuntimeVersion ?? "See recipe"}</dd>
                     </div>
                     <div>
-                      <dt className="text-[10.5px] text-faint">Recipe revision</dt>
+                      <dt className="text-[11px] text-faint">Recipe revision</dt>
                       <dd className="mt-0.5 font-mono text-[12px] font-semibold">{recipe.sourceSha.slice(0, 9)}</dd>
                     </div>
                     <div>
-                      <dt className="text-[10.5px] text-faint">Maintainer</dt>
+                      <dt className="text-[11px] text-faint">Maintainer</dt>
                       <dd className="mt-0.5 text-[12px] font-semibold">{recipe.publisher}</dd>
                     </div>
                   </dl>
@@ -587,7 +587,7 @@ export function ModelDetailView({
           <ol className="mt-3 divide-y divide-linesoft border-y border-linesoft">
             {displayMaterialChanges.map((change) => (
               <li key={change.id} className="grid gap-1 py-3 sm:grid-cols-[105px_minmax(180px,0.55fr)_minmax(260px,1fr)_auto] sm:items-center sm:gap-4">
-                <time className="font-mono text-[10.5px] text-faint">{change.dateLabel}</time>
+                <time className="font-mono text-[11px] text-faint">{change.dateLabel}</time>
                 <span className="text-[12px] font-semibold">{change.title}</span>
                 <span className="text-[11.5px] leading-relaxed text-muted">{change.summary}</span>
                 {change.sourceUrls[0] ? (
