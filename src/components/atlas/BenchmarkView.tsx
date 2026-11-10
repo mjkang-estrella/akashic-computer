@@ -176,7 +176,7 @@ function BenchmarkBarChart({
               </button>
               <a href={result.sourceUrl} target="_blank" rel="noreferrer"
                 aria-label={`Open ${result.sourceLabel} for ${displayName}`}
-                className="flex min-h-8 min-w-8 items-center justify-center text-metadata hover:text-ink">
+                className="flex min-h-8 min-w-8 items-center justify-center text-muted hover:text-ink">
                 <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} strokeWidth={1.8} aria-hidden="true" />
               </a>
               <div aria-hidden="true" className="col-start-3 flex items-center gap-3">
