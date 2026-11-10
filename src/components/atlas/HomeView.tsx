@@ -227,19 +227,19 @@ function CatalogField({ entries, stats }: { entries: ModelEntry[]; stats: HomeCa
           <strong className="block font-mono text-[13px] font-semibold">
             {stats.modelSizes}
           </strong>
-          <span className="mt-0.5 block text-[10.5px] text-muted">model sizes</span>
+          <span className="mt-0.5 block text-[11px] text-muted">model sizes</span>
         </span>
         <span className="border-l border-linesoft pl-4">
           <strong className="block font-mono text-[13px] font-semibold">
             {stats.families}
           </strong>
-          <span className="mt-0.5 block text-[10.5px] text-muted">families</span>
+          <span className="mt-0.5 block text-[11px] text-muted">families</span>
         </span>
         <span className="border-l border-linesoft pl-4">
           <strong className="block font-mono text-[13px] font-semibold">
             {stats.weightFormats}
           </strong>
-          <span className="mt-0.5 block text-[10.5px] text-muted">weight formats</span>
+          <span className="mt-0.5 block text-[11px] text-muted">weight formats</span>
         </span>
       </div>
     </figure>
@@ -453,7 +453,7 @@ export function HomeView({
               </p>
             </div>
             <span className="flex items-center gap-3">
-              <span className="font-mono text-[10.5px] text-faint">Evidence-linked</span>
+              <span className="font-mono text-[11px] text-faint">Evidence-linked</span>
               <a href="/feed.xml" className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
                 <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
                 RSS
@@ -531,7 +531,7 @@ export function HomeView({
               </div>
             ) : (
               <div className="border-y border-line">
-                <div className="hidden grid-cols-[minmax(200px,1fr)_100px_minmax(150px,0.8fr)_110px_20px] border-b border-line px-2 py-2 font-mono text-[10px] font-semibold text-faint sm:grid">
+                <div className="hidden grid-cols-[minmax(200px,1fr)_100px_minmax(150px,0.8fr)_110px_20px] border-b border-line px-2 py-2 font-mono text-[11px] font-semibold text-faint sm:grid">
                   <span>Model</span>
                   <span>Parameters</span>
                   <span>Quantizations</span>
@@ -576,13 +576,13 @@ export function HomeView({
                           {visibleQuantizations.map((quantization) => (
                             <span
                               key={quantization}
-                              className="rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[10.5px] text-muted"
+                              className="rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[11px] text-muted"
                             >
                               {quantization}
                             </span>
                           ))}
                           {remaining > 0 ? (
-                            <span className="font-mono text-[10.5px] text-faint">
+                            <span className="font-mono text-[11px] text-faint">
                               +{remaining}
                             </span>
                           ) : null}
@@ -771,7 +771,7 @@ export function HomeView({
               <span className="mt-2 block max-w-[52ch] text-[12.5px] leading-relaxed text-muted">
                 {article.summary}
               </span>
-              <span className="mt-3 block font-mono text-[10.5px] text-faint">
+              <span className="mt-3 block font-mono text-[11px] text-faint">
                 {article.readMinutes} min read
               </span>
             </Link>

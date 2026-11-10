@@ -37,7 +37,7 @@ export function FamilyLogo({
     <span
       aria-hidden="true"
       className="flex flex-none items-center justify-center rounded-[6px] border border-line bg-panel2 font-display font-semibold text-muted"
-      style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.32)) }}
+      style={{ width: size, height: size, fontSize: Math.max(11, Math.round(size * 0.32)) }}
     >
       {initials}
     </span>

@@ -59,7 +59,7 @@ export function RunCommands({ commands, repo }: { commands: RunCommand[]; repo: 
                       <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={1.8} aria-hidden="true" />
                     </a>
                   ) : null}
-                  <span className="mt-1 block text-[10.5px] leading-relaxed text-muted">{command.note}</span>
+                  <span className="mt-1 block text-[11px] leading-relaxed text-muted">{command.note}</span>
                 </span>
               </li>
             ))}

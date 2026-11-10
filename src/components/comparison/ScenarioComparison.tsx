@@ -26,7 +26,7 @@ function ScenarioCard({ side, scenario, entries, budget, onChange }: {
     <section aria-label={`Scenario ${side}`} className="min-w-0 rounded-[10px] border border-line bg-panel p-5 sm:p-6">
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-[21px] font-semibold">Option {side}</h2>
-        <span className="font-mono text-[10px] text-faint">EXL3</span>
+        <span className="font-mono text-[11px] text-faint">EXL3</span>
       </header>
       <label className="mt-4 block text-[12px] font-semibold">
         Model
