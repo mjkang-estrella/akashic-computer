@@ -27,6 +27,11 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     const comparison = page.getByRole("region", { name: "Artifact comparison" });
     await expect(comparison.getByRole("heading", { name: "Compare artifacts · 2 selected" })).toBeVisible();
     await expect(comparison.getByText(/No benchmark delta data/)).toBeVisible();
+    await comparison.getByRole("button", { name: "Collapse", exact: true }).click();
+    await expect(comparison.getByRole("button", { name: "Expand", exact: true })).toHaveAttribute("aria-expanded", "false");
+    await expect(comparison.getByText(/No benchmark delta data/)).not.toBeVisible();
+    await comparison.getByRole("button", { name: "Expand", exact: true }).click();
+    await expect(comparison.getByRole("button", { name: "Collapse", exact: true })).toHaveAttribute("aria-expanded", "true");
     await expect(comparison.getByText(/340–340/)).toHaveCount(0);
     await expect(comparison.getByText("n/a", { exact: true })).toHaveCount(0);
     await expect(comparison.getByRole("img", { name: "No memory budget set" }).first()).toBeVisible();
@@ -53,4 +58,28 @@ test("keeps regular GLM-5.3 checkpoints and recipes on its own detail page", asy
   const recipes = page.getByRole("region", { name: "Runtime recipes" });
   await expect(recipes.getByText("Official vLLM recipe · GLM-5.3", { exact: true })).toBeVisible();
   await expect(recipes.getByText(/Flash/)).toHaveCount(0);
+});
+
+test("dismisses term definitions without moving keyboard focus", async ({ page }) => {
+  await page.goto("/models/glm-glm-5-3-flash-321b");
+  const trigger = page.getByRole("button", { name: "Context per request", exact: true });
+  await trigger.focus();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "Open in lexicon", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+});
+
+test("opens a touch definition before navigating to the lexicon", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto(`${process.env.E2E_BASE_URL ?? "http://localhost:3100"}/models/glm-glm-5-3-flash-321b`);
+  const trigger = page.getByRole("button", { name: "Context per request", exact: true });
+  await trigger.tap();
+  await expect(page).toHaveURL(/\/models\/glm-glm-5-3-flash-321b$/);
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "Open in lexicon", exact: true }).tap();
+  await expect(page).toHaveURL(/\/docs\/lexicon#term-context/);
+  await context.close();
 });
