@@ -42,9 +42,9 @@ test("loads model details through the detail query", async ({ page }) => {
   await expect(firstModel).toBeVisible();
   await firstModel.click();
   await expect(page).toHaveURL(/\/models\/[a-z0-9-]+$/);
-  await expect(page.getByRole("heading", { level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Available artifacts" })).toBeVisible();
-  await page.getByRole("button", { name: "Models", exact: true }).click();
+  await page.getByRole("link", { name: "Models", exact: true }).click();
   await expect(page).toHaveURL(/\/models$/);
 });
 
@@ -59,4 +59,19 @@ test("does not translate retired query-string tabs", async ({ page }) => {
   await page.goto("/?tab=model");
   await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();
   await expect(page).toHaveURL(/\?tab=model$/);
+});
+
+test("home links expose destinations and docs have one page heading", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Open-weight models, organized.");
+  await expect(page.getByRole("link", { name: "View all models", exact: true })).toHaveAttribute("href", "/models");
+  await expect(page.getByRole("link", { name: "View all benchmarks", exact: true })).toHaveAttribute("href", "/benchmarks");
+  const model = page.getByRole("link", { name: /^Open / }).first();
+  await expect(model).toHaveAttribute("href", /^\/models\//);
+  await page.getByRole("link", { name: "Read the docs", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Technical guides to local models");
+  await page.getByRole("link", { name: "Open lexicon", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Technical lexicon");
+  await page.getByRole("link", { name: "All Docs", exact: true }).click();
+  await expect(page).toHaveURL(/\/docs$/);
 });

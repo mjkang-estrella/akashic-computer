@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -35,6 +36,10 @@ const kvGbLabel = (bytes: number) => {
   return Number(gb < 10 ? gb.toFixed(1) : gb.toFixed(0)).toString();
 };
 
+export function resolveModelVariant(variants: string[], selected: string) {
+  return variants.includes(selected) ? selected : variants[0];
+}
+
 export function ModelDetailView({
   entry,
   capabilityComparisons,
@@ -43,7 +48,6 @@ export function ModelDetailView({
   onContext,
   preferredVariant,
   checked,
-  onBack,
   onCheck,
   onLearn,
 }: {
@@ -54,7 +58,6 @@ export function ModelDetailView({
   onContext: (context: ContextChoice) => void;
   preferredVariant?: string | null;
   checked: Set<string>;
-  onBack: () => void;
   onCheck: (repo: string, on: boolean) => void;
   onLearn: (term?: string) => void;
 }) {
@@ -62,7 +65,8 @@ export function ModelDetailView({
     preferredVariant && entry.size.variants.includes(preferredVariant)
       ? preferredVariant
       : entry.size.variants[0];
-  const [variant, setVariant] = useState(initialVariant);
+  const [selectedVariant, setVariant] = useState(initialVariant);
+  const variant = resolveModelVariant(entry.size.variants, selectedVariant);
   // A ?variant= link resolves after hydration; apply it once per distinct preference.
   const [appliedPreference, setAppliedPreference] = useState(preferredVariant);
   if (preferredVariant !== appliedPreference) {
@@ -119,14 +123,13 @@ export function ModelDetailView({
 
   return (
     <article className="pt-5" aria-labelledby="model-detail-title">
-      <button
-        type="button"
-        onClick={onBack}
+      <Link
+        href="/models"
         className="inline-flex min-h-10 items-center gap-1.5 text-[12.5px] font-semibold text-muted hover:text-ink"
       >
         <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} aria-hidden="true" />
         Models
-      </button>
+      </Link>
 
       <header className="border-b border-line pb-5 pt-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -136,9 +139,9 @@ export function ModelDetailView({
           >
             <FamilyLogo familyId={entry.family.id} familyName={entry.family.name} size={42} />
             <div className="min-w-0">
-              <h2 id="model-detail-title" className="text-wrap-balance font-display text-[25px] font-semibold leading-tight">
+              <h1 id="model-detail-title" className="text-wrap-balance font-display text-[25px] font-semibold leading-tight">
                 {entry.name}
-              </h2>
+              </h1>
               <p className="mt-1 text-[13px] text-muted">
                 {entry.family.vendor} · {entry.release.license}
               </p>
@@ -228,9 +231,9 @@ export function ModelDetailView({
 
       {entry.benchmarkRefs.length > 0 ? (
         <section className="border-b border-line py-5" aria-labelledby="benchmark-evidence-title">
-          <h3 id="benchmark-evidence-title" className="font-display text-[17px] font-semibold">
+          <h2 id="benchmark-evidence-title" className="font-display text-[17px] font-semibold">
             Benchmark evidence
-          </h3>
+          </h2>
           <div className="mt-3 divide-y divide-linesoft border-y border-linesoft">
             {entry.benchmarkRefs.map((benchmark) => (
               <a
@@ -254,9 +257,9 @@ export function ModelDetailView({
 
       <section className="py-5" aria-labelledby="artifact-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h3 id="artifact-title" className="font-display text-[19px] font-semibold">
+          <h2 id="artifact-title" className="font-display text-[19px] font-semibold">
             Available artifacts
-          </h3>
+          </h2>
           {entry.size.variants.length > 1 ? (
             <div className="flex flex-wrap gap-1.5" aria-label="Model variant">
               {entry.size.variants.map((item) => (
