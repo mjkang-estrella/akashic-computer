@@ -28,6 +28,11 @@ test("offers copyable run commands bounded by the selected context", async ({ pa
 });
 
 test("serves crawlable model pages, real 404s, sitemap and feeds", async ({ page, request }) => {
+  const catalogHtml = await (await request.get("/models?family=qwen")).text();
+  expect(catalogHtml).toContain('id="model-catalog-title"');
+  expect(catalogHtml).toContain('aria-label="Open ');
+  expect(catalogHtml).not.toContain('id="model-catalog-loading-title"');
+
   const model = await request.get("/models/glm-glm-5-3-flash-321b");
   expect(model.status()).toBe(200);
   const html = await model.text();
