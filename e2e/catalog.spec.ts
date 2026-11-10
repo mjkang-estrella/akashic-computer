@@ -62,7 +62,7 @@ test("does not translate retired query-string tabs", async ({ page }) => {
 });
 
 for (const width of [1280, 390, 360]) {
-  test(`keeps ranked benchmarks readable at ${width}px`, async ({ page }, testInfo) => {
+  test(`keeps ranked benchmarks readable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/benchmarks");
     await expect(page.getByRole("heading", { name: "Open model leaderboards", level: 1 })).toBeVisible();
@@ -77,6 +77,5 @@ for (const width of [1280, 390, 360]) {
       await disclosure.click();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath("benchmarks.png"), fullPage: true });
   });
 }
