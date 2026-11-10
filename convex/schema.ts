@@ -327,6 +327,7 @@ export default defineSchema({
       v.literal("failed"),
     ),
     receivedAt: v.number(),
+    processingStartedAt: v.optional(v.number()),
     processedAt: v.optional(v.number()),
     error: v.optional(v.string()),
     nextRetryAt: v.optional(v.number()),
