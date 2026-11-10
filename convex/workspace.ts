@@ -19,19 +19,21 @@ export const identity = query({
 });
 export const runningDeployment = query({
   args: { repo: v.string() },
+  returns: v.union(v.null(), v.object({ id: v.id("deployments"), model: v.string(), lastSeenAt: v.number() })),
   handler: async (ctx, { repo }) => {
     const ownerId = await requireOwner(ctx);
     const ds = await ctx.db
       .query("deployments")
       .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .take(100);
+    let newest = null;
     for (const d of ds) {
       if (d.artifactRepo !== repo || d.status !== "online") continue;
       const c = await ctx.db.get(d.connectorId);
-      if (c && !c.revokedAt && Date.now() - c.lastSeenAt < 60000)
-        return { id: d._id, model: d.model };
+      if (c && !c.revokedAt && (!newest || c.lastSeenAt > newest.lastSeenAt))
+        newest = { id: d._id, model: d.model, lastSeenAt: c.lastSeenAt };
     }
-    return null;
+    return newest;
   },
 });
 export const overview = query({
@@ -269,6 +271,7 @@ export const beginEnrollment = mutation({
 });
 export const pendingEnrollment = query({
   args: {},
+  returns: v.union(v.null(), v.object({ name: v.string(), ready: v.boolean(), codeHash: v.string(), expiresAt: v.number() })),
   handler: async (ctx) => {
     const ownerId = await requireOwner(ctx);
     const rows = await ctx.db
@@ -276,7 +279,7 @@ export const pendingEnrollment = query({
       .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .order("desc")
       .take(10);
-    const e = rows.find((x) => !x.connectorId && x.expiresAt > Date.now());
+    const e = rows.find((x) => !x.connectorId);
     return e
       ? {
           name: e.name,
