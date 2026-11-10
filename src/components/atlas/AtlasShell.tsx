@@ -1,13 +1,16 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQueries } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { hydratePublishedEntries, type PublishedCatalogEntry } from "@/lib/atlas/published";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  ArrowLeftRightIcon,
+  Briefcase01Icon,
+  ComputerIcon,
   BookOpenTextIcon,
   ChartColumnIcon,
   CubeIcon,
@@ -18,21 +21,18 @@ import { AkashicMark } from "@/components/brand/AkashicMark";
 import { DEFAULT_CONTEXT, DEFAULT_PRESET_ID, HARDWARE_PRESETS, RIG_PRESETS } from "@/lib/atlas/data";
 import { resolveProfile } from "@/lib/atlas/fit";
 import type { ContextChoice, RigProfile } from "@/lib/atlas/types";
-import { findModelEntryForTarget } from "@/lib/atlas/models";
 import { CompareDrawer } from "./CompareDrawer";
-import { BenchmarkView } from "./BenchmarkView";
 import { FitBar } from "./FitBar";
-import { SearchView, type SearchTarget } from "./SearchView";
-import { useCatalog } from "./CatalogProvider";
 import { comparisonEnabled } from "@/lib/atlas/comparisonFlags";
 import { useDeploymentComparison } from "../comparison/ComparisonProvider";
+
 
 interface AtlasUiContextValue {
   rig: RigProfile | null;
   context: ContextChoice;
   setContext: (context: ContextChoice) => void;
   checked: Set<string>;
-  toggleChecked: (repo: string, on: boolean) => void;
+  toggleChecked: (repo: string, on: boolean, slug: string) => void;
 }
 
 const AtlasUiContext = createContext<AtlasUiContextValue | null>(null);
@@ -61,16 +61,14 @@ export function useAtlasUi(): AtlasUiContextValue {
 }
 
 export function AtlasShell({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const { entries, families, loading } = useCatalog();
   const { selections, replace } = useDeploymentComparison();
-  const [query, setQuery] = useState("");
   const [presetId, setPresetId] = useState<string | null>(DEFAULT_PRESET_ID);
   const [manualGb, setManualGb] = useState<number | null>(null);
   const [context, setContext] = useState<ContextChoice>(DEFAULT_CONTEXT);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const rig = resolveProfile([...RIG_PRESETS, ...HARDWARE_PRESETS], presetId, manualGb);
+  const [checkedModels, setCheckedModels] = useState<Map<string, string>>(new Map());
+  const checked = useMemo(() => new Set(checkedModels.keys()), [checkedModels]);
+  const rig = useMemo(() => resolveProfile([...RIG_PRESETS, ...HARDWARE_PRESETS], presetId, manualGb), [presetId, manualGb]);
 
   // Only a budget the visitor chose is remembered; reading after mount keeps hydration stable.
   useEffect(() => {
@@ -96,9 +94,9 @@ export function AtlasShell({ children }: { children: ReactNode }) {
 
   // List summaries omit memory and benchmark evidence. Fetch only the selected models.
   const comparisonQueries = useMemo(() => Object.fromEntries(
-    entries.filter((entry) => entry.artifacts.some((artifact) => checked.has(artifact.repo)))
-      .map((entry) => [entry.slug, { query: api.catalog.getBySlug, args: { slug: entry.slug } }]),
-  ), [checked, entries]);
+    [...new Set(checkedModels.values())]
+      .map((slug) => [slug, { query: api.catalog.getBySlug, args: { slug } }]),
+  ), [checkedModels]);
   const comparisonResults = useQueries(comparisonQueries);
   const checkedArtifacts = useMemo(() => {
     const details = Object.values(comparisonResults).filter((value): value is PublishedCatalogEntry =>
@@ -113,43 +111,28 @@ export function AtlasShell({ children }: { children: ReactNode }) {
     });
   }, [checked, comparisonResults]);
 
-  const toggleChecked = (repo: string, on: boolean) => {
-    setChecked((current) => {
-      const next = new Set(current);
-      if (on && next.size < 4) next.add(repo);
+  const toggleChecked = useCallback((repo: string, on: boolean, slug: string) => {
+    setCheckedModels((current) => {
+      const next = new Map(current);
+      if (on && next.size < 4) next.set(repo, slug);
       if (!on) next.delete(repo);
       return next;
     });
-  };
-
-  const selectSearchResult = (target: SearchTarget) => {
-    const entry = findModelEntryForTarget(
-      entries,
-      target.familyId,
-      target.releaseId,
-      target.sizeLabel,
-    );
-    setQuery("");
-    if (entry) {
-      const params = target.variant ? `?variant=${encodeURIComponent(target.variant)}` : "";
-      router.push(`/models/${entry.slug}${params}`);
-      return;
-    }
-    router.push(`/models?family=${encodeURIComponent(target.familyId)}`);
-  };
+  }, []);
+  const ui = useMemo(() => ({ rig, context, setContext, checked, toggleChecked }), [rig, context, checked, toggleChecked]);
 
   const navigation = [
-    { href: "/models", label: "Model", icon: CubeIcon, active: pathname.startsWith("/models") },
-    { href: "/benchmarks", label: "Benchmark", icon: ChartColumnIcon, active: pathname.startsWith("/benchmarks") },
-    { href: "/compare", label: "Compare", icon: ChartColumnIcon, active: pathname.startsWith("/compare") },
+    { href: "/models", label: "Models", icon: CubeIcon, active: pathname.startsWith("/models") },
+    { href: "/benchmarks", label: "Benchmarks", icon: ChartColumnIcon, active: pathname.startsWith("/benchmarks") },
+    { href: "/compare", label: "Compare", icon: ArrowLeftRightIcon, active: pathname.startsWith("/compare") },
     { href: "/docs", label: "Docs", icon: BookOpenTextIcon, active: pathname.startsWith("/docs") },
-    { href: "/workspace", label: "Workspace", icon: CubeIcon, active: pathname.startsWith("/workspace") },
-    { href: "/computers", label: "Computers", icon: CubeIcon, active: pathname.startsWith("/computers") },
+    { href: "/workspace", label: "Workspace", icon: Briefcase01Icon, active: pathname.startsWith("/workspace") },
+    { href: "/computers", label: "Computers", icon: ComputerIcon, active: pathname.startsWith("/computers") },
   ] as const;
-  const wide = !query.trim() && (pathname === "/" || pathname === "/models");
+  const wide = pathname === "/" || pathname === "/models";
 
   return (
-    <AtlasUiContext.Provider value={{ rig, context, setContext, checked, toggleChecked }}>
+    <AtlasUiContext.Provider value={ui}>
       <div className="min-h-screen pb-28">
         <header className="border-b border-line bg-paper">
           <div className="mx-auto grid w-full max-w-[1440px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-3 lg:grid-cols-[auto_minmax(280px,420px)_minmax(0,1fr)_auto] lg:gap-x-5">
@@ -157,18 +140,9 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               <AkashicMark className="flex-none text-ink" />
               <span className="font-display text-[19px] font-semibold leading-none">Akashic Computer</span>
             </Link>
-            <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-[7px] border border-line bg-panel px-3 py-1.5 sm:min-h-9">
-              <HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={pathname.startsWith("/benchmarks") ? "Search benchmarks or models..." : "Search models, families, artifacts..."}
-                aria-label="Search the Akashic Computer catalog"
-                aria-controls="search-results"
-                className="w-full min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
-              />
-            </label>
+            <Suspense fallback={<SearchInputShell />}>
+              <CatalogSearchInput />
+            </Suspense>
             <nav aria-label="Primary" className="col-span-3 row-start-2 flex flex-wrap min-w-0 items-center gap-1 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:justify-end">
               {navigation.filter(item => (connectedWorkspaceEnabled || !["/workspace", "/computers"].includes(item.href)) && (comparisonEnabled || item.href !== "/compare")).map((item) => (
                 <Link
@@ -196,24 +170,7 @@ export function AtlasShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className={`mx-auto w-full px-5 ${wide ? "max-w-[1440px]" : "max-w-[1240px]"}`}>
-          {query.trim() ? (
-            pathname.startsWith("/benchmarks") ? (
-              <BenchmarkView
-                entries={entries}
-                query={query}
-                onOpen={(entry) => router.push(`/models/${entry.slug}`)}
-              />
-            ) : (
-              <SearchView
-                query={query}
-                entries={entries}
-                families={families}
-                loading={loading}
-                onSelect={selectSearchResult}
-                onClear={() => setQuery("")}
-              />
-            )
-          ) : children}
+          {children}
           {comparisonEnabled && selections.length > 0 && !pathname.startsWith("/compare") ? <aside aria-label="Exact deployment shortlist" className="my-6 flex flex-wrap items-center gap-4 border-y border-line bg-panel p-4 text-sm">
             <strong>{selections.length} exact files selected</strong>
             <Link className="comparison-button comparison-primary" href="/compare">Compare for my computer</Link>
@@ -225,12 +182,98 @@ export function AtlasShell({ children }: { children: ReactNode }) {
               artifacts={checkedArtifacts}
               rig={rig}
               context={context}
-              onRemove={(repo) => toggleChecked(repo, false)}
-              onClear={() => setChecked(new Set())}
+              onRemove={(repo) => toggleChecked(repo, false, "")}
+              onClear={() => setCheckedModels(new Map())}
             />
           ) : null}
         </main>
       </div>
     </AtlasUiContext.Provider>
   );
+}
+
+function SearchInputShell({ value = "", onChange, onEscape, searching = false }: {
+  value?: string;
+  onChange?: (value: string) => void;
+  onEscape?: () => void;
+  searching?: boolean;
+}) {
+  return (
+    <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-[7px] border border-line bg-panel px-3 py-1.5 sm:min-h-9">
+      <HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
+      <input type="search" value={value} readOnly={!onChange}
+        onChange={(event) => onChange?.(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onEscape?.(); } }}
+        placeholder="Search models, families, artifacts..."
+        aria-label="Search the Akashic Computer catalog"
+        aria-controls={searching ? "search-results" : undefined}
+        className="w-full min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-faint" />
+    </label>
+  );
+}
+
+function CatalogSearchInput() {
+  const pathname = usePathname();
+  const [query, setQuery] = useState("");
+  const previousPath = useRef<string | null>(null);
+  const internalSearchRef = useRef(false);
+  useEffect(() => {
+    if (pathname === "/search" && previousPath.current && previousPath.current !== "/search") internalSearchRef.current = true;
+    if (pathname !== "/search") internalSearchRef.current = false;
+    previousPath.current = pathname;
+  }, [pathname]);
+  return <>
+    <Suspense fallback={null}><SearchQueryReader onQuery={setQuery} /></Suspense>
+    <SearchInputController pathname={pathname}
+      query={pathname === "/search" ? query : ""} internalSearchRef={internalSearchRef} />
+  </>;
+}
+
+function SearchQueryReader({ onQuery }: { onQuery: (query: string) => void }) {
+  const query = useSearchParams().get("q") ?? "";
+  useEffect(() => onQuery(query), [onQuery, query]);
+  return null;
+}
+
+function SearchInputController({ pathname, query, internalSearchRef }: {
+  pathname: string;
+  query: string;
+  internalSearchRef: { current: boolean };
+}) {
+  const router = useRouter();
+  const [text, setText] = useState(query);
+  const [pending, setPending] = useState(false);
+  const [urlState, setUrlState] = useState({ pathname, query });
+  if (urlState.pathname !== pathname || urlState.query !== query) {
+    setUrlState({ pathname, query });
+    if (pathname !== "/search") {
+      setText("");
+      setPending(false);
+    } else if (!pending) setText(query);
+    else if (query === text) setPending(false);
+  }
+  // Finish edits made while the first push was still pending. Replacing before
+  // that push commits can replace the source page's history entry instead.
+  useEffect(() => {
+    if (pathname === "/search" && pending && text.trim() && text !== query) {
+      startTransition(() => router.replace(`/search?q=${encodeURIComponent(text)}`, { scroll: false }));
+    }
+  }, [pathname, pending, query, router, text]);
+  const clear = () => {
+    setPending(false);
+    setText("");
+    if (pathname === "/search") {
+      if (internalSearchRef.current) router.back();
+      else router.replace("/");
+    }
+  };
+  return <SearchInputShell value={text} searching={pathname === "/search"} onEscape={clear} onChange={(value) => {
+    setText(value);
+    if (!value.trim()) { clear(); return; }
+    setPending(true);
+    if (pathname !== "/search" && !pending) {
+      internalSearchRef.current = true;
+      startTransition(() => router.push(`/search?q=${encodeURIComponent(value)}`, { scroll: false }));
+    }
+  }} />;
 }

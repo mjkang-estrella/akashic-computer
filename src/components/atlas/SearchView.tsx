@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useMemo } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpRight01Icon, SearchRemoveIcon } from "@hugeicons/core-free-icons";
@@ -14,6 +15,7 @@ export interface SearchTarget {
 }
 
 interface SearchItem {
+  href: string;
   id: string;
   kind: "Family" | "Model" | "Artifact";
   title: string;
@@ -25,6 +27,7 @@ interface SearchItem {
 
 function searchItems(families: Family[], entries: ModelEntry[]): SearchItem[] {
   const familyItems: SearchItem[] = families.map((family) => ({
+    href: `/models?family=${encodeURIComponent(family.id)}`,
     id: `family-${family.id}`,
     kind: "Family",
     title: family.name,
@@ -34,6 +37,7 @@ function searchItems(families: Family[], entries: ModelEntry[]): SearchItem[] {
   }));
   const modelItems = entries.flatMap((entry) => {
       const model: SearchItem = {
+        href: searchResultHref(entry.slug),
         id: `model-${entry.slug}`,
         kind: "Model",
         title: entry.name,
@@ -47,6 +51,7 @@ function searchItems(families: Family[], entries: ModelEntry[]): SearchItem[] {
       };
       const artifacts = entry.artifacts.map(
           (artifact): SearchItem => ({
+            href: searchResultHref(entry.slug, artifact.variant),
             id: `artifact-${entry.slug}-${artifact.variant}-${artifact.repo}`,
             kind: "Artifact",
             title: artifact.repo,
@@ -80,7 +85,6 @@ export function SearchView({
   entries,
   families,
   loading = false,
-  onSelect,
   onClear,
 }: {
   query: string;
@@ -88,7 +92,6 @@ export function SearchView({
   families: Family[];
   /** The live catalog has not answered yet, so an empty result means nothing. */
   loading?: boolean;
-  onSelect: (target: SearchTarget) => void;
   onClear: () => void;
 }) {
   const items = useMemo(() => searchItems(families, entries), [entries, families]);
@@ -140,8 +143,9 @@ export function SearchView({
                     key={item.id}
                     className="flex min-w-0 items-start gap-2 border-b border-linesoft py-2.5 last:border-b-0"
                   >
-                    <button
-                      onClick={() => onSelect(item.target)}
+                    <Link
+                      href={item.href}
+                      prefetch={false}
                       className="min-w-0 flex-1 text-left"
                     >
                       <span
@@ -152,7 +156,7 @@ export function SearchView({
                       <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">
                         {item.meta}
                       </span>
-                    </button>
+                    </Link>
                     {item.repo ? (
                       <a
                         href={`https://huggingface.co/${item.repo}`}
@@ -173,4 +177,8 @@ export function SearchView({
       )}
     </section>
   );
+}
+
+export function searchResultHref(slug: string, variant?: string) {
+  return `/models/${slug}${variant ? `?variant=${encodeURIComponent(variant)}` : ""}`;
 }
