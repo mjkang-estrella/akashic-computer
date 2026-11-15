@@ -8,8 +8,6 @@ import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowUpRight01Icon,
-  Alert01Icon,
-  CancelCircleIcon,
   ComputerCheckIcon,
   Rocket01Icon,
   RssIcon,
@@ -30,11 +28,6 @@ import { openBudgetMenu } from "./FitBar";
 import { ModelCapabilityCharts } from "./ModelCapabilityCharts";
 import type { CapabilityComparisons } from "@/lib/atlas/capabilityTypes";
 import { RunCommands } from "./RunCommands";
-
-const kvGbLabel = (bytes: number) => {
-  const gb = bytes / 1e9;
-  return Number(gb < 10 ? gb.toFixed(1) : gb.toFixed(0)).toString();
-};
 
 export function resolveModelVariant(variants: string[], selected: string) {
   return variants.includes(selected) ? selected : variants[0];
@@ -345,12 +338,11 @@ export function ModelDetailView({
         ) : null}
 
         <div className="mt-4 overflow-hidden rounded-[8px] border border-line bg-panel">
-          <div className="hidden grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid">
+          <div className="hidden grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_150px_40px] gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid">
             <span aria-hidden="true"><span className="sr-only">Compare</span></span>
             <span><LexiconHint term="quantization" onLearn={onLearn}>Quant</LexiconHint></span>
-            <span><LexiconHint term="provider" onLearn={onLearn}>Provider and repository</LexiconHint></span>
+            <span><LexiconHint term="provider" onLearn={onLearn}>Provider</LexiconHint></span>
             <span>Memory estimate</span>
-            <span>Runtime assessment</span>
             <span className="sr-only">Open repository</span>
           </div>
           <div className="divide-y divide-linesoft">
@@ -359,18 +351,15 @@ export function ModelDetailView({
               const kv = artifact.vramEstimate ? kvCacheAt(artifact.vramEstimate, effectiveContext) : null;
               const commands = runCommandsFor(artifact, effectiveContext);
               const exceeds = fit.level === "no";
-              // Amber is reserved for an unknown estimate or one within a tenth of the budget.
-              const nearLimit = fit.estimateGb === undefined || fit.estimateGb > (rig?.gb ?? 0) * 0.9;
               const selected = checked.has(artifact.repo);
               const disabled = !selected && compareLimitReached;
-              const recipeCheckpoints = displayRecipes.flatMap((recipe) => recipe.variants
+              const recipeCheckpoint = displayRecipes.flatMap((recipe) => recipe.variants
                 .filter((item) => item.modelId.toLowerCase() === artifact.repo.toLowerCase())
-                .map((recipeVariant) => ({ recipe, variant: recipeVariant })));
-              const recipeCheckpoint = recipeCheckpoints[0];
+                .map((recipeVariant) => ({ recipe, variant: recipeVariant })))[0];
               return (
                 <div
                   key={`${artifact.variant}-${artifact.repo}`}
-                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_130px_150px_40px] md:items-center ${
+                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_150px_40px] md:items-center ${
                     exceeds ? "bg-alertsoft" : "bg-panel"
                   }`}
                 >
@@ -407,53 +396,17 @@ export function ModelDetailView({
                   </div>
                   <div className="min-w-0 pl-11 md:pl-0">
                     <span className="block text-[12.5px] font-semibold">{uploaderDisplay(artifact.repo)}</span>
-                    <span className="mt-0.5 block break-all font-mono text-[11px] text-muted">{artifact.repo}</span><RunningModelLink repo={artifact.repo}/>
+                    <RunningModelLink repo={artifact.repo}/>
                     {artifact.confidence !== "verified" ? <span className="text-[11px] text-caution">Model link unverified</span> : null}
                   </div>
                   <div className="pl-11 md:pl-0">
                     <span className="text-[11px] text-muted md:hidden">Memory estimate · </span>
-                    <span className="font-mono text-[13px] font-semibold">{artifact.vramEstimate ? `${artifact.vramEstimate.weightGb} GB weights` : memoryRange(artifact.minVramGb, artifact.recVramGb)}</span>
-                    <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">
+                    <span className={`font-mono text-[13px] font-semibold tabular-nums ${exceeds ? "text-alert" : ""}`}>
                       {artifact.vramEstimate && kv
-                        ? `+ ${kvGbLabel(kv.bytes)} GB KV estimate · ${kv.tokens.toLocaleString("en-US")} tokens · concurrency ${artifact.vramEstimate.concurrency} · ${artifact.vramEstimate.kvCacheDtype}`
-                        : "Estimate; weight/KV breakdown unknown. No exact file selected."}
+                        ? `${gbLabel(artifact.vramEstimate.weightGb * 1e9 + kv.bytes)} GB`
+                        : memoryRange(artifact.minVramGb, artifact.recVramGb)}
                     </span>
-                    {recipeCheckpoints.filter((item) => item.variant.minimumVramGb && item.variant.precision.toUpperCase() === artifact.format.toUpperCase()).map((item) => (
-                      <a key={`${item.recipe.recipeUrl}:${item.variant.key}`} href={item.recipe.recipeUrl} target="_blank" rel="noreferrer" className="mt-0.5 block text-[11px] font-semibold text-meta underline-offset-2 hover:underline">
-                        {item.recipe.runtime} recipe condition · {item.variant.minimumVramGb} GB
-                      </a>
-                    ))}
                   </div>
-                  {fit.level === "unset" ? (
-                    <div className="pl-11 text-[12px] text-muted md:pl-0">
-                      <span className="text-[11px] md:hidden">Runtime assessment · </span>
-                      <span>No budget set</span>
-                    </div>
-                  ) : (
-                    <div
-                      key={`${artifact.repo}-${rig?.gb}-${String(effectiveContext)}-${fit.level}`}
-                      className={`fit-state flex items-center gap-1.5 pl-11 text-[13px] font-semibold md:pl-0 ${exceeds ? "text-alert" : nearLimit ? "text-caution" : "text-ink"}`}
-                    >
-                      {exceeds || nearLimit ? (
-                        <HugeiconsIcon
-                          icon={exceeds ? CancelCircleIcon : Alert01Icon}
-                          className="flex-none"
-                          size={17}
-                          strokeWidth={2}
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                      <span>
-                        <span className="text-[11px] font-normal text-muted md:hidden">Runtime assessment · </span>
-                        {!exceeds && fit.estimateGb !== undefined && rig ? (
-                          <>
-                            <span className="font-mono tabular-nums">≈ {gbLabel(fit.estimateGb * 1e9)} of {rig.gb} GB</span>
-                            <span className="mt-0.5 block text-[11px] font-normal text-muted">{fit.text}</span>
-                          </>
-                        ) : fit.text}
-                      </span>
-                    </div>
-                  )}
                   <a
                     href={`https://huggingface.co/${artifact.repo}`}
                     target="_blank"
@@ -470,16 +423,9 @@ export function ModelDetailView({
             })}
           </div>
         </div>
-        <p className="mt-2.5 text-[11.5px] text-muted">
-          Estimates exclude runtime overhead, workspace, and other cache/state. Runtime fit is unverified.
-          {rig ? " Budget does not specify device count, per-device memory, or interconnect." : ""}
-        </p>
       </section>
       <section className="border-t border-line py-5" aria-labelledby="recipes-title">
         <h2 id="recipes-title" className="font-display text-[19px] font-semibold">Runtime recipes</h2>
-        <p className="mt-1 max-w-[76ch] text-[12.5px] text-muted">
-          Requirements are specific to the linked recipe’s runtime, context, concurrency, cache, and hardware.
-        </p>
         {displayRecipes.length > 0 ? (
           <div className="mt-4 divide-y divide-linesoft border-y border-line">
             {displayRecipes.map((recipe) => (

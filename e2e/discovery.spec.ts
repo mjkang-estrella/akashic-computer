@@ -2,20 +2,21 @@ import { expect, test } from "@playwright/test";
 
 test("starts without a memory budget and applies named hardware", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("No memory budget set.")).toBeVisible();
-  await page.getByRole("button", { name: "Choose your hardware" }).click();
+  // The header control carries the budget; the home page no longer repeats it.
+  await expect(page.getByLabel("Memory budget not set")).toBeVisible();
+  await page.getByLabel("Memory budget not set").click();
   await page.getByRole("combobox", { name: "Hardware" }).selectOption("mac64");
   await expect(page.getByText(/About 48 GB of 64 GB is GPU-addressable/)).toBeVisible();
-  await expect(page.getByText(/^48 GB: \d+ of \d+ model sizes have an artifact estimated to fit/)).toBeVisible();
+  await expect(page.getByLabel("Memory budget, 48 GB")).toBeVisible();
 
   // An explicit choice is remembered across visits; clearing it forgets it.
   await page.reload();
   await expect(page.getByLabel("Memory budget, 48 GB")).toBeVisible();
   await page.getByLabel("Memory budget, 48 GB").click();
   await page.getByRole("button", { name: "Clear budget" }).click();
-  await expect(page.getByText("No memory budget set.")).toBeVisible();
+  await expect(page.getByLabel("Memory budget not set")).toBeVisible();
   await page.reload();
-  await expect(page.getByText("No memory budget set.")).toBeVisible();
+  await expect(page.getByLabel("Memory budget not set")).toBeVisible();
 });
 
 test("offers copyable run commands bounded by the selected context", async ({ page }) => {
