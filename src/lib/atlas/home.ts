@@ -30,7 +30,6 @@ export interface TimelineSize {
   slug: string;
   label: string;
   paramsB: number;
-  isMoe: boolean;
   /** Artificial Analysis Intelligence Index, when this exact checkpoint was evaluated. */
   score: number | null;
 }
@@ -48,7 +47,6 @@ export interface TimelineRelease {
   releasedAt: number;
   /** Largest first. */
   sizes: TimelineSize[];
-  isMoe: boolean;
   /** Best Intelligence Index among the release's sizes. */
   score: number | null;
 }
@@ -73,7 +71,6 @@ export function groupReleases(entries: ModelEntry[], scores: IntelligenceScores 
         familyName: entry.family.name,
         releasedAt: releaseTimestamp(entry),
         sizes: [],
-        isMoe: false,
         score: null,
       };
       releases.set(key, release);
@@ -82,13 +79,11 @@ export function groupReleases(entries: ModelEntry[], scores: IntelligenceScores 
       slug: entry.slug,
       label: entry.size.label,
       paramsB: entry.size.paramsB,
-      isMoe: Boolean(entry.size.isMoe || entry.size.activeParamsB),
       score: scores[entry.slug] ?? null,
     });
   }
   for (const release of releases.values()) {
     release.sizes.sort((a, b) => b.paramsB - a.paramsB || a.slug.localeCompare(b.slug));
-    release.isMoe = release.sizes.some((size) => size.isMoe);
     const scored = release.sizes.flatMap((size) => size.score ?? []);
     release.score = scored.length ? Math.max(...scored) : null;
   }
