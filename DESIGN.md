@@ -113,6 +113,7 @@ The design explicitly rejects marketing-site composition, affiliate buying-guide
 - Editorial model names paired with compact technical metadata.
 - Dense tables that remain factual, sortable, and expandable.
 - Semantic color reserved for verification, caution, metadata, and constraints.
+- Company signature colors appear only on chart marks, where they identify who released a model.
 - Flat surfaces at rest with no decorative elevation.
 
 ## Colors
@@ -140,9 +141,15 @@ The palette resembles archival paper and technical ink, with restrained semantic
 - **Catalog Rule**: Panel boundaries and table headers.
 - **Soft Rule**: Row separation and internal grouping.
 
+### Chart Series
+
+- **Company Signature Colors**: One color per releasing company, used for data marks in charts such as the home release timeline. Values follow Artificial Analysis's published creator colors; companies Artificial Analysis does not list get distinct colors marked as unofficial. The mapping lives in `src/lib/atlas/brands.ts` (`familyBrand`), keyed by model family.
+
 ### Named Rules
 
-**The Evidence Color Rule.** Semantic colors only communicate provenance, confidence, metadata, or constraints. They never decorate empty space.
+**The Evidence Color Rule.** Semantic colors only communicate provenance, confidence, metadata, or constraints. They never decorate empty space. Company signature colors are the one exception, governed by the Company Color Rule.
+
+**The Company Color Rule.** Company colors identify the company behind a data mark and nothing else. They appear only on chart marks and the chart's own key, never on surfaces, text, buttons, chips, or table rows. Every chart that uses them shows a key naming the companies it draws, and every mark keeps a one-pixel translucent ink rim so pale brand colors stay visible on paper.
 
 **The Paper Dominance Rule.** Ink and paper must carry the composition before any accent color appears.
 
@@ -221,6 +228,13 @@ Components are refined and restrained. Familiar controls should disappear into t
 - The detail title identifies the model and size; variants switch the artifact set without creating duplicate catalog rows.
 - On narrow screens, controls may wrap without changing typography scale or hiding required context.
 
+### Release Timeline
+
+- The home page plots open-weight releases from the last six months by release date against either the Artificial Analysis Intelligence Index or parameter count, chosen with a two-button toggle beside the chart title.
+- Marks are 8px dots in company signature colors; the active release grows to 12px with a Catalog Ink ring and a serif name label. Hover, focus, and the Latest releases list all set the active release.
+- The Intelligence view plots only releases with an exact-checkpoint score and draws the open frontier, the best score to date, as a 1.5px Catalog Ink step line.
+- Text stays minimal: the chart title, axis ticks, the company key, and a source link. Explanations belong in accessible descriptions, not visible captions.
+
 ### Model Tables
 
 - Model comparison is benchmark-led and sortable. Expandable model names use real disclosure buttons with `aria-expanded`.
@@ -237,6 +251,7 @@ Components are refined and restrained. Familiar controls should disappear into t
 - **Do** use provenance and confidence labels wherever data origins differ.
 - **Do** keep model comparison benchmark-led and artifact comparison explicitly separate.
 - **Do** use semantic color only when the same state is also expressed in text or symbols.
+- **Do** pair company-colored chart marks with a key and a hover or focus label naming the model.
 - **Do** keep the current warm paper, serif identity, sans utility, and mono data pairing.
 
 ### Don't:
@@ -248,3 +263,4 @@ Components are refined and restrained. Familiar controls should disappear into t
 - **Don't** turn a benchmark leaderboard into promotional ranking language.
 - **Don't** let hardware-first framing hide the broader model ecosystem.
 - **Don't** use display typography in buttons, filters, badges, or data cells.
+- **Don't** use company colors outside chart marks, or let them stand in for evidence, rank, or recommendation.
