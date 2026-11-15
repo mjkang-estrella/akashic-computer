@@ -11,12 +11,11 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(artifacts.getByRole("checkbox", { name: "Compare zai-org/GLM-5.3-Flash", exact: true })).toBeVisible();
     await expect(artifacts.getByRole("checkbox", { name: "Compare zai-org/GLM-5.3", exact: true })).toHaveCount(0);
     await expect(artifacts.getByText(/Fits 384/)).toHaveCount(0);
-    await expect(artifacts.getByText("328 GB weights", { exact: true }).first()).toBeVisible();
-    await expect(artifacts.getByText("No budget set", { exact: true }).first()).toBeVisible();
-    // KV estimates follow the selected context; the catalog estimate is at native context.
+    // The memory estimate is one number: weights plus KV at the selected context.
     await artifacts.getByRole("button", { name: /^Native/ }).click();
-    await expect(artifacts.getByText(/12 GB KV estimate/).first()).toBeVisible();
-    await expect(artifacts.getByRole("link", { name: "vLLM recipe condition · 386 GB", exact: true })).toBeVisible();
+    await expect(artifacts.getByText(/^34\d GB$/).first()).toBeVisible();
+    await expect(artifacts.getByText(/No budget set|GB weights|GB KV estimate|recipe condition/)).toHaveCount(0);
+    await expect(artifacts.getByText("zai-org/GLM-5.3-Flash", { exact: true })).toHaveCount(0);
     await expect(recipes.getByText("Official vLLM recipe · GLM-5.3-Flash", { exact: true })).toBeVisible();
     await expect(recipes.getByText("Official vLLM recipe · GLM-5.3", { exact: true })).toHaveCount(0);
     await expect(artifacts.getByText(/Official vLLM recipe/)).toHaveCount(0);

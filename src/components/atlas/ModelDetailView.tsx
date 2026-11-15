@@ -403,7 +403,7 @@ export function ModelDetailView({
                     <span className="text-[11px] text-muted md:hidden">Memory estimate · </span>
                     <span className={`font-mono text-[13px] font-semibold tabular-nums ${exceeds ? "text-alert" : ""}`}>
                       {artifact.vramEstimate && kv
-                        ? `≈ ${gbLabel(artifact.vramEstimate.weightGb * 1e9 + kv.bytes)} GB`
+                        ? `${gbLabel(artifact.vramEstimate.weightGb * 1e9 + kv.bytes)} GB`
                         : memoryRange(artifact.minVramGb, artifact.recVramGb)}
                     </span>
                   </div>
