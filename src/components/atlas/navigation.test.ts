@@ -15,15 +15,13 @@ describe("catalog navigation semantics", () => {
   it("renders home navigation and server-provided summaries as links", () => {
     const markup = renderToStaticMarkup(createElement(HomeView, {
       entries: [], stats: homeCatalogStats([]), materialChanges: [],
-      syncedAt: null, loading: false, health: null, revision: "test", rig: null,
-      featuredDocs: [{ slug: "quantization", title: "Quantization", summary: "Small summary", readMinutes: 5 }],
+      syncedAt: null, loading: false, health: null, intelligence: null,
     }));
     expectPageHeading(markup);
-    for (const href of ["/models", "/benchmarks", "/docs", "/docs/quantization"]) {
+    for (const href of ["/models", "/benchmarks"]) {
       expect(markup).toContain(`href="${href}"`);
     }
-    expect(markup).toContain("Small summary");
-    expect(markup).toMatch(/<button[^>]*>Choose your hardware<\/button>/);
+    expect(markup).toContain("Releases appear here after the first catalog sync.");
   });
 
   it.each([null, "quantization", "lexicon"])("gives docs route %s one h1", (slug) => {

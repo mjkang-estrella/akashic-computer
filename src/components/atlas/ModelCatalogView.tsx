@@ -154,7 +154,7 @@ export function ModelCatalogSkeleton({ detail = false }: { detail?: boolean }) {
             </div>
             <div className="divide-y divide-linesoft">
               {Array.from({ length: 9 }, (_, index) => (
-                <div key={index} className="grid min-h-[82px] w-full gap-3 py-4 lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2">
+                <div key={index} className="grid min-h-[76px] w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-2.5 lg:min-h-[82px] lg:py-4 lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2">
                   <span className="flex min-w-0 items-center gap-3">
                     <SkeletonBlock className="h-8 w-8 flex-none" />
                     <span className="min-w-0 flex-1">
@@ -162,16 +162,16 @@ export function ModelCatalogSkeleton({ detail = false }: { detail?: boolean }) {
                       <SkeletonBlock className="mt-2 h-3 w-20" />
                     </span>
                   </span>
-                  <span>
+                  <span className="col-start-2 row-start-1 justify-self-end lg:col-auto lg:row-auto lg:justify-self-auto">
                     <SkeletonBlock className="h-4 w-16" />
                     <SkeletonBlock className="mt-2 h-3 w-12" />
                   </span>
-                  <span className="flex items-center gap-1.5 lg:col-start-4">
+                  <span className="col-start-1 row-start-2 flex items-center gap-1.5 lg:col-start-4 lg:row-auto">
                     <SkeletonBlock className="h-5 w-12" />
                     <SkeletonBlock className="h-5 w-14" />
                     {index % 2 === 0 ? <SkeletonBlock className="h-5 w-12" /> : null}
                   </span>
-                  <SkeletonBlock className="h-4 w-24 lg:col-start-5" />
+                  <SkeletonBlock className="col-start-2 row-start-2 h-3 w-20 justify-self-end lg:col-start-5 lg:row-auto lg:h-4 lg:w-24 lg:justify-self-auto" />
                 </div>
               ))}
             </div>
@@ -654,35 +654,36 @@ export function ModelCatalogView({
                     href={`/models/${entry.slug}`}
                     prefetch={false}
                     aria-label={`Open ${entry.name}`}
-                    className="group grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2"
+                    className="group grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 py-2.5 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2 lg:py-4"
                   >
                     <span
-                      className="flex min-w-0 items-center gap-3"
+                      className="col-start-1 row-start-1 flex min-w-0 items-center gap-2.5 lg:col-auto lg:row-auto lg:gap-3"
                       style={index < 60 ? { viewTransitionName: modelTransitionName(entry.slug) } : undefined}
                     >
                       <FamilyLogo familyId={entry.family.id} familyName={entry.family.name} />
                       <span className="min-w-0">
-                        <span className="block font-display text-[15px] font-semibold leading-tight group-hover:underline group-hover:underline-offset-4">
+                        <span className="line-clamp-2 font-display text-[14px] font-semibold leading-tight group-hover:underline group-hover:underline-offset-4 lg:line-clamp-none lg:text-[15px]">
                           {modelReleaseName(entry.family, entry.release)}
                         </span>
-                        <span className="mt-1 block text-[13px] text-muted">{entry.family.vendor}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted lg:mt-1 lg:text-[13px]">{entry.family.vendor}</span>
                       </span>
                     </span>
-                    <span>
-                      <span className="text-[11px] text-muted lg:hidden">Parameters · </span>
+                    <span className="col-start-2 row-start-1 text-right lg:col-auto lg:row-auto lg:text-left">
+                      <span className="sr-only">Parameters · </span>
                       <span className="block font-mono text-[13px] font-semibold">{parameterTotalLabel(entry.size)}</span>
                       {parameterDetailLabel(entry.size) ? (
                         <span className="mt-0.5 block text-[11px] text-muted">{parameterDetailLabel(entry.size)}</span>
                       ) : null}
                     </span>
-                    <span className="flex flex-wrap items-center gap-1.5 lg:col-start-4">
-                      <span className="w-full text-[11px] text-muted lg:hidden">Quantizations</span>
-                      {entry.quantizations.map((item) => (
-                        <span key={item} className="rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[11.5px] text-muted">{item}</span>
+                    <span className="col-start-1 row-start-2 flex min-w-0 items-center gap-1 overflow-hidden lg:col-start-4 lg:row-auto lg:flex-wrap lg:gap-1.5 lg:overflow-visible">
+                      <span className="sr-only">Quantizations</span>
+                      {entry.quantizations.map((item, quantIndex) => (
+                        <span key={item} className={`${quantIndex >= 3 ? "hidden lg:inline" : "inline"} min-w-0 truncate rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[10.5px] text-muted lg:shrink-0 lg:text-[11.5px]`}>{item}</span>
                       ))}
+                      {entry.quantizations.length > 3 ? <span className="shrink-0 font-mono text-[10.5px] text-muted lg:hidden">+{entry.quantizations.length - 3}</span> : null}
                     </span>
-                    <span className="text-[13px] text-muted lg:col-start-5">
-                      <span className="text-[11px] font-normal text-muted lg:hidden">Last Updated · </span>
+                    <span className="col-start-2 row-start-2 whitespace-nowrap text-right text-[11px] text-muted lg:col-start-5 lg:row-auto lg:text-left lg:text-[13px]">
+                      <span className="sr-only">Last Updated · </span>
                       {entry.dateLabel}
                     </span>
                     <span className="hidden h-9 w-9 items-center justify-center text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink lg:col-start-7 lg:flex">

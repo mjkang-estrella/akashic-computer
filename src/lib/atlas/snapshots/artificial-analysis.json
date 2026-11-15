@@ -5381,7 +5381,7 @@
         "name": "Qwen3.8-Flash-Next",
         "deprecatedTo": null
       },
-      "intelligenceIndex": null,
+      "intelligenceIndex": 28.5750026655353,
       "terminalBench40": 0.252525252525253,
       "hleDiamond": 0.163,
       "gpqa": 0.923232323232323,
@@ -8053,7 +8053,7 @@
         "name": "gpt-oss-120b",
         "deprecatedTo": null
       },
-      "intelligenceIndex": null,
+      "intelligenceIndex": 3.81981165137417,
       "terminalBench40": 0,
       "hleDiamond": 0.038,
       "gpqa": 0.781818181818182,
@@ -8494,6 +8494,71 @@
       "hleDiamond": null,
       "gpqa": 0.227272727272727,
       "livecodebench": 0.00211640211640212
+    },
+    {
+      "id": "e2ed7885-d46b-4da7-a873-f12f88af0081",
+      "slug": "inkling-2-small",
+      "name": "Inkling 2 Small",
+      "releaseDate": "2026-11-05",
+      "isOpenWeights": true,
+      "isReasoning": true,
+      "parameters": 594,
+      "modelWeightsSourceUrl": "https://huggingface.co/thinkingmachines/Inkling-2-Small",
+      "effort": null,
+      "release": {
+        "slug": "inkling-2-small",
+        "name": "Inkling 2 Small",
+        "deprecatedTo": null
+      },
+      "intelligenceIndex": 30.6286781498958,
+      "terminalBench40": 0.131313131313131,
+      "hleDiamond": 0.287,
+      "gpqa": null,
+      "livecodebench": null
+    },
+    {
+      "id": "e94c7595-a320-4c88-8f07-d9fd50fc4595",
+      "slug": "deepseek-v4-pro-high",
+      "name": "DeepSeek V4 Pro 0813 (High)",
+      "releaseDate": "2026-08-13",
+      "isOpenWeights": true,
+      "isReasoning": true,
+      "parameters": 1600,
+      "modelWeightsSourceUrl": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813",
+      "effort": {
+        "slug": "high",
+        "label": "high",
+        "level": 40
+      },
+      "release": {
+        "slug": "deepseek-v4-pro",
+        "name": "DeepSeek V4 Pro 0813",
+        "deprecatedTo": null
+      },
+      "intelligenceIndex": 20.799409628237,
+      "terminalBench40": 0.0606060606060606,
+      "hleDiamond": 0.205,
+      "gpqa": null,
+      "livecodebench": null
+    }
+  ],
+  "updates": [
+    {
+      "retrievedAt": "2026-11-15",
+      "note": "Intelligence Index added from the public leaderboard (Status: All) and each configuration's model page.",
+      "sourceUrls": [
+        "https://artificialanalysis.ai/leaderboards/models?status=all",
+        "https://artificialanalysis.ai/models/inkling-2-small",
+        "https://artificialanalysis.ai/models/qwen3-8-flash-next",
+        "https://artificialanalysis.ai/models/deepseek-v4-pro",
+        "https://artificialanalysis.ai/models/gpt-oss-120b"
+      ],
+      "ids": [
+        "e2ed7885-d46b-4da7-a873-f12f88af0081",
+        "9ac3908c-9eb2-44db-8c01-3ec7da6fc2ae",
+        "e94c7595-a320-4c88-8f07-d9fd50fc4595",
+        "f0083258-8646-45b8-8082-7aaf6c2ea82a"
+      ]
     }
   ]
 }

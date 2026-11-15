@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("navigates through dedicated product routes", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Open models you can run yourself." })).toBeVisible();
 
   await page.getByRole("link", { name: "Models", exact: true }).click();
   await expect(page).toHaveURL(/\/models$/);
@@ -57,7 +57,7 @@ test("shows official vLLM and SGLang recipes for an exact model match", async ({
 
 test("does not translate retired query-string tabs", async ({ page }) => {
   await page.goto("/?tab=model");
-  await expect(page.getByRole("heading", { name: "Open-weight models, organized." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Open models you can run yourself." })).toBeVisible();
   await expect(page).toHaveURL(/\?tab=model$/);
 });
 
@@ -166,12 +166,12 @@ test("responds to browser back and forward filter state", async ({ page }) => {
 
 test("home links expose destinations and docs have one page heading", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Open-weight models, organized.");
-  await expect(page.getByRole("link", { name: "View all models", exact: true })).toHaveAttribute("href", "/models");
-  await expect(page.getByRole("link", { name: "View all benchmarks", exact: true })).toHaveAttribute("href", "/benchmarks");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Open models you can run yourself.");
+  await expect(page.getByRole("link", { name: "All models", exact: true })).toHaveAttribute("href", "/models");
+  await expect(page.getByRole("link", { name: "Compare benchmarks", exact: true })).toHaveAttribute("href", "/benchmarks");
   const model = page.getByRole("link", { name: /^Open / }).first();
   await expect(model).toHaveAttribute("href", /^\/models\//);
-  await page.getByRole("link", { name: "Read the docs", exact: true }).click();
+  await page.getByRole("link", { name: "Docs", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Technical guides to local models");
   await page.getByRole("link", { name: "Open lexicon", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Technical lexicon");

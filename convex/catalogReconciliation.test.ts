@@ -29,8 +29,8 @@ describe("exact model identity reconciliation", () => {
     expect(targetForParsed([flash, regular], parsed("GLM-5.3-BF16", 753), creator)).toBe(regular);
     expect(targetForParsed([flash, regular], parsed("GLM-5.3-Flash-FP8"), creator)).toBe(flash);
   });
-  it("requires size agreement for size-free names and does not choose among ambiguous identities", () => {
-    expect(targetForParsed([flash], parsed("GLM-5.3-Flash", 753), creator)).toBeNull();
+  it("uses exact official repo identity despite corrected sizes and rejects ambiguous identities", () => {
+    expect(targetForParsed([flash], parsed("GLM-5.3-Flash", 753), creator)).toBe(flash);
     expect(targetForParsed([flash, { ...flash }], parsed("GLM-5.3-Flash"), creator)).toBeNull();
   });
   it("uses complete exact structured lineage for provider artifacts", () => {

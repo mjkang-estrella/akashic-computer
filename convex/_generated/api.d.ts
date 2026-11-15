@@ -15,6 +15,7 @@ import type * as artifactValues from "../artifactValues.js";
 import type * as auth from "../auth.js";
 import type * as catalog from "../catalog.js";
 import type * as catalogReconciliation from "../catalogReconciliation.js";
+import type * as catalogRepairs from "../catalogRepairs.js";
 import type * as catalogSnapshot from "../catalogSnapshot.js";
 import type * as catalogValues from "../catalogValues.js";
 import type * as comparisonSchema from "../comparisonSchema.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   catalog: typeof catalog;
   catalogReconciliation: typeof catalogReconciliation;
+  catalogRepairs: typeof catalogRepairs;
   catalogSnapshot: typeof catalogSnapshot;
   catalogValues: typeof catalogValues;
   comparisonSchema: typeof comparisonSchema;

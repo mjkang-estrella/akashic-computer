@@ -24,3 +24,10 @@ export interface CapabilityComparison {
   models: CapabilityModel[];
 }
 export type CapabilityComparisons = Record<string, CapabilityComparison>;
+
+export interface IntelligenceIndex {
+  version: string;
+  retrievedAt: string;
+  /** Catalog slug → Intelligence Index of the configuration the model page shows. */
+  scores: Record<string, number>;
+}

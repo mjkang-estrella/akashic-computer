@@ -1,3 +1,4 @@
+import { isFocusedModel } from "../src/lib/atlas/catalogFocus";
 import { patchCatalogEntry } from "./catalogSnapshot";
 import { queueSiteRevalidation } from "./siteRevalidation";
 import { CATALOG_CHANGES_TAG } from "../src/lib/atlas/cacheTags";
@@ -116,8 +117,14 @@ export const listRecentChanges = query({
       .query("materialChanges")
       .withIndex("by_occurred_at")
       .order("desc")
-      .take(limit);
-    return changes.map((change) => ({
+      .take(limit * 5);
+    const focused = [];
+    for (const change of changes) {
+      const entry = await ctx.db.query("catalogEntries").withIndex("by_slug", q => q.eq("slug", change.modelSlug)).unique();
+      if (isFocusedModel(change.modelName, entry?.payload.category)) focused.push(change);
+      if (focused.length === limit) break;
+    }
+    return focused.map((change) => ({
       id: change.dedupeKey,
       modelSlug: change.modelSlug,
       modelName: change.modelName,

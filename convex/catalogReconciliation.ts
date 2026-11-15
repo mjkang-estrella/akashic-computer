@@ -133,12 +133,16 @@ export function targetForParsed(
   const stem = normalizedIdentity(parsed.modelStem);
   const candidates = documents.filter((document) => {
     if (!rule.familyIds.includes(document.familyId)) return false;
+    // Exact official repository identity survives corrections to packed-weight counts.
+    const canonicalRepo = document.payload.artifacts[0]?.repo;
+    const sameOfficialRepo = canonicalRepo?.split("/")[0].toLowerCase() === rule.owner.toLowerCase() &&
+      normalizedIdentity(modelStemForRepoId(canonicalRepo)) === stem;
     const release = normalizedIdentity(document.payload.release.name);
     const identity = normalizedIdentity(`${document.payload.release.name}${document.payload.size.label}`);
     const sameSize = parsed.sizeLabel
       ? normalizedIdentity(parsed.sizeLabel) === normalizedIdentity(document.payload.size.label)
       : false;
-    return (stem === identity || (stem === release && sameSize));
+    return sameOfficialRepo || stem === identity || (stem === release && sameSize);
   });
   if (rule.role === "creator" || (rule.role === "creator_provider" && !parsed.repo.baseModels.length)) {
     return candidates.length === 1 ? candidates[0] : null;

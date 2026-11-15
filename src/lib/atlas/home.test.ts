@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { artifact, modelEntry } from "../../../test/catalogFixture";
 import { benchmarkSnapshot, OFFICIAL_BENCHMARKS, resolveOfficialBenchmarks } from "./benchmarks";
 import {
+  groupReleases,
   homeCatalogStats,
   homeSnapshot,
-  modelSizesFitting,
-  newestReleaseEntries,
+  latestReleases,
   recentlyUpdatedEntries,
+  releaseTimeline,
+  TIMELINE_DAYS,
 } from "./home";
 import type { ModelEntry } from "./models";
 import {
@@ -48,7 +50,6 @@ function publishedList(): PublishedCatalogSummary[] {
   return entries.sort((a, b) => b.timestamp - a.timestamp || a.slug.localeCompare(b.slug));
 }
 
-const slugs = (entries: ModelEntry[]) => entries.map((entry) => entry.slug);
 const leaderboards = (entries: ModelEntry[]) =>
   resolveOfficialBenchmarks(entries).map((benchmark) => ({
     id: benchmark.id,
@@ -80,24 +81,70 @@ describe("home snapshot", () => {
     const partial = hydrateCatalogListItems(snapshot.entries).entries;
 
     expect(partial.length).toBeLessThan(full.length);
+    expect(releaseTimeline(partial)).toEqual(releaseTimeline(full));
+    expect(releaseTimeline(full).releases.length).toBeGreaterThan(0);
+    expect(latestReleases(partial)).toEqual(latestReleases(full));
+    const slugs = (entries: ModelEntry[]) => entries.map((entry) => entry.slug);
     expect(slugs(recentlyUpdatedEntries(partial))).toEqual(slugs(recentlyUpdatedEntries(full)));
-    expect(slugs(newestReleaseEntries(partial))).toEqual(slugs(newestReleaseEntries(full)));
-    expect(leaderboards(partial)).toEqual(leaderboards(full));
-    expect(leaderboards(full).length).toBeGreaterThan(0);
     const shownChanges = (entries: ModelEntry[]) =>
       changes.filter((item) => entries.some((entry) => entry.slug === item.modelSlug)).map((item) => item.id);
     expect(shownChanges(partial)).toEqual(shownChanges(full));
     expect(snapshot.stats).toEqual(homeCatalogStats(full));
   });
 
-  it("counts model sizes that fit a budget as the full list would", () => {
+  it("groups model sizes into releases, largest size first, newest release first", () => {
     const full = hydratePublishedEntries(publishedList()).entries;
-    const stats = homeCatalogStats(full);
-    for (const budget of [0, 7, 8, 21, 22, 23, 400]) {
-      expect(modelSizesFitting(stats, budget)).toBe(
-        full.filter((entry) => entry.artifacts.some((item) => item.recVramGb <= budget)).length,
-      );
+    const releases = groupReleases(full);
+    expect(releases.reduce((count, release) => count + release.sizes.length, 0)).toBe(full.length);
+    for (const release of releases) {
+      const params = release.sizes.map((size) => size.paramsB);
+      expect(params).toEqual([...params].sort((a, b) => b - a));
     }
+    const dates = releases.map((release) => release.releasedAt);
+    expect(dates).toEqual([...dates].sort((a, b) => b - a));
+  });
+
+  it("carries each size's score and the release's best score", () => {
+    const full = hydratePublishedEntries(publishedList()).entries;
+    const [release] = groupReleases(full);
+    const [first, second] = release.sizes;
+    const scored = groupReleases(full, { [first.slug]: 12.5, ...(second ? { [second.slug]: 30.1 } : {}) })[0];
+    expect(scored.sizes.find((size) => size.slug === first.slug)?.score).toBe(12.5);
+    expect(scored.score).toBe(second ? 30.1 : 12.5);
+    expect(groupReleases(full)[0].score).toBeNull();
+  });
+
+  it("draws the frontier as record scores only, opening with the best score before the window", () => {
+    const full = hydratePublishedEntries(publishedList()).entries;
+    const all = groupReleases(full);
+    const { start } = releaseTimeline(full);
+    const before = all.filter((release) => release.releasedAt < start);
+    const inside = all.filter((release) => release.releasedAt >= start).reverse();
+    const scores: Record<string, number> = {
+      [before[0].sizes[0].slug]: 30,
+      [before[1].sizes[0].slug]: 20,
+      [inside[0].sizes[0].slug]: 25,
+      [inside[1].sizes[0].slug]: 35,
+      [inside[2].sizes[0].slug]: 33,
+    };
+    const frontier = releaseTimeline(full, scores).frontier;
+    expect(frontier.map((step) => step.score)).toEqual([30, 35]);
+    expect(frontier[0].releasedAt).toBeLessThan(start);
+    expect(releaseTimeline(full).frontier).toEqual([]);
+
+    // The snapshot keeps the record holder from before the window, so the line opens at the same height.
+    const published = publishedList();
+    const partial = hydrateCatalogListItems(homeSnapshot(published, [], scores).entries).entries;
+    expect(releaseTimeline(partial, scores).frontier).toEqual(frontier);
+  });
+
+  it("limits the timeline to six months ending at the newest release", () => {
+    const full = hydratePublishedEntries(publishedList()).entries;
+    const timeline = releaseTimeline(full);
+    expect(timeline.end).toBe(groupReleases(full)[0].releasedAt);
+    expect(timeline.end - timeline.start).toBe(TIMELINE_DAYS * 86_400_000);
+    expect(timeline.releases.every((release) => release.releasedAt >= timeline.start)).toBe(true);
+    expect(timeline.releases.length).toBeLessThan(groupReleases(full).length);
   });
 });
 

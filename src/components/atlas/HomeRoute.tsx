@@ -1,14 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
+import type { IntelligenceIndex } from "@/lib/atlas/capabilityTypes";
 import { homeCatalogStats, type HomeCatalogStats } from "@/lib/atlas/home";
-import { HomeView, type FeaturedDoc } from "./HomeView";
-import { useAtlasUi } from "./AtlasShell";
+import { HomeView } from "./HomeView";
 import { useCatalog } from "./CatalogProvider";
 
-export function HomeRoute({ snapshotStats, featuredDocs }: { snapshotStats?: HomeCatalogStats; featuredDocs: FeaturedDoc[] }) {
-  const { rig } = useAtlasUi();
-  const { entries, materialChanges, syncedAt, health, loading, revision, snapshot } = useCatalog();
+export function HomeRoute({
+  snapshotStats,
+  intelligence,
+}: {
+  snapshotStats?: HomeCatalogStats;
+  intelligence?: IntelligenceIndex;
+}) {
+  const { entries, materialChanges, syncedAt, health, loading, snapshot } = useCatalog();
   // The server snapshot holds only the entries the page shows, so its counts travel with it.
   const stats = useMemo(
     () => (snapshot && snapshotStats ? snapshotStats : homeCatalogStats(entries)),
@@ -17,15 +22,13 @@ export function HomeRoute({ snapshotStats, featuredDocs }: { snapshotStats?: Hom
 
   return (
     <HomeView
-      featuredDocs={featuredDocs}
       entries={entries}
       stats={stats}
       materialChanges={materialChanges}
       syncedAt={syncedAt}
       loading={loading}
       health={health}
-      revision={revision}
-      rig={rig}
+      intelligence={intelligence ?? null}
     />
   );
 }

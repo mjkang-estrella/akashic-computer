@@ -1,3 +1,4 @@
+import { isFocusedModel } from "../src/lib/atlas/catalogFocus";
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { convexValuesEqual, MAX_CATALOG_ENTRIES, SUMMARY_BUCKETS, SUMMARY_SNAPSHOT_KEY, updateCatalogSummary } from "./catalogSnapshot";
@@ -113,7 +114,7 @@ export const listPublished = query({
     return {
       entries: assertCatalogBound(chunks.flatMap((chunk) => chunk.entries).map(entry =>
         "benchmarkRefs" in entry ? catalogSummary(entry as PublishedCatalogEntry) : entry,
-      )).sort((a, b) => b.timestamp - a.timestamp || a.slug.localeCompare(b.slug)),
+      )).filter(entry => isFocusedModel([entry.name, ...entry.artifacts.map(a => a.repo)].join(" "), entry.category)).sort((a, b) => b.timestamp - a.timestamp || a.slug.localeCompare(b.slug)),
       syncedAt: snapshotState.syncedAt,
       revision: snapshotState.revision,
     };

@@ -38,3 +38,38 @@ it("repairs a stale normalized regular-to-Flash link and remains idempotent on r
   expect(normalized.filter((a) => a.available)).toHaveLength(1);
   expect(normalized.filter((a) => !a.available)[0].confidence).toBe("needs_review");
 });
+
+it("merges both Inkling formats, preserves related data and is idempotent", async () => {
+  const t = convexTest(schema, modules);
+  const slugs = ["inkling-inkling-2-small-383b", "inkling-inkling-2-small-612b"];
+  await t.run(async ctx => {
+    const familyId = await ctx.db.insert("modelFamilies", { slug: "inkling", name: "Inkling", vendor: "Thinking Machines Lab", summary: "", modalities: [], tags: [] });
+    const releaseId = await ctx.db.insert("modelReleases", { familyId, slug: "inkling-2-small", name: "Inkling 2 Small" });
+    for (const [index, slug] of slugs.entries()) {
+      const repo = `thinkingmachines/Inkling-2-Small${index ? "-MXFP8" : ""}`;
+      const payload = publishableEntry(modelEntry({ slug, familyId: "inkling", familyName: "Inkling", releaseName: "Inkling 2 Small",
+        releaseId: "inkling-2-small", sizeLabel: index ? "612B" : "383B", paramsB: index ? 612 : 383, repo }));
+      await ctx.db.insert("catalogEntries", { slug, familyId: "inkling", releaseId: payload.release.id, sizeLabel: payload.size.label,
+        sourceRepos: [repo], updatedAt: 1, payload, publishedAt: 1, sourceRevision: "old" });
+      const sizeId = await ctx.db.insert("modelSizes", { releaseId, slug, label: payload.size.label, parameterCountB: payload.size.paramsB });
+      const variantId = await ctx.db.insert("modelVariants", { sizeId, slug: "instruct", name: "Instruct", variantKind: "instruct" });
+      await ctx.db.insert("artifacts", { variantId, huggingFaceRepo: repo, format: "MXFP8", uploaderKind: "official", runtimeSupport: [], available: true, confidence: "verified" });
+      await ctx.db.insert("artifactBuilds", { key: repo, repo, revision: "old", modelSlug: slug, observedAt: 1,
+        label: repo, container: "safetensors", files: [], bytes: 100, complete: true, quantization: "NVFP4", mtp: "unknown", baseModels: [], sourceUrl: `https://huggingface.co/${repo}` });
+    }
+  });
+  expect(await t.mutation(internal.catalogRepairs.mergeInklingSmall, {})).toMatchObject({ changed: true });
+  const merged = await t.query(api.catalog.getBySlug, { slug: slugs[0] });
+  expect(merged).toMatchObject({ name: "Inkling 2 Small 594B", size: { paramsB: 594, activeParamsB: 17 }, quantizations: ["NVFP4", "MXFP8"] });
+  expect(merged!.artifacts).toHaveLength(2);
+  expect(await t.run(async ctx => (await ctx.db.query("artifactBuilds").take(10)).map(b => b.modelSlug))).toEqual([slugs[0], slugs[0]]);
+  expect(await t.query(api.catalog.getBySlug, { slug: slugs[1] })).toBeNull();
+  await t.run(async ctx => {
+    const size = await ctx.db.query("modelSizes").withIndex("by_slug", q => q.eq("slug", slugs[0])).unique();
+    const variants = await ctx.db.query("modelVariants").withIndex("by_size", q => q.eq("sizeId", size!._id)).take(10);
+    expect(variants).toHaveLength(1);
+    const artifacts = await ctx.db.query("artifacts").withIndex("by_variant", q => q.eq("variantId", variants[0]._id)).take(10);
+    expect(artifacts).toHaveLength(2);
+  });
+  expect(await t.mutation(internal.catalogRepairs.mergeInklingSmall, {})).toMatchObject({ changed: false });
+});

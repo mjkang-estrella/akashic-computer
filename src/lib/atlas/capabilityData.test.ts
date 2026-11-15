@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capabilityGroup, getCapabilityComparisons, weightsRepo } from "./capabilityData";
+import { capabilityGroup, getCapabilityComparisons, intelligenceIndex, weightsRepo } from "./capabilityData";
 import snapshot from "./snapshots/artificial-analysis.json";
 import type { PublishedCatalogEntry } from "./published";
 
@@ -85,5 +85,26 @@ describe("capability snapshot identity and comparisons", () => {
     }
     const zero = snapshot.models.find(m => m.terminalBench40 === 0 && m.modelWeightsSourceUrl);
     expect(zero).toBeDefined();
+  });
+});
+
+describe("home Intelligence Index scores", () => {
+  const scoreOf = (repo: string) => intelligenceIndex([{ slug: "m", artifacts: [{ repo }] }]).scores.m;
+
+  it("matches the exact checkpoint the model page shows, case-insensitively", () => {
+    const page = getCapabilityComparisons(entry("deepseek-ai/DeepSeek-V4.1-Flash-1017")).Instruct.models.find(m => m.current)!;
+    expect(scoreOf("DeepSeek-AI/deepseek-v4.1-flash-1017")).toBeCloseTo(page.scores.intelligenceIndex!, 1);
+  });
+
+  it("leaves unevaluated checkpoints and derived quantizations unscored", () => {
+    expect(scoreOf("deepseek-ai/DeepSeek-V4.1-Flash")).toBeUndefined();
+    expect(scoreOf("unsloth/DeepSeek-V4.1-Flash-1017-GGUF")).toBeUndefined();
+  });
+
+  it("records the index version and retrieval date", () => {
+    const index = intelligenceIndex([]);
+    expect(index.version).toBe(snapshot.intelligenceIndexVersion);
+    const dates = [snapshot.retrievedAt, ...(snapshot.updates ?? []).map((update) => update.retrievedAt)];
+    expect(index.retrievedAt).toBe(dates.sort().at(-1));
   });
 });

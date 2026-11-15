@@ -1,173 +1,67 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  BookOpen02Icon,
-  ChartColumnIcon,
-  Clock01Icon,
-  CubeIcon,
-  RefreshIcon,
-  RssIcon,
-} from "@hugeicons/core-free-icons";
-import { resolveOfficialBenchmarks } from "@/lib/atlas/benchmarks";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight01Icon, RssIcon } from "@hugeicons/core-free-icons";
 import {
-  modelSizesFitting,
-  newestReleaseEntries,
+  latestReleases,
   recentlyUpdatedEntries,
-  releaseTimestamp,
+  releaseTimeline,
   type HomeCatalogStats,
 } from "@/lib/atlas/home";
 import type { ModelEntry } from "@/lib/atlas/models";
-import { modelReleaseName, parameterCountLabel } from "@/lib/atlas/naming";
-import type { MaterialChange, RigProfile } from "@/lib/atlas/types";
+import { formatParameterBillions } from "@/lib/atlas/naming";
+import type { IntelligenceIndex } from "@/lib/atlas/capabilityTypes";
+import type { MaterialChange } from "@/lib/atlas/types";
 import { FamilyLogo } from "./FamilyLogo";
-import { openBudgetMenu } from "./FitBar";
+import { ReleaseTimeline, shortDate, type TimelineMetric } from "./ReleaseTimeline";
 
-const FEATURED_BENCHMARK_IDS = [
-  "mmlu-pro",
-  "gpqa-diamond",
-  "livecodebench-v6",
-] as const;
+const CHANGE_COUNT = 4;
+const SIZE_LABEL_COUNT = 3;
 
-export interface FeaturedDoc {
-  slug: string;
-  title: string;
-  summary: string;
-  readMinutes: number;
-}
-
-interface CatalogHealth {
-  level: "healthy" | "degraded" | "stale";
+export interface CatalogHealth {
   catalogStale: boolean;
-  catalogDegraded: boolean;
-  sourceTotal: number;
-  freshSourceCount: number;
-  staleSourceCount: number;
-  failingSourceCount: number;
-  retryingSourceCount: number;
-  staleSources: string[];
-  pendingWebhookCount: number;
-  failedWebhookCount: number;
-  webhookStale: boolean;
-  lastCompletedAuditAt: number | null;
 }
 
-const LAST_VISIT_KEY = "akashic:last-catalog-visit";
-const SESSION_VISIT_KEY = "akashic:catalog-session-start";
-const SESSION_PREVIOUS_VISIT_KEY = "akashic:catalog-previous-visit";
-
-function formatSyncTime(value: number): string {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
-    timeZoneName: "short",
-  }).format(value);
+function relativeAge(from: number, now: number): string {
+  const minutes = Math.max(0, Math.round((now - from) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)} days ago`;
 }
 
-function releaseDateLabel(entry: ModelEntry): string {
-  return new Date(releaseTimestamp(entry)).toISOString().slice(0, 10);
-}
-
-function SectionLink({
-  children,
-  href,
-}: {
-  children: string;
-  href: string;
-}) {
+/** Relative sync age, rendered only in the browser so server and client markup agree. */
+function SyncAge({ syncedAt, stale }: { syncedAt: number | null; stale: boolean }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = window.setTimeout(tick, 0);
+    const timer = window.setInterval(tick, 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, []);
+  if (!syncedAt || now === null) return null;
   return (
-    <Link
-      href={href}
-      className="group inline-flex min-h-11 items-center gap-1.5 text-[12.5px] font-semibold text-meta hover:text-ink"
-    >
-      {children}
-      <HugeiconsIcon
-        icon={ArrowRight01Icon}
-        size={15}
-        strokeWidth={1.8}
-        aria-hidden="true"
-        className="transition-transform group-hover:translate-x-0.5"
-      />
-    </Link>
+    <span className={`font-mono text-[11px] ${stale ? "text-caution" : "text-faint"}`}>
+      {stale ? "Refresh overdue · " : "Updated "}
+      {relativeAge(syncedAt, now)}
+    </span>
   );
 }
 
-function CatalogStatus({
-  syncedAt,
-  loading,
-  health,
-  revision,
-}: {
-  syncedAt: number | null;
-  loading: boolean;
-  health: CatalogHealth | null;
-  revision: string;
-}) {
-  const delayed = health?.catalogStale;
-  const degraded = health?.catalogDegraded;
-
-  // A server-rendered snapshot carries no revision; it resolves once the live catalog answers.
-  const resolving = loading || revision === "loading";
-  let label = "Live catalog connected";
-  if (resolving) label = "Refreshing the live catalog";
-  else if (health?.sourceTotal) {
-    if (delayed) label = "Catalog refresh overdue";
-    else if (degraded) {
-      label = `Catalog partially current · ${health.freshSourceCount}/${health.sourceTotal} sources`;
-    } else if (syncedAt) label = `Catalog current · ${formatSyncTime(syncedAt)}`;
-    else label = "Live catalog connected";
-  }
-
+function SectionHeader({ id, title, children }: { id: string; title: string; children?: ReactNode }) {
   return (
-    <details className="group/status max-w-[620px] text-[11px] text-faint">
-      <summary
-        aria-live="polite"
-        className={`flex min-h-9 cursor-pointer list-none items-center gap-2 font-mono marker:hidden ${
-          delayed || degraded ? "text-caution" : "text-faint"
-        }`}
-      >
-        <HugeiconsIcon
-          icon={RefreshIcon}
-          size={15}
-          strokeWidth={1.8}
-          aria-hidden="true"
-          className={resolving ? "animate-spin motion-reduce:animate-none" : ""}
-        />
-        <span>{label}</span>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          size={14}
-          strokeWidth={1.8}
-          aria-hidden="true"
-          className="transition-transform group-open/status:rotate-180"
-        />
-      </summary>
-      <div className="grid gap-1 border-l border-line pl-5 pb-2 font-mono leading-relaxed sm:grid-cols-2 sm:gap-x-6">
-        <span>Source · Live Convex catalog</span>
-        <span>Revision · {revision === "loading" ? "Resolving" : revision.slice(0, 12)}</span>
-        {health?.sourceTotal ? (
-          <>
-            <span>Hugging Face · {health.freshSourceCount}/{health.sourceTotal} sources current</span>
-            <span>Webhooks · {health.pendingWebhookCount} pending · {health.failedWebhookCount} failed</span>
-            {health.staleSources.length > 0 ? (
-              <span className="sm:col-span-2">Delayed · {health.staleSources.join(", ")}</span>
-            ) : null}
-          </>
-        ) : null}
-        <span className="sm:col-span-2">
-          Delayed sources keep their last known good entries while Akashic Computer retries them independently.
-        </span>
-      </div>
-    </details>
+    <header className="flex min-h-11 items-center justify-between gap-3 border-b border-line">
+      <h2 id={id} className="font-display text-[19px] font-semibold">
+        {title}
+      </h2>
+      {children}
+    </header>
   );
 }
 
@@ -246,23 +140,8 @@ function CatalogField({ entries, stats }: { entries: ModelEntry[]; stats: HomeCa
   );
 }
 
-function HomeLoadingRows() {
-  return (
-    <div className="divide-y divide-linesoft border-y border-line" aria-hidden="true">
-      {Array.from({ length: 6 }, (_, index) => (
-        <div
-          key={index}
-          className="grid min-h-[76px] animate-pulse items-center gap-3 py-4 motion-reduce:animate-none sm:grid-cols-[minmax(190px,1fr)_100px_minmax(150px,0.8fr)_110px]"
-        >
-          <span className="h-5 w-2/3 rounded-[4px] bg-panel2" />
-          <span className="h-4 w-14 rounded-[4px] bg-panel2" />
-          <span className="h-4 w-28 rounded-[4px] bg-panel2" />
-          <span className="h-4 w-20 rounded-[4px] bg-panel2" />
-        </div>
-      ))}
-    </div>
-  );
-}
+const quietLink =
+  "inline-flex min-h-11 items-center gap-1 text-[12px] font-semibold text-muted hover:text-ink";
 
 export function HomeView({
   entries,
@@ -271,9 +150,7 @@ export function HomeView({
   syncedAt,
   loading,
   health,
-  revision,
-  rig,
-  featuredDocs,
+  intelligence,
 }: {
   /** May be a server-rendered subset; catalog-wide counts come from `stats`. */
   entries: ModelEntry[];
@@ -282,502 +159,180 @@ export function HomeView({
   syncedAt: number | null;
   loading: boolean;
   health: CatalogHealth | null;
-  revision: string;
-  rig: RigProfile | null;
-  featuredDocs: FeaturedDoc[];
+  /** Server-matched Artificial Analysis scores; null leaves the size axis only. */
+  intelligence: IntelligenceIndex | null;
 }) {
-  const [previousVisit, setPreviousVisit] = useState<number | null | undefined>(undefined);
+  const [pointedKey, setPointedKey] = useState<string | null>(null);
+  const [chosenMetric, setChosenMetric] = useState<TimelineMetric | null>(null);
+  const timeline = useMemo(() => releaseTimeline(entries, intelligence?.scores), [entries, intelligence]);
+  const hasScores = timeline.releases.some((release) => release.score !== null);
+  // Capability leads when any release in the window has a score.
+  const metric: TimelineMetric = hasScores ? chosenMetric ?? "intelligence" : "size";
+  const latest = useMemo(() => latestReleases(entries), [entries]);
+  const changes = useMemo(() => {
+    const known = new Set(entries.map((entry) => entry.slug));
+    const seen = new Set<string>();
+    return materialChanges
+      .filter((change) => {
+        const key = `${change.modelSlug}:${change.title}`;
+        if (!known.has(change.modelSlug) || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, CHANGE_COUNT);
+  }, [entries, materialChanges]);
 
-  useEffect(() => {
-    let priorVisit: number | null = null;
-    try {
-      const sessionStart = window.sessionStorage.getItem(SESSION_VISIT_KEY);
-      if (sessionStart) {
-        const prior = window.sessionStorage.getItem(SESSION_PREVIOUS_VISIT_KEY);
-        priorVisit = prior ? Number(prior) : null;
-      } else {
-        const now = Date.now();
-        const prior = window.localStorage.getItem(LAST_VISIT_KEY);
-        window.sessionStorage.setItem(SESSION_VISIT_KEY, String(now));
-        window.sessionStorage.setItem(SESSION_PREVIOUS_VISIT_KEY, prior ?? "");
-        window.localStorage.setItem(LAST_VISIT_KEY, String(now));
-        priorVisit = prior ? Number(prior) : null;
-      }
-    } catch {
-      priorVisit = null;
-    }
-    const timer = window.setTimeout(() => setPreviousVisit(priorVisit), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  const showEmptyLoadingState = loading && entries.length === 0;
-  const changesSinceVisit = useMemo(
-    () =>
-      previousVisit == null
-        ? null
-        : materialChanges.filter((change) => change.occurredAt > previousVisit).length,
-    [materialChanges, previousVisit],
-  );
-  const visibleChanges = useMemo(
-    () => materialChanges.flatMap((change) => {
-      const entry = entries.find((candidate) => candidate.slug === change.modelSlug);
-      return entry ? [{ change, entry }] : [];
-    }).slice(0, 5),
-    [entries, materialChanges],
-  );
-  // List summaries carry the weights + native-context KV estimate only.
-  const budgetGb = rig?.gb ?? null;
-  const runnableEntries = budgetGb === null ? 0 : modelSizesFitting(stats, budgetGb);
-  const recentEntries = useMemo(() => newestReleaseEntries(entries), [entries]);
-  const benchmarkCoverage = useMemo(() => {
-    const resolved = resolveOfficialBenchmarks(entries);
-    const comparable = resolved.filter((benchmark) => benchmark.results.length >= 2);
-    const preferred = FEATURED_BENCHMARK_IDS.flatMap((id) => {
-      const benchmark = resolved.find((candidate) => candidate.id === id);
-      return benchmark && benchmark.results.length >= 2 ? [benchmark] : [];
-    });
-    const featured = preferred.length === FEATURED_BENCHMARK_IDS.length
-      ? preferred
-      : preferred.concat(
-      resolved
-        .filter(
-          (benchmark) =>
-            benchmark.results.length >= 2 &&
-            !preferred.some((candidate) => candidate.id === benchmark.id),
-        )
-        .slice(0, FEATURED_BENCHMARK_IDS.length - preferred.length),
-      );
-    return {
-      featured,
-      benchmarkCount: comparable.length,
-      modelCount: new Set(comparable.flatMap((benchmark) => benchmark.results.map((result) => result.entry.slug))).size,
-    };
-  }, [entries]);
-  const featuredBenchmarks = benchmarkCoverage.featured;
+  const waiting = loading && entries.length === 0;
+  // At rest, label the newest release that has a value on the current axis.
+  const restingKey = (metric === "intelligence"
+    ? timeline.releases.find((release) => release.score !== null)
+    : timeline.releases[0])?.key ?? "";
+  const activeKey = pointedKey ?? restingKey;
 
   return (
-    <section className="pb-10 pt-6 sm:pt-8">
-      <header className="grid gap-6 border-b border-line pb-8 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
+    <section className="pb-16 pt-10 sm:pt-16">
+      <header className="grid gap-8 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
         <div className="order-2 lg:order-1">
           <CatalogField entries={entries} stats={stats} />
         </div>
         <div className="order-1 lg:order-2 lg:pl-2">
-          <h1 className="max-w-[18ch] text-balance font-display text-[36px] font-semibold leading-[1.08] sm:text-[44px] lg:text-[52px]">
-            Open-weight models, organized.
+          <h1 className="max-w-[16ch] text-balance font-display text-[36px] font-semibold leading-[1.04] tracking-[-0.01em] sm:text-[48px] lg:text-[52px]">
+            Open models you can run yourself.
           </h1>
-          <p className="mt-4 max-w-[58ch] text-[14.5px] leading-relaxed text-muted">
-            Browse current releases, quantized artifacts, VRAM estimates, and
-            creator-reported benchmark evidence without collapsing technical
-            tradeoffs into a single recommendation.
+          <p className="mt-4 max-w-[46ch] text-[15px] leading-relaxed text-muted sm:text-[16px]">
+            New open-weight releases, their quantized builds, and how they compare.
           </p>
-          <div className="mt-4">
-            <CatalogStatus
-              syncedAt={syncedAt}
-              loading={loading}
-              health={health}
-              revision={revision}
-            />
-          </div>
-          <div className="mt-4 grid border-y border-line sm:grid-cols-2">
-            <p className="flex min-h-12 items-center gap-2 py-2 text-[11.5px] text-muted sm:pr-4">
-              <HugeiconsIcon icon={Clock01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
-              {previousVisit === undefined
-                ? "Checking changes since your last visit"
-                : previousVisit === null
-                  ? "This is your first tracked catalog visit"
-                  : `${changesSinceVisit ?? 0} model ${changesSinceVisit === 1 ? "change" : "changes"} since your last visit`}
-            </p>
-            <p className="flex min-h-12 items-center gap-2 border-t border-linesoft py-2 text-[11.5px] text-muted sm:border-t-0 sm:border-l sm:pl-4">
-              <HugeiconsIcon icon={CubeIcon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
-              {!rig ? (
-                <span>
-                  No memory budget set.{" "}
-                  <button type="button" onClick={openBudgetMenu} className="font-semibold text-meta underline-offset-2 hover:underline">
-                    Choose your hardware
-                  </button>{" "}
-                  to check estimated fit.
-                </span>
-              ) : loading
-                ? `Checking listed artifacts against ${rig.gb} GB`
-                : `${rig.gb} GB: ${runnableEntries} of ${stats.modelSizes} model sizes have an artifact estimated to fit at full context`}
-            </p>
+          <div className="mt-7 flex flex-wrap items-center gap-x-3 gap-y-3">
+            <Link
+              href="/models"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[7px] bg-ink px-4 text-[13px] font-semibold text-paper hover:bg-ink/85"
+            >
+              {stats.modelSizes > 0 ? `Browse ${stats.modelSizes} models` : "Browse models"}
+              <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={2} aria-hidden="true" />
+            </Link>
+            <Link
+              href="/benchmarks"
+              className="inline-flex min-h-11 items-center rounded-[7px] border border-line bg-panel px-4 text-[13px] font-semibold text-ink hover:border-ink/40"
+            >
+              Compare benchmarks
+            </Link>
+            <span className="sm:ml-3">
+              <SyncAge syncedAt={syncedAt} stale={Boolean(health?.catalogStale)} />
+            </span>
           </div>
         </div>
       </header>
 
-      <nav aria-label="Start exploring" className="grid border-b border-line md:grid-cols-3">
-        {[
-          {
-            label: "Browse model releases",
-            detail: "Families, sizes, and quantizations",
-            icon: CubeIcon,
-            href: "/models",
-          },
-          {
-            label: "Compare benchmark evidence",
-            detail: "Official creator-reported results",
-            icon: ChartColumnIcon,
-            href: "/benchmarks",
-          },
-          {
-            label: "Understand model mechanics",
-            detail: "Quantization, MoE, and memory",
-            icon: BookOpen02Icon,
-            href: "/docs/quantization",
-          },
-        ].map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="group flex min-h-[72px] items-center gap-3 border-b border-linesoft py-3 text-left last:border-b-0 hover:bg-panel md:border-r md:border-b-0 md:px-5 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
-          >
-            <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.7} aria-hidden="true" className="flex-none text-faint group-hover:text-ink" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-semibold">{item.label}</span>
-              <span className="mt-0.5 block text-[11px] text-muted">{item.detail}</span>
-            </span>
-            <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
-          </Link>
-        ))}
-      </nav>
-
-      {visibleChanges.length > 0 ? (
-        <section className="border-b border-line py-7" aria-labelledby="material-changes-title">
-          <header className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 id="material-changes-title" className="font-display text-[22px] font-semibold">
-                Material changes
-              </h2>
-              <p className="mt-0.5 max-w-[68ch] text-[12px] text-muted">
-                Weight, artifact, runtime, and official recipe changes. Documentation-only commits are excluded.
-              </p>
-            </div>
-            <span className="flex items-center gap-3">
-              <span className="font-mono text-[11px] text-faint">Evidence-linked</span>
-              <a href="/feed.xml" className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink">
-                <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={1.8} aria-hidden="true" />
-                RSS
-                <span className="sr-only"> feed of material changes</span>
-              </a>
-            </span>
-          </header>
-          <div className="mt-4 divide-y divide-linesoft border-y border-line">
-            {visibleChanges.map(({ change, entry }, index) => (
-              <div
-                key={change.id}
-                className={`${index >= 3 ? "hidden sm:grid" : "grid"} gap-2 py-3.5 sm:grid-cols-[108px_minmax(180px,0.7fr)_minmax(260px,1.3fr)_auto] sm:items-center sm:gap-5`}
-              >
-                <span className="font-mono text-[11px] text-faint">{change.dateLabel}</span>
-                <Link
-                  href={`/models/${entry.slug}`}
-                  prefetch={false}
-                  className="truncate text-left text-[12.5px] font-semibold hover:text-meta hover:underline hover:underline-offset-3"
-                >
-                  {change.modelName}
-                </Link>
-                <span className="min-w-0">
-                  <span className="block text-[12.5px] font-semibold">{change.title}</span>
-                  <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">{change.summary}</span>
-                </span>
-                {change.sourceUrls[0] ? (
-                  <a
-                    href={change.sourceUrls[0]}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink"
-                  >
-                    {change.sourceLabel}
-                    <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
-                  </a>
-                ) : (
-                  <span className="text-[11px] text-faint">{change.sourceLabel}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <div className="grid gap-8 pt-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.85fr)] xl:gap-12">
-        <section aria-labelledby="recent-models-title" className="min-w-0">
-          <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 id="recent-models-title" className="font-display text-[22px] font-semibold">
-                New models
-              </h2>
-              <p className="mt-0.5 text-[12px] text-muted">
-                Recently published model-size releases.
-              </p>
-            </div>
-            <SectionLink href="/models">View all models</SectionLink>
-          </header>
-
-          <div className="mt-3">
-            {showEmptyLoadingState ? (
-              <>
-                <p className="sr-only" role="status">
-                  Loading recent model updates
-                </p>
-                <HomeLoadingRows />
-              </>
-            ) : recentEntries.length === 0 ? (
-              <div className="border-y border-line py-12 text-center">
-                <p className="font-display text-[18px] font-semibold">
-                  No published models yet
-                </p>
-                <p className="mt-1 text-[13px] text-muted">
-                  The catalog will appear here after the first successful sync.
-                </p>
-              </div>
-            ) : (
-              <div className="border-y border-line">
-                <div className="hidden grid-cols-[minmax(200px,1fr)_100px_minmax(150px,0.8fr)_110px_20px] border-b border-line px-2 py-2 font-mono text-[11px] font-semibold text-faint sm:grid">
-                  <span>Model</span>
-                  <span>Parameters</span>
-                  <span>Quantizations</span>
-                  <span>Released</span>
-                  <span className="sr-only">Open</span>
-                </div>
-                <div className="divide-y divide-linesoft">
-                  {recentEntries.map((entry) => {
-                    const visibleQuantizations = entry.quantizations.slice(0, 3);
-                    const remaining =
-                      entry.quantizations.length - visibleQuantizations.length;
-                    return (
-                      <Link
-                        key={entry.slug}
-                        href={`/models/${entry.slug}`}
-                        prefetch={false}
-                        aria-label={`Open ${entry.name}`}
-                        className="group grid min-h-[96px] w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3 text-left transition-colors hover:bg-panel sm:min-h-[82px] sm:grid-cols-[minmax(200px,1fr)_100px_minmax(150px,0.8fr)_110px_20px] sm:items-center sm:gap-0 sm:px-2 sm:py-4"
-                      >
-                        <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-3 sm:col-auto sm:row-auto">
-                          <FamilyLogo
-                            familyId={entry.family.id}
-                            familyName={entry.family.name}
-                            size={30}
-                          />
-                          <span className="min-w-0">
-                            <span className="block font-display text-[15px] font-semibold leading-tight group-hover:underline group-hover:underline-offset-4">
-                              {modelReleaseName(entry.family, entry.release)}
-                            </span>
-                            <span className="mt-1 block text-[12px] text-muted">
-                              {entry.family.vendor}
-                            </span>
-                          </span>
-                        </span>
-                        <span className="col-start-1 row-start-2 font-mono text-[12.5px] font-semibold sm:col-auto sm:row-auto">
-                          <span className="mr-1 text-[11px] font-normal text-muted sm:hidden">
-                            Parameters ·
-                          </span>
-                          {parameterCountLabel(entry.size)}
-                        </span>
-                        <span className="col-start-2 row-start-2 flex flex-wrap items-center justify-end gap-1.5 sm:col-auto sm:row-auto sm:justify-start">
-                          {visibleQuantizations.map((quantization) => (
-                            <span
-                              key={quantization}
-                              className="rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[11px] text-muted"
-                            >
-                              {quantization}
-                            </span>
-                          ))}
-                          {remaining > 0 ? (
-                            <span className="font-mono text-[11px] text-faint">
-                              +{remaining}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="col-start-2 row-start-1 self-start whitespace-nowrap font-mono text-[11.5px] text-muted sm:col-auto sm:row-auto sm:self-auto sm:text-left sm:text-[12px]">
-                          {releaseDateLabel(entry)}
-                        </span>
-                        <HugeiconsIcon
-                          icon={ArrowRight01Icon}
-                          size={17}
-                          strokeWidth={1.8}
-                          aria-hidden="true"
-                          className="hidden text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink sm:block"
-                        />
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section aria-labelledby="benchmark-pulse-title" className="min-w-0">
-          <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 id="benchmark-pulse-title" className="font-display text-[22px] font-semibold">
-                Benchmark pulse
-              </h2>
-              <p className="mt-0.5 text-[12px] text-muted">
-                {benchmarkCoverage.benchmarkCount} comparable benchmarks across {benchmarkCoverage.modelCount} catalog models.
-              </p>
-            </div>
-            <SectionLink href="/benchmarks">View all benchmarks</SectionLink>
-          </header>
-
-          <div className="mt-3 border-y border-line">
-            {showEmptyLoadingState ? (
-              <div className="space-y-5 py-5" aria-hidden="true">
-                {Array.from({ length: 3 }, (_, index) => (
-                  <div key={index} className="animate-pulse motion-reduce:animate-none">
-                    <div className="h-5 w-32 rounded-[4px] bg-panel2" />
-                    <div className="mt-3 h-16 rounded-[4px] bg-panel2" />
-                  </div>
-                ))}
-              </div>
-            ) : featuredBenchmarks.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="font-display text-[18px] font-semibold">
-                  No comparable benchmarks yet
-                </p>
-                <p className="mt-1 text-[13px] text-muted">
-                  Rankings appear after at least two sourced model results match the catalog.
-                </p>
-              </div>
-            ) : (
-              featuredBenchmarks.map((benchmark) => {
-                const results = benchmark.results.slice(0, 3);
-                const sources = [
-                  ...new Map(
-                    results.map((result) => [
-                      result.sourceUrl,
-                      { label: result.sourceLabel, url: result.sourceUrl },
-                    ]),
-                  ).values(),
-                ];
-                return (
-                  <section
-                    key={benchmark.id}
-                    className="border-b border-linesoft py-4 last:border-b-0"
-                  >
-                    <header className="flex items-baseline justify-between gap-3">
-                      <div>
-                        <h3 className="font-display text-[17px] font-semibold">
-                          {benchmark.name}
-                        </h3>
-                        <p className="mt-0.5 font-mono text-[11px] text-faint">
-                          {benchmark.metric} · {benchmark.results.length} models · higher is better
-                        </p>
-                      </div>
-                      <HugeiconsIcon
-                        icon={ChartColumnIcon}
-                        size={17}
-                        strokeWidth={1.7}
-                        aria-hidden="true"
-                        className="flex-none text-faint"
-                      />
-                    </header>
-                    <ol className="mt-3 space-y-2.5">
-                      {results.map((result) => {
-                        const score = Number.isInteger(result.score)
-                          ? result.score.toFixed(0)
-                          : result.score.toFixed(1);
-                        return (
-                          <li key={result.repo}>
-                            <Link
-                              href={`/models/${result.entry.slug}`}
-                              prefetch={false}
-                              aria-label={`Open ${result.modelName ?? result.entry.name}, ranked ${result.rank} with a score of ${score}`}
-                              className="group w-full text-left"
-                            >
-                              <span className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2">
-                                <span className="font-mono text-[11px] text-faint">
-                                  {result.rank}
-                                </span>
-                                <span className="truncate text-[12.5px] font-semibold group-hover:underline group-hover:underline-offset-2">
-                                  {result.modelName ?? result.entry.name}
-                                </span>
-                                <span className="font-mono text-[12.5px] font-semibold tabular-nums">
-                                  {score}
-                                </span>
-                              </span>
-                              <span className="mt-1.5 ml-7 block h-1.5 overflow-hidden rounded-full bg-track">
-                                <span
-                                  className="block h-full bg-ink"
-                                  style={{
-                                    width: `${Math.max(
-                                      2,
-                                      Math.min(
-                                        100,
-                                        (result.score / benchmark.maxScore) * 100,
-                                      ),
-                                    )}%`,
-                                  }}
-                                />
-                              </span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ol>
-                    <p className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-faint">
-                      <span>Sources:</span>
-                      {sources.map((source) => (
-                        <a
-                          key={source.url}
-                          href={source.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-meta hover:text-ink hover:underline"
-                        >
-                          {source.label}
-                          <span className="sr-only"> (opens in a new tab)</span>
-                        </a>
-                      ))}
-                    </p>
-                  </section>
-                );
-              })
-            )}
-          </div>
-        </section>
+      <div className="mt-12 sm:mt-16">
+        {waiting ? (
+          <div aria-hidden="true" className="catalog-skeleton h-[240px] rounded-[4px] sm:h-[320px]" />
+        ) : timeline.releases.length > 0 ? (
+          <ReleaseTimeline
+            timeline={timeline}
+            activeKey={activeKey}
+            onActivate={setPointedKey}
+            metric={metric}
+            onMetricChange={hasScores ? setChosenMetric : undefined}
+            intelligenceSource={intelligence}
+          />
+        ) : null}
+        {waiting ? (
+          <p className="sr-only" role="status">
+            Loading recent releases
+          </p>
+        ) : null}
       </div>
 
-      <section className="mt-12 border-t border-line pt-8" aria-labelledby="understand-title">
-        <header className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 id="understand-title" className="font-display text-[22px] font-semibold">
-              Understand the catalog
-            </h2>
-            <p className="mt-0.5 text-[12px] text-muted">
-              Build the vocabulary needed to evaluate local-model options.
-            </p>
-          </div>
-          <SectionLink href="/docs">Read the docs</SectionLink>
-        </header>
-        <div className="mt-3 grid border-y border-line md:grid-cols-3">
-          {featuredDocs.map((article) => (
-            <Link
-              key={article.slug}
-              href={`/docs/${article.slug}`}
-              className="group min-h-32 border-b border-linesoft py-5 text-left last:border-b-0 md:border-r md:border-b-0 md:px-5 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
-            >
-              <span className="flex items-center gap-2">
-                <HugeiconsIcon
-                  icon={BookOpen02Icon}
-                  size={16}
-                  strokeWidth={1.7}
-                  aria-hidden="true"
-                  className="text-faint"
-                />
-                <span className="font-display text-[16px] font-semibold group-hover:underline group-hover:underline-offset-4">
-                  {article.title}
-                </span>
-              </span>
-              <span className="mt-2 block max-w-[52ch] text-[12.5px] leading-relaxed text-muted">
-                {article.summary}
-              </span>
-              <span className="mt-3 block font-mono text-[11px] text-faint">
-                {article.readMinutes} min read
-              </span>
+      <div className="mt-14 grid gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-16">
+        <section aria-labelledby="latest-releases-title" className="min-w-0">
+          <SectionHeader id="latest-releases-title" title="Latest releases">
+            <Link href="/models" className={quietLink}>
+              All models
+              <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} aria-hidden="true" />
             </Link>
-          ))}
-        </div>
-      </section>
+          </SectionHeader>
+          {waiting ? (
+            <div aria-hidden="true" className="divide-y divide-linesoft">
+              {Array.from({ length: 5 }, (_, index) => (
+                <div key={index} className="flex min-h-14 items-center gap-4">
+                  <span className="catalog-skeleton h-3 w-12 rounded-[3px]" />
+                  <span className="catalog-skeleton h-4 w-1/2 rounded-[3px]" />
+                </div>
+              ))}
+            </div>
+          ) : latest.length === 0 ? (
+            <p className="py-8 text-[13px] text-muted">Releases appear here after the first catalog sync.</p>
+          ) : (
+            <ol className="divide-y divide-linesoft">
+              {latest.map((release) => {
+                const shown = release.sizes.slice(0, SIZE_LABEL_COUNT);
+                const hidden = release.sizes.length - shown.length;
+                return (
+                  <li key={release.key}>
+                    <Link
+                      href={`/models/${release.sizes[0].slug}`}
+                      prefetch={false}
+                      onPointerEnter={() => setPointedKey(release.key)}
+                      onPointerLeave={() => setPointedKey(null)}
+                      onFocus={() => setPointedKey(release.key)}
+                      onBlur={() => setPointedKey(null)}
+                      aria-label={`Open ${release.name}, released ${shortDate(release.releasedAt)}`}
+                      className={`group grid min-h-14 grid-cols-[52px_24px_minmax(0,1fr)_auto] items-center gap-x-3 py-2 transition-colors ${
+                        release.key === activeKey && pointedKey ? "bg-panel" : ""
+                      }`}
+                    >
+                      <span className="font-mono text-[11px] text-faint tabular-nums">
+                        {shortDate(release.releasedAt)}
+                      </span>
+                      <FamilyLogo familyId={release.familyId} familyName={release.familyName} size={22} />
+                      <span className="truncate font-display text-[15px] font-semibold group-hover:underline group-hover:underline-offset-4">
+                        {release.name}
+                      </span>
+                      <span className="whitespace-nowrap pr-1 text-right font-mono text-[11px] text-muted tabular-nums">
+                        {shown.map((size) => formatParameterBillions(size.paramsB)).join(" · ")}
+                        {hidden > 0 ? <span className="text-faint"> +{hidden}</span> : null}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
+
+        {changes.length > 0 ? (
+          <section aria-labelledby="recent-updates-title" className="min-w-0">
+            <SectionHeader id="recent-updates-title" title="Updates">
+              <a href="/feed.xml" className={quietLink}>
+                <HugeiconsIcon icon={RssIcon} size={14} strokeWidth={2} aria-hidden="true" />
+                RSS
+                <span className="sr-only"> feed of model updates</span>
+              </a>
+            </SectionHeader>
+            <ol className="divide-y divide-linesoft">
+              {changes.map((change) => (
+                <li key={change.id}>
+                  <Link
+                    href={`/models/${change.modelSlug}`}
+                    prefetch={false}
+                    className="group grid min-h-14 grid-cols-[52px_minmax(0,1fr)] items-center gap-x-3 py-2"
+                  >
+                    <span className="font-mono text-[11px] text-faint tabular-nums">
+                      {shortDate(change.occurredAt)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-semibold group-hover:underline group-hover:underline-offset-4">
+                        {change.modelName}
+                      </span>
+                      <span className="block truncate text-[12px] text-muted">{change.title}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -2,7 +2,7 @@
 import snapshot from "./snapshots/artificial-analysis.json";
 import { OFFICIAL_BENCHMARKS } from "./benchmarks";
 import type { PublishedCatalogEntry } from "./published";
-import type { CapabilityComparison, CapabilityComparisons, CapabilityGroup, CapabilityMetric, CapabilityModel } from "./capabilityTypes";
+import type { CapabilityComparison, CapabilityComparisons, CapabilityGroup, CapabilityMetric, CapabilityModel, IntelligenceIndex } from "./capabilityTypes";
 
 type SnapshotModel = (typeof snapshot.models)[number];
 const GROUP_LABELS: Record<CapabilityGroup, string> = {
@@ -133,4 +133,25 @@ export function getCapabilityComparisons(entry: PublishedCatalogEntry): Capabili
     return [variant, { group: GROUP_LABELS[group], source: "Artificial Analysis", retrievedAt: snapshot.retrievedAt,
       metrics: METRICS, models: [currentRow, ...peers.map(m => aaRow(m)), ...anchors.map(m => aaRow(m))] } satisfies CapabilityComparison];
   }));
+}
+
+/**
+ * Artificial Analysis Intelligence Index per catalog model size, matched by exact weights
+ * repository. Uses the same preferred configuration as the model page, so both agree.
+ */
+export function intelligenceIndex(entries: { slug: string; artifacts: { repo: string }[] }[]): IntelligenceIndex {
+  const byRepo = new Map<string, number>();
+  for (const model of preferredConfigurations(snapshot.models)) {
+    const repo = weightsRepo(model.modelWeightsSourceUrl);
+    const score = model.intelligenceIndex;
+    if (repo && typeof score === "number" && Number.isFinite(score)) byRepo.set(repo, Math.round(score * 10) / 10);
+  }
+  const scores: Record<string, number> = {};
+  for (const entry of entries) {
+    const matched = entry.artifacts.flatMap((artifact) => byRepo.get(artifact.repo.toLowerCase()) ?? []);
+    if (matched.length) scores[entry.slug] = Math.max(...matched);
+  }
+  // Partial refreshes are recorded in `updates`; the home credit shows the latest of them.
+  const retrievedAt = [snapshot.retrievedAt, ...(snapshot.updates ?? []).map((update) => update.retrievedAt)].sort().at(-1)!;
+  return { version: snapshot.intelligenceIndexVersion, retrievedAt, scores };
 }

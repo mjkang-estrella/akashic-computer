@@ -1,3 +1,4 @@
+import { isFocusedModel } from "./catalogFocus";
 import type { ArtifactBuild, ArtifactFile } from "./artifactBuilds";
 import { filesFromTree } from "./artifactBuilds";
 import { architectureFromConfig, mainKvBytes } from "./memory";
@@ -98,9 +99,14 @@ interface ApprovedRepoMetadata {
   license?: string;
   inferenceWeightBytes?: number;
   runtimes?: string[];
+  format?: string;
 }
 
 const APPROVED_REPO_METADATA: Record<string, ApprovedRepoMetadata> = {
+  // Model card: https://huggingface.co/thinkingmachines/Inkling-2-Small#parameters
+  // Packed tensors and quantization scales are not architectural parameter counts.
+  "thinkingmachines/inkling-2-small": { paramsB: 594, activeParamsB: 17, format: "NVFP4" },
+  "thinkingmachines/inkling-2-small-mxfp8": { paramsB: 594, activeParamsB: 17 },
   "deepseek-ai/deepseek-v4-flash-0731": { paramsB: 284, activeParamsB: 13 },
   "upstage/solar-open2-250b": { activeParamsB: 15 },
   "minimaxai/minimax-h3": {
@@ -377,6 +383,8 @@ export function matchesSourceRules(repoId: string, rule: MonitoredSourceRule): b
 }
 
 function detectedFormat(repo: HuggingFaceRepoInfo): string {
+  const approvedFormat = APPROVED_REPO_METADATA[repo.id.toLowerCase()]?.format;
+  if (approvedFormat) return approvedFormat;
   const text = `${repo.id} ${repo.tags.join(" ")} ${JSON.stringify(repo.config)}`.toUpperCase();
   const quantization = asRecord(repo.config.quantization_config);
   const expertDtype = firstString(repo.config.expert_dtype)?.toUpperCase();
@@ -676,6 +684,9 @@ export function classifyHuggingFaceRepo(
     return { status: "skipped", reason: "parameter count is not available", repo };
   }
   const category = repo.pipelineTag ? CATEGORY_BY_PIPELINE[repo.pipelineTag] ?? null : null;
+  if (!isFocusedModel(repo.id, category ?? undefined)) {
+    return { status: "skipped", reason: "specialist model outside catalog focus", repo };
+  }
   if (!category && repo.baseModels.length === 0) {
     return { status: "skipped", reason: "pipeline category is not recognized", repo };
   }

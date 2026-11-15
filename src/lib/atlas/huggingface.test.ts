@@ -390,3 +390,12 @@ describe("repository config parsing", () => {
   });
 });
 
+
+it.each([
+  ["Inkling-2-Small", 383_072_987_216, "NVFP4"],
+  ["Inkling-2-Small-MXFP8", 612_396_527_616, "MXFP8"],
+])("uses architectural counts for %s instead of quantized storage", (name, count, format) => {
+  const result = classifyHuggingFaceRepo(repo({ id: `thinkingmachines/${name}`, author: "thinkingmachines",
+    safetensors: { parameters: { U8: count } } }), { owner: "thinkingmachines", role: "creator", familyIds: ["inkling"] });
+  expect(result).toMatchObject({ status: "publishable", parsed: { paramsB: 594, activeParamsB: 17, sizeLabel: "594B", isMoe: true, format } });
+});

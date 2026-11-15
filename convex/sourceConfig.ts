@@ -10,6 +10,12 @@ const commonExcludes = [
   "*-checkpoint*",
   "*-demo*",
   "*-test*",
+  "*Dory*",
+  "*embedding*",
+  "*rerank*",
+  "*reward*",
+  "*speculator*",
+  "*DFlash*",
 ];
 
 export const CURRENT_MONITORED_SOURCES: SeedSource[] = [
