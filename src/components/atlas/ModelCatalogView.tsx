@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AiVisionRecognitionIcon,
-  ArrowRight01Icon,
   AudioWaveformIcon,
   Cancel01Icon,
   DashboardSquare01Icon,
@@ -20,8 +18,6 @@ import {
   Video01Icon,
 } from "@hugeicons/core-free-icons";
 import { compareModelEntriesByRecency, type ModelEntry } from "@/lib/atlas/models";
-import { modelTransitionName } from "@/lib/atlas/motion";
-import { modelReleaseName, parameterDetailLabel, parameterTotalLabel } from "@/lib/atlas/naming";
 import {
   MODEL_CAPABILITIES,
   MODEL_CATEGORIES,
@@ -29,7 +25,8 @@ import {
   type ModelCategoryId,
 } from "@/lib/atlas/taxonomy";
 import type { Family } from "@/lib/atlas/types";
-import { FamilyLogo } from "./FamilyLogo";
+import { CatalogGroupRow } from "./CatalogGroupRow";
+import { catalogVariants, groupCatalogEntries } from "@/lib/atlas/catalogGroups";
 import { catalogFilterParams, catalogWindow, parseCatalogFilters, type SizeBand } from "./modelCatalogFilters";
 import { getCatalogSearch, getServerCatalogSearch, replaceCatalogSearch, subscribeCatalogSearch } from "./modelCatalogUrl";
 
@@ -113,7 +110,7 @@ export function ModelCatalogSkeleton({ detail = false }: { detail?: boolean }) {
         <div>
           <h1 id="model-catalog-loading-title" className="font-display text-[25px] font-semibold">Models</h1>
           <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-muted">
-            Open-weight releases by model and parameter size, ordered by their most recent release or material update.
+            Open-weight releases ordered by their most recent release or material update. Expand grouped models to choose a size and checkpoint.
           </p>
         </div>
         <SkeletonBlock className="h-4 w-16" />
@@ -389,7 +386,7 @@ export function ModelCatalogView({
   if (pagination.search !== search) setPagination({ search, pages: 1 });
 
   const variants = useMemo(
-    () => [...new Set(modelEntries.flatMap((entry) => entry.size.variants))].sort(),
+    () => [...new Set(modelEntries.flatMap((entry) => catalogVariants(entry)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [modelEntries],
   );
   const quantizations = useMemo(
@@ -440,35 +437,39 @@ export function ModelCatalogView({
     };
   }, [filtersOpen]);
 
+  const allGroups = useMemo(() => groupCatalogEntries(modelEntries), [modelEntries]);
   const categoryCounts = useMemo(() => {
     const counts = new Map<ModelCategoryId, number>();
-    modelEntries.forEach((entry) => counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1));
+    allGroups.forEach((group) => {
+      const category = group.members[0].category;
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    });
     return counts;
-  }, [modelEntries]);
+  }, [allGroups]);
   const categoryEntries = useMemo(
     () => modelEntries.filter((entry) => category === "all" || entry.category === category),
     [category, modelEntries],
   );
   const capabilityCounts = useMemo(() => {
     const counts = new Map<ModelCapabilityId, number>();
-    categoryEntries.forEach((entry) => {
-      entry.capabilities.forEach((item) => counts.set(item, (counts.get(item) ?? 0) + 1));
+    groupCatalogEntries(categoryEntries).forEach((group) => {
+      new Set(group.members.flatMap((entry) => entry.capabilities)).forEach((item) => counts.set(item, (counts.get(item) ?? 0) + 1));
     });
     return counts;
   }, [categoryEntries]);
 
   const entries = useMemo(
-    () => categoryEntries
+    () => groupCatalogEntries(categoryEntries
       .filter(
         (entry) =>
           (capabilities.size === 0 || entry.capabilities.some((item) => capabilities.has(item))) &&
           (familyId === "all" || entry.family.id === familyId) &&
           inSizeBand(entry, sizeBand) &&
-          (variant === "all" || entry.size.variants.includes(variant)) &&
+          (variant === "all" || catalogVariants(entry).includes(variant)) &&
           (quant === "all" || entry.quantizations.includes(quant)) &&
           (provider === "all" || entry.providers.includes(provider)),
       )
-      .sort(compareModelEntriesByRecency),
+      .sort(compareModelEntriesByRecency)),
     [capabilities, categoryEntries, familyId, provider, quant, sizeBand, variant],
   );
   const filterCount =
@@ -505,7 +506,7 @@ export function ModelCatalogView({
   };
   const filterPanelProps: FilterPanelProps = {
     families: availableFamilies,
-    totalEntries: modelEntries.length,
+    totalEntries: allGroups.length,
     category,
     categoryCounts,
     capabilities,
@@ -563,10 +564,10 @@ export function ModelCatalogView({
         <div>
           <h1 id="model-catalog-title" className="font-display text-[25px] font-semibold">Models</h1>
           <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-muted">
-            Open-weight releases by model and parameter size, ordered by their most recent release or material update.
+            Open-weight releases ordered by their most recent release or material update. Expand grouped models to choose a size and checkpoint.
           </p>
         </div>
-        <span className="font-mono text-[13px] text-muted">{entries.length} of {modelEntries.length}</span>
+        <span className="font-mono text-[13px] text-muted">{entries.length} of {allGroups.length} models</span>
       </header>
 
       <nav className="-mx-5 flex gap-2 overflow-x-auto border-b border-line px-5 py-3 xl:hidden" aria-label="Model categories">
@@ -649,47 +650,7 @@ export function ModelCatalogView({
               </div>
               <div className="divide-y divide-linesoft">
                 {visibleEntries.map((entry, index) => (
-                  <Link
-                    key={entry.slug}
-                    href={`/models/${entry.slug}`}
-                    prefetch={false}
-                    aria-label={`Open ${entry.name}`}
-                    className="group grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 py-2.5 text-left transition-colors hover:bg-panel lg:grid-cols-[240px_125px_64px_260px_150px_minmax(0,1fr)_36px] lg:items-center lg:gap-0 lg:px-2 lg:py-4"
-                  >
-                    <span
-                      className="col-start-1 row-start-1 flex min-w-0 items-center gap-2.5 lg:col-auto lg:row-auto lg:gap-3"
-                      style={index < 60 ? { viewTransitionName: modelTransitionName(entry.slug) } : undefined}
-                    >
-                      <FamilyLogo familyId={entry.family.id} familyName={entry.family.name} />
-                      <span className="min-w-0">
-                        <span className="line-clamp-2 font-display text-[14px] font-semibold leading-tight group-hover:underline group-hover:underline-offset-4 lg:line-clamp-none lg:text-[15px]">
-                          {modelReleaseName(entry.family, entry.release)}
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-muted lg:mt-1 lg:text-[13px]">{entry.family.vendor}</span>
-                      </span>
-                    </span>
-                    <span className="col-start-2 row-start-1 text-right lg:col-auto lg:row-auto lg:text-left">
-                      <span className="sr-only">Parameters · </span>
-                      <span className="block font-mono text-[13px] font-semibold">{parameterTotalLabel(entry.size)}</span>
-                      {parameterDetailLabel(entry.size) ? (
-                        <span className="mt-0.5 block text-[11px] text-muted">{parameterDetailLabel(entry.size)}</span>
-                      ) : null}
-                    </span>
-                    <span className="col-start-1 row-start-2 flex min-w-0 items-center gap-1 overflow-hidden lg:col-start-4 lg:row-auto lg:flex-wrap lg:gap-1.5 lg:overflow-visible">
-                      <span className="sr-only">Quantizations</span>
-                      {entry.quantizations.map((item, quantIndex) => (
-                        <span key={item} className={`${quantIndex >= 3 ? "hidden lg:inline" : "inline"} min-w-0 truncate rounded-[5px] bg-panel2 px-1.5 py-0.5 font-mono text-[10.5px] text-muted lg:shrink-0 lg:text-[11.5px]`}>{item}</span>
-                      ))}
-                      {entry.quantizations.length > 3 ? <span className="shrink-0 font-mono text-[10.5px] text-muted lg:hidden">+{entry.quantizations.length - 3}</span> : null}
-                    </span>
-                    <span className="col-start-2 row-start-2 whitespace-nowrap text-right text-[11px] text-muted lg:col-start-5 lg:row-auto lg:text-left lg:text-[13px]">
-                      <span className="sr-only">Last Updated · </span>
-                      {entry.dateLabel}
-                    </span>
-                    <span className="hidden h-9 w-9 items-center justify-center text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink lg:col-start-7 lg:flex">
-                      <HugeiconsIcon icon={ArrowRight01Icon} size={18} strokeWidth={1.8} aria-hidden="true" />
-                    </span>
-                  </Link>
+                  <CatalogGroupRow key={entry.key} group={entry} index={index} />
                 ))}
               </div>
             </div>
