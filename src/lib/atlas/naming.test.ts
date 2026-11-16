@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isCompanionModel,
   parameterCountLabel,
   parameterDetailLabel,
   parameterTotalLabel,
@@ -22,5 +23,12 @@ describe("parameter labels", () => {
     };
     expect(parameterDetailLabel(size)).toBe("MoE · 15B active");
     expect(parameterCountLabel(size)).toBe("250B (MoE · 15B active)");
+  });
+
+  it("recognises draft and assistant companion repositories", () => {
+    expect(isCompanionModel("google/gemma-4-12B-it-qat-q4_0-unquantized-assistant")).toBe(true);
+    expect(isCompanionModel("org/Model-Draft-GGUF")).toBe(true);
+    expect(isCompanionModel("google/gemma-4-12B-it-qat-q4_0-unquantized")).toBe(false);
+    expect(isCompanionModel("org/assistantlike-7b")).toBe(false);
   });
 });

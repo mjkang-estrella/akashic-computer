@@ -22,7 +22,7 @@ test("starts without a memory budget and applies named hardware", async ({ page 
 test("offers copyable run commands bounded by the selected context", async ({ page }) => {
   await page.goto("/models/glm-glm-5-3-flash-321b");
   const artifacts = page.getByRole("region", { name: "Available artifacts" });
-  await artifacts.getByRole("button", { name: "8K", exact: true }).click();
+  await artifacts.getByRole("combobox", { name: "Context length" }).selectOption("8192");
   await artifacts.getByLabel("Run zai-org/GLM-5.3-Flash locally").click();
   await expect(artifacts.getByText("vllm serve zai-org/GLM-5.3-Flash --max-model-len 8192", { exact: true })).toBeVisible();
   await expect(artifacts.getByRole("button", { name: "Copy vLLM command" }).first()).toBeVisible();

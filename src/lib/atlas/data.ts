@@ -59,4 +59,4 @@ export const CONTEXT_CHOICES: Array<{ value: ContextChoice; label: string }> = [
   { value: "native", label: "Native" },
 ];
 
-export const DEFAULT_CONTEXT: ContextChoice = 32768;
+export const DEFAULT_CONTEXT: ContextChoice = "native";

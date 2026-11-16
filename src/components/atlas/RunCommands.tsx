@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, ArrowUpRight01Icon, Copy01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, ArrowUpRight01Icon, ComputerTerminal01Icon, Copy01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { RunCommand } from "@/lib/atlas/runCommands";
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -29,21 +29,36 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** Per-artifact starting commands, collapsed so the artifact table stays scannable. */
+/**
+ * Per-artifact starting commands. Renders two grid items: the row's "Run locally" toggle
+ * cell and, when open, a full-width command panel.
+ */
 export function RunCommands({ commands, repo }: { commands: RunCommand[]; repo: string }) {
-  if (commands.length === 0) return null;
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
   return (
-    <details className="motion-disclosure group/run min-w-0 md:col-span-full md:pl-[56px]">
-      <summary
-        aria-label={`Run ${repo} locally`}
-        className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 pl-11 text-[11.5px] font-semibold text-meta marker:hidden hover:text-ink md:pl-0"
-      >
-        Run locally · {commands.map((command) => command.runtime).join(", ")}
-        <HugeiconsIcon icon={ArrowDown01Icon} size={13} strokeWidth={1.8} aria-hidden="true" className="transition-transform group-open/run:rotate-180" />
-      </summary>
-      <div className="disclosure-body">
-        <div className="disclosure-content">
-          <ul className="mt-1 divide-y divide-linesoft border-y border-linesoft">
+    <>
+      <div className="flex items-center gap-1 pl-11 md:-ml-2 md:pl-0">
+        {commands.length > 0 ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={`Run ${repo} locally`}
+            onClick={() => setOpen((value) => !value)}
+            title="Run locally"
+            className={`inline-flex min-h-9 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11.5px] font-semibold hover:bg-panel2 hover:text-ink ${open ? "bg-panel2 text-ink" : "text-meta"}`}
+          >
+            <HugeiconsIcon icon={ComputerTerminal01Icon} size={17} strokeWidth={1.8} aria-hidden="true" />
+            {/* The column header names the action on wider screens. */}
+            <span className="md:hidden">Run locally</span>
+            <HugeiconsIcon icon={ArrowDown01Icon} size={13} strokeWidth={1.8} aria-hidden="true" className={`transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+        ) : null}
+      </div>
+      {commands.length > 0 ? (
+        <div id={panelId} className="min-w-0 pl-11 md:col-span-full md:pl-[56px]" hidden={!open}>
+          <ul className="divide-y divide-linesoft border-y border-linesoft">
             {commands.map((command) => (
               <li key={command.runtime} className="grid gap-1 py-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
                 <span className="pt-1 text-[11.5px] font-semibold">{command.runtime}</span>
@@ -65,7 +80,7 @@ export function RunCommands({ commands, repo }: { commands: RunCommand[]; repo: 
             ))}
           </ul>
         </div>
-      </div>
-    </details>
+      ) : null}
+    </>
   );
 }

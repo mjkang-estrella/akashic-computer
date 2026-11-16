@@ -6,7 +6,7 @@ describe("hardware profile defaults", () => {
   it("starts new sessions without a memory budget", () => {
     expect(DEFAULT_PRESET_ID).toBeNull();
     expect(resolveProfile(RIG_PRESETS, DEFAULT_PRESET_ID, null)).toBeNull();
-    expect(DEFAULT_CONTEXT).toBe(32768);
+    expect(DEFAULT_CONTEXT).toBe("native");
   });
 
   it("offers consumer budgets and keeps existing preset IDs resolvable", () => {
