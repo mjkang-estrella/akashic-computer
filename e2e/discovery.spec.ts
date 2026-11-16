@@ -54,6 +54,6 @@ test("serves crawlable model pages, real 404s, sitemap and feeds", async ({ page
   expect((await request.get("/models/glm-glm-5-3-flash-321b/feed.xml")).status()).toBe(200);
 
   await page.goto("/models");
-  await expect(page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / }).first())
+  await expect(page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / }).filter({ visible: true }).first())
     .toHaveAttribute("href", /^\/models\/[a-z0-9-]+$/);
 });

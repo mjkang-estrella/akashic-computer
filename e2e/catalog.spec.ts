@@ -38,7 +38,7 @@ test("loads model details through the detail query", async ({ page }) => {
   const firstModel = page
     .locator("section[aria-labelledby='model-catalog-title']")
     .getByRole("link", { name: /^Open / })
-    .first();
+    .filter({ visible: true }).first();
   await expect(firstModel).toBeVisible();
   await firstModel.click();
   await expect(page).toHaveURL(/\/models\/[a-z0-9-]+$/);
@@ -95,7 +95,7 @@ test("preserves artifact selections between model detail pages", async ({ page }
   const drawer = page.getByRole("region", { name: "Artifact comparison", exact: true });
   await expect(drawer).toBeVisible();
   await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Models", exact: true }).click();
-  await page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / }).first().click();
+  await page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / }).filter({ visible: true }).first().click();
   await expect(page.getByRole("heading", { name: "Available artifacts" })).toBeVisible();
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText("Compare artifacts · 1 selected")).toBeVisible();
@@ -169,7 +169,7 @@ test("home links expose destinations and docs have one page heading", async ({ p
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Open models you can run yourself.");
   await expect(page.getByRole("link", { name: "All models", exact: true })).toHaveAttribute("href", "/models");
   await expect(page.getByRole("link", { name: "Compare benchmarks", exact: true })).toHaveAttribute("href", "/benchmarks");
-  const model = page.getByRole("link", { name: /^Open / }).first();
+  const model = page.getByRole("link", { name: /^Open / }).filter({ visible: true }).first();
   await expect(model).toHaveAttribute("href", /^\/models\//);
   await page.getByRole("link", { name: "Docs", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Technical guides to local models");
@@ -197,3 +197,34 @@ for (const width of [1280, 390, 360]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
+
+test("groups Sigma checkpoints without losing exact detail destinations", async ({ page }) => {
+  await page.goto("/models?family=nemotron");
+  const group = page.locator("details").filter({ has: page.locator("summary", { hasText: "Nemotron Labs Sigma" }) });
+  const summary = group.locator("summary");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText("3B / 8B");
+  await expect(group).not.toHaveAttribute("open", "");
+  await summary.focus();
+  await page.keyboard.press("Enter");
+  await expect(group).toHaveAttribute("open", "");
+  const base = group.getByRole("link", { name: "Open Nemotron Labs Sigma · Base · Instruct · 8B", exact: true });
+  await expect(base).toContainText("Base · Instruct");
+  await expect(base).toHaveAttribute("href", "/models/nemotron-nemotron-labs-sigma-8b");
+  const checkpoint = group.getByRole("link", { name: "Open Nemotron Labs Sigma · Distilled · NFE 4 · 8B", exact: true });
+  await expect(checkpoint).toBeVisible();
+  await checkpoint.click();
+  await expect(page).toHaveURL(/\/models\/nemotron-nemotron-labs-sigma-distill-8b-nfe4-8b$/);
+  await expect(page.getByRole("heading", { name: "Available artifacts" })).toBeVisible();
+
+  await page.goto("/models?family=nemotron&catalogVariant=Distilled");
+  const filters = page.getByRole("complementary", { name: "Model filters" });
+  await expect(filters.getByRole("combobox", { name: "Variant", exact: true })).toHaveValue("Distilled");
+  await group.locator("summary").click();
+  await expect(group.getByRole("link").filter({ hasText: "Self-speculative" })).toHaveCount(0);
+  await expect(group.getByRole("link").filter({ hasText: "Base · Instruct" })).toHaveCount(0);
+  await expect(group.getByRole("link").first()).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(summary).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

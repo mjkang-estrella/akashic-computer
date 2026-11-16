@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CatalogSnapshot } from "@/components/atlas/CatalogProvider";
 import { ModelsRoute } from "@/components/atlas/ModelsRoute";
+import { isSigmaRepo } from "@/lib/atlas/catalogGroups";
 import { catalogListItem } from "@/lib/atlas/published";
 import { getCatalogEntries } from "@/lib/atlas/serverCatalog";
 
@@ -14,5 +15,5 @@ export default async function ModelsPage() {
   const entries = await getCatalogEntries();
   const route = <ModelsRoute />;
   if (!entries) return route;
-  return <CatalogSnapshot entries={entries.map((entry) => catalogListItem(entry))}>{route}</CatalogSnapshot>;
+  return <CatalogSnapshot entries={entries.map((entry) => catalogListItem(entry, isSigmaRepo))}>{route}</CatalogSnapshot>;
 }
