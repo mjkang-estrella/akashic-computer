@@ -19,32 +19,44 @@ interface RunnableArtifact {
  * Starting commands for the runtimes an artifact lists. They use each runtime's defaults
  * plus the selected context length, so they describe how to start, not a verified recipe.
  */
-export function runCommandsFor(artifact: RunnableArtifact, context: ContextChoice = "native"): RunCommand[] {
+export function runCommandsFor(
+  artifact: RunnableArtifact,
+  context: ContextChoice = "native",
+  /** A GGUF quantization tag (such as `UD-Q4_K_XL`) to pin one file instead of the runtime's default. */
+  ggufTag?: string,
+): RunCommand[] {
   const repo = artifact.repo;
   const runtimes = new Set(artifact.runtimes);
   const tokens = context === "native" ? null : context;
   const commands: RunCommand[] = [];
   const gguf = artifact.format.toUpperCase() === "GGUF";
+  const tag = gguf && ggufTag ? `:${ggufTag}` : "";
 
   if (gguf && runtimes.has("Ollama")) {
     commands.push({
       runtime: "Ollama",
-      command: `ollama run hf.co/${repo}`,
-      note: "Pulls the Q4_K_M file when the repository has one; append :Q8_0 or another file tag to choose a quantization.",
+      command: `ollama run hf.co/${repo}${tag}`,
+      note: tag
+        ? `Pulls the ${ggufTag} file.`
+        : "Pulls the Q4_K_M file when the repository has one; append :Q8_0 or another file tag to choose a quantization.",
     });
   }
   if (gguf && runtimes.has("llama.cpp")) {
     commands.push({
       runtime: "llama.cpp",
-      command: `llama-server -hf ${repo}${tokens ? ` -c ${tokens}` : ""}`,
-      note: "Downloads the Q4_K_M file when present (append :QUANT to choose) and serves an OpenAI-compatible API on port 8080.",
+      command: `llama-server -hf ${repo}${tag}${tokens ? ` -c ${tokens}` : ""}`,
+      note: tag
+        ? `Downloads the ${ggufTag} file and serves an OpenAI-compatible API on port 8080.`
+        : "Downloads the Q4_K_M file when present (append :QUANT to choose) and serves an OpenAI-compatible API on port 8080.",
     });
   }
   if (gguf && runtimes.has("LM Studio")) {
     commands.push({
       runtime: "LM Studio",
       href: `lmstudio://open_from_hf?model=${encodeURIComponent(repo)}`,
-      note: "Opens the repository in LM Studio, where you choose a file to download.",
+      note: tag
+        ? `Opens the repository in LM Studio; choose the ${ggufTag} file to download.`
+        : "Opens the repository in LM Studio, where you choose a file to download.",
     });
   }
   if (runtimes.has("MLX")) {

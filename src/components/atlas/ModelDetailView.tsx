@@ -8,26 +8,39 @@ import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowUpRight01Icon,
+  CheckmarkBadge01Icon,
   ComputerCheckIcon,
   Rocket01Icon,
   RssIcon,
   SourceCodeIcon,
-  StarIcon,
 } from "@hugeicons/core-free-icons";
 import type { ModelEntry } from "@/lib/atlas/models";
-import { activeParamsLabel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
+import { activeParamsLabel, isCompanionModel, sizeDisplay, uploaderDisplay } from "@/lib/atlas/naming";
 import { contextLabel, fitOf, gbLabel, kvCacheAt, memoryRange } from "@/lib/atlas/fit";
 import { CONTEXT_CHOICES } from "@/lib/atlas/data";
 import { runCommandsFor } from "@/lib/atlas/runCommands";
+import { compactFact, licenseLabel } from "@/lib/atlas/modelFacts";
+import { disambiguationTags } from "@/lib/atlas/artifactTags";
 import { modelTransitionName } from "@/lib/atlas/motion";
 import type { ContextChoice, RigProfile } from "@/lib/atlas/types";
 import { LexiconHint } from "./LexiconHint";
 import { RunningModelLink } from "../workspace/RunningModelLink";
 import { FamilyLogo } from "./FamilyLogo";
-import { openBudgetMenu } from "./FitBar";
 import { ModelCapabilityCharts } from "./ModelCapabilityCharts";
 import type { CapabilityComparisons } from "@/lib/atlas/capabilityTypes";
 import { RunCommands } from "./RunCommands";
+import { ARTIFACT_ROW_COLUMNS } from "./artifactTable";
+import { GgufArtifactGroup } from "./GgufArtifactGroup";
+import { useGgufFiles } from "./useGgufFiles";
+
+/** Base checkpoints are rarely what people run; show them only when nothing else exists. */
+export function visibleModelVariants(variants: string[]) {
+  const tuned = variants.filter((variant) => variant.toLowerCase() !== "base");
+  return tuned.length > 0 ? tuned : variants;
+}
+
+/** Paragraphs of the model-card summary shown before "Read more"; sized to sit level with the fact grid. */
+const ABOUT_PREVIEW_PARAGRAPHS = 2;
 
 export function resolveModelVariant(variants: string[], selected: string) {
   return variants.includes(selected) ? selected : variants[0];
@@ -54,19 +67,25 @@ export function ModelDetailView({
   onCheck: (repo: string, on: boolean) => void;
   onLearn: (term?: string) => void;
 }) {
+  const variants = useMemo(() => visibleModelVariants(entry.size.variants), [entry.size.variants]);
   const initialVariant =
-    preferredVariant && entry.size.variants.includes(preferredVariant)
+    preferredVariant && variants.includes(preferredVariant)
       ? preferredVariant
-      : entry.size.variants[0];
+      : variants[0];
   const [selectedVariant, setVariant] = useState(initialVariant);
-  const variant = resolveModelVariant(entry.size.variants, selectedVariant);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const variant = resolveModelVariant(variants, selectedVariant);
   // A ?variant= link resolves after hydration; apply it once per distinct preference.
   const [appliedPreference, setAppliedPreference] = useState(preferredVariant);
   if (preferredVariant !== appliedPreference) {
     setAppliedPreference(preferredVariant);
-    if (preferredVariant && entry.size.variants.includes(preferredVariant)) setVariant(preferredVariant);
+    if (preferredVariant && variants.includes(preferredVariant)) setVariant(preferredVariant);
   }
-  const artifacts = entry.artifacts.filter((artifact) => artifact.variant === variant);
+  // Hide draft/assistant companions, unless this entry is itself one (then nothing else exists).
+  const hideCompanions = entry.artifacts.some((artifact) => !isCompanionModel(artifact.repo));
+  const listed = (artifact: { repo: string; variant: string }) =>
+    artifact.variant === variant && !(hideCompanions && isCompanionModel(artifact.repo));
+  const artifacts = entry.artifacts.filter(listed);
   const compareLimitReached = checked.size >= 4;
   const nativeContext = artifacts.find((artifact) => artifact.vramEstimate)?.vramEstimate?.contextTokens ?? null;
   // The choice is shared across models; at or beyond this model's native context it means native.
@@ -74,7 +93,60 @@ export function ModelDetailView({
   const effectiveContext: ContextChoice = context === "native" || !nativeContext || context >= nativeContext
     ? "native"
     : context;
+  // The creator's own uploads first, then each group by largest memory (the number shown in each row).
+  // A GGUF repository's real files replace its rough estimate once their manifest loads.
+  const filesByRepo = useGgufFiles(artifacts.filter((artifact) => artifact.format.toUpperCase() === "GGUF").map((artifact) => artifact.repo));
+  // GGUF files and rows without an exact estimate carry weights only; borrow the KV cache from a
+  // sibling artifact of the same variant so every row counts the same memory.
+  // Take it from the largest sibling: small draft or adapter repos can share an entry with smaller caches.
+  const kvTemplate = artifacts
+    .flatMap((artifact) => (artifact.vramEstimate ? [artifact.vramEstimate] : []))
+    .sort((left, right) => right.weightGb - left.weightGb)[0];
+  const siblingKvBytes = kvTemplate ? kvCacheAt(kvTemplate, effectiveContext).bytes : 0;
+  const sortedArtifacts = artifacts
+    .map((artifact) => {
+      const kv = artifact.vramEstimate ? kvCacheAt(artifact.vramEstimate, effectiveContext) : null;
+      const files = filesByRepo[artifact.repo];
+      const weightsOnly = !files && !(artifact.vramEstimate && kv) &&
+        Number.isFinite(artifact.minVramGb) && Number.isFinite(artifact.recVramGb) &&
+        artifact.minVramGb > 0 && artifact.recVramGb > 0
+        ? { low: artifact.minVramGb + siblingKvBytes / 1e9, high: artifact.recVramGb + siblingKvBytes / 1e9 }
+        : null;
+      const memoryGb = files
+        ? (files[0].bytes + siblingKvBytes) / 1e9
+        : artifact.vramEstimate && kv
+          ? artifact.vramEstimate.weightGb + kv.bytes / 1e9
+          : weightsOnly?.high ?? -1;
+      return { artifact, kv, files, weightsOnly, memoryGb };
+    })
+    .sort((left, right) =>
+      Number(right.artifact.trust === "official") - Number(left.artifact.trust === "official") ||
+      right.memoryGb - left.memoryGb ||
+      left.artifact.repo.localeCompare(right.artifact.repo));
+  // Rows sharing a quant and provider (several checkpoints from one uploader) get a short tag.
+  const tags = useMemo(() => {
+    const hide = entry.artifacts.some((artifact) => !isCompanionModel(artifact.repo));
+    return disambiguationTags(
+      entry.artifacts
+        .filter((artifact) => artifact.variant === variant && !(hide && isCompanionModel(artifact.repo)))
+        .map((artifact) => ({ repo: artifact.repo, format: artifact.format, provider: uploaderDisplay(artifact.repo) })),
+      variant,
+    );
+  }, [entry.artifacts, variant]);
   const active = activeParamsLabel(entry.size.label, entry.size.activeParamsB);
+  // One fact grid: the catalog's own facts merged with the model card's highlights. The card's
+  // architecture line already states the parameter split, and its context repeats ours.
+  const highlights = entry.introduction?.highlights ?? [];
+  const architecture = highlights.find((item) => /architecture|parameters/i.test(item.label));
+  const facts = [
+    architecture ?? {
+      label: "Parameters",
+      value: `${sizeDisplay(entry.size.label)}${entry.size.isMoe ? " · MoE" : ""}${active ? ` · ${active}` : ""}`,
+    },
+    ...(entry.context !== "N/A" ? [{ label: "Context", value: entry.context }] : []),
+    ...highlights.filter((item) => item !== architecture && !/context/i.test(item.label)),
+  ].map((fact) => ({ label: fact.label, value: compactFact(fact.label, fact.value) }));
+  const license = licenseLabel(entry.release.license);
   const displayRecipes = useMemo(() => {
     const grouped = new Map<string, (typeof entry.deploymentRecipes)[number]>();
     const repos = new Set(entry.artifacts.filter((artifact) => artifact.variant === variant).map((artifact) => artifact.repo.toLowerCase()));
@@ -124,8 +196,8 @@ export function ModelDetailView({
         Models
       </Link>
 
-      <header className="border-b border-line pb-5 pt-2">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <header className={`border-b border-line pb-5 pt-2 ${entry.introduction ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:gap-10" : ""}`}>
+        <div className="min-w-0">
           <div
             className="flex min-w-0 items-center gap-3.5"
             style={{ viewTransitionName: modelTransitionName(entry.slug) }}
@@ -136,88 +208,57 @@ export function ModelDetailView({
                 {entry.name}
               </h1>
               <p className="mt-1 text-[13px] text-muted">
-                {entry.family.vendor} · {entry.release.license}
+                {[entry.family.vendor, license, `Updated ${entry.dateLabel}`].filter(Boolean).join(" · ")}
               </p>
             </div>
           </div>
-          <span className={`pt-1 text-[12.5px] ${entry.updated ? "font-semibold text-meta" : "text-muted"}`}>
-            {entry.dateLabel}
-          </span>
+
+          <dl className={`mt-5 grid grid-cols-2 content-start gap-x-6 gap-y-3 border-t border-linesoft pt-4 ${entry.introduction ? "" : "sm:grid-cols-3"}`}>
+            {facts.map((fact) => (
+              <div key={`${fact.label}-${fact.value}`} className="min-w-0">
+                <dt className="text-[11.5px] text-muted">{fact.label}</dt>
+                <dd className="mt-0.5 text-[12.5px] font-semibold leading-relaxed">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
 
         {entry.introduction ? (
-          <details className="motion-disclosure group/introduction mt-5 border-y border-linesoft">
-            <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 marker:hidden">
-              <span className="min-w-0 flex-1 font-display text-[15px] font-semibold">
-                {entry.introduction.heading}
-              </span>
-              <HugeiconsIcon
-                icon={ArrowDown01Icon}
-                size={16}
-                strokeWidth={1.8}
-                aria-hidden="true"
-                className="flex-none text-faint transition-transform group-open/introduction:rotate-180"
-              />
-            </summary>
-            <div className="disclosure-body">
-              <div className="disclosure-content">
-                <div className="border-t border-linesoft pb-5 pt-4">
-              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                {entry.introduction.highlights.map((highlight) => (
-                  <div key={`${highlight.label}-${highlight.value}`} className="min-w-0">
-                    <dt className="text-[11px] text-faint">{highlight.label}</dt>
-                    <dd className="mt-0.5 text-[12.5px] font-semibold leading-relaxed">{highlight.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="mt-5 max-w-[76ch] space-y-3 text-[13px] leading-6 text-muted">
-                {entry.introduction.paragraphs.map((paragraph) => (
+          <section aria-labelledby="model-about-title" className="min-w-0">
+            <h2 id="model-about-title" className="font-display text-[15px] font-semibold">
+              About
+            </h2>
+            <div className="mt-2 max-w-[76ch] text-[13px] leading-6 text-muted">
+              <div className="space-y-3">
+                {(aboutOpen ? entry.introduction.paragraphs : entry.introduction.paragraphs.slice(0, ABOUT_PREVIEW_PARAGRAPHS)).map((paragraph) => (
                   <p key={paragraph}>{paragraph}</p>
                 ))}
-                </div>
               </div>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-4">
+              {entry.introduction.paragraphs.length > ABOUT_PREVIEW_PARAGRAPHS ? (
+                <button
+                  type="button"
+                  aria-expanded={aboutOpen}
+                  onClick={() => setAboutOpen((open) => !open)}
+                  className="inline-flex min-h-9 items-center gap-1 text-[11.5px] font-semibold text-meta hover:text-ink"
+                >
+                  {aboutOpen ? "Show less" : "Read more"}
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={13} strokeWidth={1.8} aria-hidden="true" className={`transition-transform ${aboutOpen ? "rotate-180" : ""}`} />
+                </button>
+              ) : null}
               <a
                 href={entry.introduction.sourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 inline-flex min-h-9 items-center gap-1.5 text-[11.5px] font-semibold text-meta hover:text-ink"
+                className="inline-flex min-h-9 items-center gap-1.5 text-[11.5px] font-semibold text-muted hover:text-ink"
               >
                 {entry.introduction.sourceLabel}
                 <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} strokeWidth={1.8} aria-hidden="true" />
               </a>
-              </div>
             </div>
-          </details>
+          </section>
         ) : null}
-
-        <dl className={`mt-5 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-linesoft pt-4 ${entry.context === "N/A" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
-          <div>
-            <dt className="text-[11.5px] text-muted">Parameters</dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-semibold">
-              {sizeDisplay(entry.size.label)}{entry.size.isMoe ? " · MoE" : ""}{active ? ` · ${active}` : ""}
-            </dd>
-          </div>
-          {entry.context !== "N/A" ? (
-            <div>
-              <dt className="text-[11.5px] text-muted">Context</dt>
-              <dd className="mt-0.5 font-mono text-[13px] font-semibold">{entry.context}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt className="text-[11.5px] text-muted">Variants</dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-semibold">{entry.size.variants.length}</dd>
-          </div>
-          <div>
-            <dt className="text-[11.5px] text-muted">Memory budget</dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-semibold">
-              {rig ? `${rig.gb} GB` : (
-                <button type="button" onClick={openBudgetMenu} className="font-sans text-[12.5px] font-semibold text-meta underline-offset-2 hover:underline">
-                  Not set · choose hardware
-                </button>
-              )}
-            </dd>
-          </div>
-        </dl>
       </header>
 
       {capabilityComparisons?.[variant] ? <ModelCapabilityCharts comparison={capabilityComparisons[variant]} /> : null}
@@ -253,62 +294,47 @@ export function ModelDetailView({
           <h2 id="artifact-title" className="font-display text-[19px] font-semibold">
             Available artifacts
           </h2>
-          {entry.size.variants.length > 1 ? (
-            <div className="flex flex-wrap gap-1.5" aria-label="Model variant">
-              {entry.size.variants.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  aria-pressed={variant === item}
-                  onClick={() => setVariant(item)}
-                  className={`min-h-9 rounded-[7px] border px-3 text-[12.5px] font-semibold ${
-                    variant === item
-                      ? "border-ink bg-ink text-paper"
-                      : "border-line bg-panel hover:border-ink"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className="rounded-[5px] bg-panel2 px-2 py-1 font-mono text-[13px] text-muted">
-              {variant}
-            </span>
-          )}
-        </div>
-
-
-        {nativeContext ? (
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-labelledby="context-choice-label">
-            <span id="context-choice-label" className="text-[12px] font-semibold text-muted">
-              <LexiconHint term="context" onLearn={onLearn}>Context per request</LexiconHint>
-            </span>
-            <span className="flex flex-wrap gap-1.5">
-              {CONTEXT_CHOICES.filter((choice) => choice.value === "native" || choice.value < nativeContext).map((choice) => {
-                const label = choice.value === "native"
-                  ? `Native · ${entry.context !== "N/A" ? entry.context : contextLabel(nativeContext)}`
-                  : choice.label;
-                return (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {variants.length > 1 ? (
+              <div className="flex flex-wrap gap-1.5" aria-label="Model variant">
+                {variants.map((item) => (
                   <button
-                    key={String(choice.value)}
+                    key={item}
                     type="button"
-                    aria-pressed={effectiveContext === choice.value}
-                    onClick={() => onContext(choice.value)}
-                    className={`min-h-9 rounded-[7px] border px-2.5 font-mono text-[12px] font-semibold ${
-                      effectiveContext === choice.value
+                    aria-pressed={variant === item}
+                    onClick={() => setVariant(item)}
+                    className={`min-h-9 rounded-[7px] border px-3 text-[12.5px] font-semibold ${
+                      variant === item
                         ? "border-ink bg-ink text-paper"
                         : "border-line bg-panel hover:border-ink"
                     }`}
                   >
-                    {label}
+                    {item}
                   </button>
-                );
-              })}
-            </span>
-            <span className="text-[11px] text-muted">KV estimates: BF16 cache, one request.</span>
+                ))}
+              </div>
+            ) : null}
+            {nativeContext ? (
+              <span className="relative">
+                <select
+                  aria-label="Context length"
+                  value={String(effectiveContext)}
+                  onChange={(event) => onContext(event.target.value === "native" ? "native" : Number(event.target.value))}
+                  className="h-9 cursor-pointer appearance-none rounded-[7px] border border-line bg-panel pl-2.5 pr-8 font-mono text-[12px] font-semibold outline-none hover:border-ink focus:border-ink"
+                >
+                  {CONTEXT_CHOICES.filter((choice) => choice.value === "native" || choice.value < nativeContext).reverse().map((choice) => (
+                    <option key={String(choice.value)} value={String(choice.value)}>
+                      {choice.value === "native"
+                        ? `Native · ${entry.context !== "N/A" ? entry.context : contextLabel(nativeContext)} context`
+                        : `${choice.label} context`}
+                    </option>
+                  ))}
+                </select>
+                <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={1.8} aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted" />
+              </span>
+            ) : null}
           </div>
-        ) : null}
+        </div>
 
         {entry.runReports.length > 0 ? (
           <details className="motion-disclosure group/reports mt-3 border-y border-linesoft">
@@ -338,28 +364,41 @@ export function ModelDetailView({
         ) : null}
 
         <div className="mt-4 overflow-hidden rounded-[8px] border border-line bg-panel">
-          <div className="hidden grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_150px_40px] gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid">
+          <div className={`hidden ${ARTIFACT_ROW_COLUMNS} gap-3 border-b border-line px-3 py-2 text-[11.5px] font-semibold text-muted md:grid`}>
             <span aria-hidden="true"><span className="sr-only">Compare</span></span>
             <span><LexiconHint term="quantization" onLearn={onLearn}>Quant</LexiconHint></span>
             <span><LexiconHint term="provider" onLearn={onLearn}>Provider</LexiconHint></span>
             <span>Memory estimate</span>
-            <span className="sr-only">Open repository</span>
+            <span>Run locally</span>
           </div>
           <div className="divide-y divide-linesoft">
-            {artifacts.map((artifact) => {
-              const fit = fitOf(artifact, rig, { context: effectiveContext });
-              const kv = artifact.vramEstimate ? kvCacheAt(artifact.vramEstimate, effectiveContext) : null;
-              const commands = runCommandsFor(artifact, effectiveContext);
-              const exceeds = fit.level === "no";
+            {sortedArtifacts.map(({ artifact, kv, files, weightsOnly }) => {
               const selected = checked.has(artifact.repo);
               const disabled = !selected && compareLimitReached;
-              const recipeCheckpoint = displayRecipes.flatMap((recipe) => recipe.variants
-                .filter((item) => item.modelId.toLowerCase() === artifact.repo.toLowerCase())
-                .map((recipeVariant) => ({ recipe, variant: recipeVariant })))[0];
+              if (files) {
+                return (
+                  <GgufArtifactGroup
+                    key={`${artifact.variant}-${artifact.repo}`}
+                    artifact={artifact}
+                    vendor={entry.family.vendor}
+                    tag={tags.get(artifact.repo)}
+                    files={files}
+                    kvBytes={siblingKvBytes}
+                    budgetGb={rig?.gb ?? null}
+                    context={effectiveContext}
+                    selected={selected}
+                    disabled={disabled}
+                    onCheck={onCheck}
+                  />
+                );
+              }
+              const fit = fitOf(artifact, rig, { context: effectiveContext });
+              const commands = runCommandsFor(artifact, effectiveContext);
+              const exceeds = weightsOnly ? rig !== null && weightsOnly.low > rig.gb : fit.level === "no";
               return (
                 <div
                   key={`${artifact.variant}-${artifact.repo}`}
-                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 md:grid-cols-[44px_minmax(170px,0.8fr)_minmax(170px,1fr)_150px_40px] md:items-center ${
+                  className={`relative grid min-w-0 gap-3 px-3 py-3.5 transition-colors duration-200 ${ARTIFACT_ROW_COLUMNS} md:items-center ${
                     exceeds ? "bg-alertsoft" : "bg-panel"
                   }`}
                 >
@@ -375,23 +414,24 @@ export function ModelDetailView({
                   </label>
                   <div className="min-w-0 pl-11 md:pl-0">
                     <span className="flex flex-wrap items-center gap-1.5 font-mono text-[13px] font-semibold">
-                      {artifact.format}
-                      {recipeCheckpoint ? (
-                        <span
-                          title={`Official checkpoint in ${recipeCheckpoint.recipe.title}`}
-                          className="inline-flex items-center gap-1 rounded-[4px] bg-metasoft px-1.5 py-0.5 font-sans text-[11px] font-semibold text-meta"
-                        >
-                          <HugeiconsIcon icon={StarIcon} size={12} strokeWidth={2} aria-hidden="true" className="recipe-star" />
-                          Recipe checkpoint
+                      <a
+                        href={`https://huggingface.co/${artifact.repo}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`Open ${artifact.repo} on Hugging Face`}
+                        className="underline-offset-4 hover:text-meta hover:underline"
+                      >
+                        {artifact.format}
+                      </a>
+                      {artifact.trust === "official" ? (
+                        <span title={`Official release from ${entry.family.vendor}`} className="inline-flex text-meta">
+                          <HugeiconsIcon icon={CheckmarkBadge01Icon} size={15} strokeWidth={2} aria-hidden="true" />
+                          <span className="sr-only">Official release</span>
                         </span>
                       ) : null}
-                    </span>
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {artifact.runtimes.map((runtime) => (
-                        <span key={runtime} className="rounded-[4px] bg-panel/70 px-1.5 py-px font-mono text-[11px] text-muted">
-                          {runtime}
-                        </span>
-                      ))}
+                      {tags.get(artifact.repo) ? (
+                        <span className="font-sans text-[11.5px] font-normal text-muted">{tags.get(artifact.repo)}</span>
+                      ) : null}
                     </span>
                   </div>
                   <div className="min-w-0 pl-11 md:pl-0">
@@ -404,19 +444,13 @@ export function ModelDetailView({
                     <span className={`font-mono text-[13px] font-semibold tabular-nums ${exceeds ? "text-alert" : ""}`}>
                       {artifact.vramEstimate && kv
                         ? `${gbLabel(artifact.vramEstimate.weightGb * 1e9 + kv.bytes)} GB`
-                        : memoryRange(artifact.minVramGb, artifact.recVramGb)}
+                        : weightsOnly
+                          ? gbLabel(weightsOnly.low * 1e9) === gbLabel(weightsOnly.high * 1e9)
+                            ? `${gbLabel(weightsOnly.high * 1e9)} GB`
+                            : `${gbLabel(weightsOnly.low * 1e9)}–${gbLabel(weightsOnly.high * 1e9)} GB`
+                          : memoryRange(artifact.minVramGb, artifact.recVramGb)}
                     </span>
                   </div>
-                  <a
-                    href={`https://huggingface.co/${artifact.repo}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Open ${artifact.repo} on Hugging Face`}
-                    title="Open on Hugging Face"
-                    className="absolute right-3 flex h-9 w-9 items-center justify-center rounded-[7px] text-muted hover:bg-panel hover:text-ink md:static"
-                  >
-                    <HugeiconsIcon icon={ArrowUpRight01Icon} size={17} strokeWidth={1.8} aria-hidden="true" />
-                  </a>
                   <RunCommands commands={commands} repo={artifact.repo} />
                 </div>
               );

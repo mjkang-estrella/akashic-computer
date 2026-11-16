@@ -86,3 +86,12 @@ export function uploaderDisplay(repo: string): string {
   const org = repo.split("/")[0];
   return UPLOADER_NAMES[org.toLowerCase()] ?? org;
 }
+
+/**
+ * Draft or assistant companions (small models that speed up generation next to the main
+ * model) are uploaded under the same model but are not something to run on their own.
+ */
+export function isCompanionModel(repo: string): boolean {
+  const name = repo.split("/").pop() ?? repo;
+  return /(?:^|[-_.])(?:assistant|draft)(?:$|[-_.])/i.test(name);
+}

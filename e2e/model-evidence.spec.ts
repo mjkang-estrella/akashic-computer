@@ -12,7 +12,35 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(artifacts.getByRole("checkbox", { name: "Compare zai-org/GLM-5.3", exact: true })).toHaveCount(0);
     await expect(artifacts.getByText(/Fits 384/)).toHaveCount(0);
     // The memory estimate is one number: weights plus KV at the selected context.
-    await artifacts.getByRole("button", { name: /^Native/ }).click();
+    await expect(artifacts.getByRole("combobox", { name: "Context length" })).toHaveValue("native");
+    await expect(artifacts.getByRole("button", { name: "Base", exact: true })).toHaveCount(0);
+    // Only the creator's own uploads (zai-org) carry the official check.
+    await expect(artifacts.getByText("Official release", { exact: true })).toHaveCount(2);
+    await expect(artifacts.getByText("Recipe checkpoint")).toHaveCount(0);
+    // Official uploads first, then largest memory first within each group. GGUF rows sort
+    // by their real file sizes, which load after the page.
+    const ggufToggle = artifacts.getByRole("button", { name: /^\d+ files$/ });
+    await expect(ggufToggle).toBeVisible();
+    const order = await artifacts.getByRole("checkbox").evaluateAll((boxes) => boxes.map((box) => box.getAttribute("aria-label")));
+    expect(order).toEqual([
+      "Compare zai-org/GLM-5.3-Flash-BF16",
+      "Compare zai-org/GLM-5.3-Flash",
+      "Compare unsloth/GLM-5.3-Flash",
+      "Compare unsloth/GLM-5.3-Flash-GGUF",
+      "Compare unsloth/GLM-5.3-Flash-FP8",
+    ]);
+    // The GGUF repository collapses its files into one row and lists each file on demand.
+    const ggufFiles = artifacts.getByRole("group", { name: "unsloth/GLM-5.3-Flash-GGUF files" });
+    await expect(ggufFiles).toBeHidden();
+    await ggufToggle.click();
+    await expect(ggufFiles.getByText("UD-Q4_K_XL", { exact: true })).toBeVisible();
+    await ggufFiles.getByRole("button", { name: "Run unsloth/GLM-5.3-Flash-GGUF:UD-Q4_K_XL locally", exact: true }).click();
+    await expect(ggufFiles.getByText("ollama run hf.co/unsloth/GLM-5.3-Flash-GGUF:UD-Q4_K_XL", { exact: true })).toBeVisible();
+    const runLocally = artifacts.getByRole("button", { name: "Run zai-org/GLM-5.3-Flash locally", exact: true });
+    await expect(runLocally).toHaveAttribute("aria-expanded", "false");
+    await runLocally.click();
+    await expect(runLocally).toHaveAttribute("aria-expanded", "true");
+    await expect(artifacts.getByRole("button", { name: "Copy vLLM command" }).first()).toBeVisible();
     await expect(artifacts.getByText(/^34\d GB$/).first()).toBeVisible();
     await expect(artifacts.getByText(/No budget set|GB weights|GB KV estimate|recipe condition/)).toHaveCount(0);
     await expect(artifacts.getByText("zai-org/GLM-5.3-Flash", { exact: true })).toHaveCount(0);
@@ -61,7 +89,7 @@ test("keeps regular GLM-5.3 checkpoints and recipes on its own detail page", asy
 
 test("dismisses term definitions without moving keyboard focus", async ({ page }) => {
   await page.goto("/models/glm-glm-5-3-flash-321b");
-  const trigger = page.getByRole("button", { name: "Context per request", exact: true });
+  const trigger = page.getByRole("button", { name: "Quant", exact: true });
   await trigger.focus();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("button", { name: "Open in lexicon", exact: true })).toBeVisible();
@@ -71,14 +99,14 @@ test("dismisses term definitions without moving keyboard focus", async ({ page }
 });
 
 test("opens a touch definition before navigating to the lexicon", async ({ browser }) => {
-  const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 1024, height: 768 } });
   const page = await context.newPage();
   await page.goto(`${process.env.E2E_BASE_URL ?? "http://localhost:3100"}/models/glm-glm-5-3-flash-321b`);
-  const trigger = page.getByRole("button", { name: "Context per request", exact: true });
+  const trigger = page.getByRole("button", { name: "Quant", exact: true });
   await trigger.tap();
   await expect(page).toHaveURL(/\/models\/glm-glm-5-3-flash-321b$/);
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("button", { name: "Open in lexicon", exact: true }).tap();
-  await expect(page).toHaveURL(/\/docs\/lexicon#term-context/);
+  await expect(page).toHaveURL(/\/docs\/lexicon#term-quantization/);
   await context.close();
 });

@@ -132,37 +132,6 @@ body {
   animation: timeline-dot-arrive 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes fit-acknowledge {
-  from {
-    opacity: 0.55;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.fit-state {
-  transform-origin: left center;
-  animation: fit-acknowledge 160ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes recipe-star-arrive {
-  from {
-    opacity: 0;
-    transform: scale(0.55) rotate(-18deg);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-.recipe-star {
-  animation: recipe-star-arrive 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 .motion-disclosure > .disclosure-body {
   display: grid;
   grid-template-rows: 0fr;
@@ -256,8 +225,6 @@ details[open] > .profile-popover {
     animation: none;
   }
 
-  .fit-state,
-  .recipe-star,
   .compare-drawer,
   .filter-backdrop,
   .filter-sheet,

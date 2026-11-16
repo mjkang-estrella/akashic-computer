@@ -13,6 +13,17 @@ describe("run commands", () => {
     expect(commands[2].command).toBeUndefined();
   });
 
+  it("pins one GGUF file when a quantization tag is given", () => {
+    const commands = runCommandsFor({
+      repo: "unsloth/GLM-5.3-Flash-GGUF", format: "GGUF", runtimes: ["llama.cpp", "Ollama", "LM Studio"],
+    }, 8192, "UD-Q4_K_XL");
+    expect(commands[0].command).toBe("ollama run hf.co/unsloth/GLM-5.3-Flash-GGUF:UD-Q4_K_XL");
+    expect(commands[1].command).toBe("llama-server -hf unsloth/GLM-5.3-Flash-GGUF:UD-Q4_K_XL -c 8192");
+    expect(commands[2].note).toMatch(/choose the UD-Q4_K_XL file/);
+    // Tags only apply to GGUF repositories.
+    expect(runCommandsFor({ repo: "a/b-FP8", format: "FP8", runtimes: ["vLLM"] }, "native", "Q4_K_M")[0].command).toBe("vllm serve a/b-FP8");
+  });
+
   it("bounds server context only when a context is chosen", () => {
     const artifact = { repo: "Qwen/Qwen3.6-27B-FP8", format: "FP8", runtimes: ["vLLM", "SGLang", "Transformers"] };
     expect(runCommandsFor(artifact, "native").map((command) => command.command)).toEqual([
