@@ -118,7 +118,8 @@ test("hydrates incoming family filters and cleans unknown parameters", async ({ 
 
 test("limits rows and resets the window when filters change", async ({ page }) => {
   await page.goto("/models");
-  const rows = page.locator("section[aria-labelledby='model-catalog-title']").getByRole("link", { name: /^Open / });
+  // Pagination counts top-level listings; a collapsed group is one row.
+  const rows = page.locator("section[aria-labelledby='model-catalog-title'] .divide-y").locator(":scope > a, :scope > details");
   await expect(rows).toHaveCount(100);
   await page.getByRole("button", { name: "Show more", exact: true }).click();
   await expect(rows).toHaveCount(200);

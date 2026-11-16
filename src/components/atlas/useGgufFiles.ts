@@ -1,36 +1,29 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueries } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import type { ArtifactBuild } from "@/lib/atlas/artifactBuilds";
-import { ggufFiles, type GgufFile } from "@/lib/atlas/ggufFiles";
+import { type GgufFile } from "@/lib/atlas/ggufFiles";
+import { firstManifestRequest, ggufManifestState, manifestRequestKey, type ManifestPage, type ManifestRequest } from "@/lib/atlas/ggufManifest";
 import { hasConvex } from "../AppProviders";
 
 type FilesByRepo = Record<string, GgufFile[]>;
 
-/** Pinned file manifests for GGUF repositories, keyed by repo; a repo is absent until it loads. */
+/** A repo is absent until every page of its current pinned manifest has loaded. */
 function useLiveGgufFiles(repos: string[]): FilesByRepo {
-  const key = repos.join("\n");
-  const queries = useMemo(
-    () => Object.fromEntries(
-      (key ? key.split("\n") : []).map((repo) => [
-        repo,
-        { query: api.artifactBuilds.list, args: { repo, paginationOpts: { numItems: 50, cursor: null } } },
-      ]),
-    ),
-    [key],
-  );
+  const [pages, setPages] = useState<ManifestRequest[]>([]);
+  const key = JSON.stringify(repos);
+  const queries = useMemo(() => {
+    const activeRepos = new Set<string>(JSON.parse(key));
+    const requests = [...activeRepos].map(firstManifestRequest).concat(pages.filter((page) => activeRepos.has(page.repo)));
+    return Object.fromEntries(requests.map((args) => [manifestRequestKey(args), { query: api.artifactBuilds.list, args: { ...args } }]));
+  }, [key, pages]);
   const results = useQueries(queries);
-  return useMemo(() => {
-    const files: FilesByRepo = {};
-    for (const [repo, result] of Object.entries(results)) {
-      if (!result || result instanceof Error) continue;
-      const found = ggufFiles((result as { page: ArtifactBuild[] }).page);
-      if (found.length > 0) files[repo] = found;
-    }
-    return files;
-  }, [results]);
+  const state = ggufManifestState(repos, results as Record<string, ManifestPage | Error | undefined>);
+  const requestedPages = JSON.stringify(state.requests.filter((request) => request.paginationOpts.cursor !== null));
+  // Reconcile subscriptions when a live page reveals the next cursor or a new revision.
+  if (JSON.stringify(pages) !== requestedPages) setPages(JSON.parse(requestedPages));
+  return state.files;
 }
 
 const noFiles: FilesByRepo = {};
