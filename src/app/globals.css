@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant catalog-table (&:where(.model-catalog-rows *));
+
 /* Akashic palette: warm paper, black ink, green = verified/fits,
    blue = metadata, amber = caution, rust = does-not-fit.
    The atlas deliberately commits to the light paper identity. */

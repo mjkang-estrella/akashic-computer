@@ -91,6 +91,7 @@ const FAMILY_COMPANY: Partial<Record<string, Company>> = {
   solar: "Upstage",
   hidream: "HiDream.ai",
   "hy-world": "Tencent",
+  hy4: "Tencent",
   "step-audio": "StepFun",
   grok: "xAI",
   k2: "Institute of Foundation Models",

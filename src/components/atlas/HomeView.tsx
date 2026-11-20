@@ -7,18 +7,17 @@ import { ArrowRight01Icon, RssIcon } from "@hugeicons/core-free-icons";
 import {
   latestReleases,
   recentlyUpdatedEntries,
+  releaseKey,
   releaseTimeline,
   type HomeCatalogStats,
 } from "@/lib/atlas/home";
 import type { ModelEntry } from "@/lib/atlas/models";
-import { formatParameterBillions } from "@/lib/atlas/naming";
 import type { IntelligenceIndex } from "@/lib/atlas/capabilityTypes";
 import type { MaterialChange } from "@/lib/atlas/types";
-import { FamilyLogo } from "./FamilyLogo";
+import { CatalogGroupRow } from "./CatalogGroupRow";
 import { ReleaseTimeline, shortDate, type TimelineMetric } from "./ReleaseTimeline";
 
 const CHANGE_COUNT = 4;
-const SIZE_LABEL_COUNT = 3;
 
 export interface CatalogHealth {
   catalogStale: boolean;
@@ -264,38 +263,17 @@ export function HomeView({
             <p className="py-8 text-[13px] text-muted">Releases appear here after the first catalog sync.</p>
           ) : (
             <ol className="divide-y divide-linesoft">
-              {latest.map((release) => {
-                const shown = release.sizes.slice(0, SIZE_LABEL_COUNT);
-                const hidden = release.sizes.length - shown.length;
-                return (
-                  <li key={release.key}>
-                    <Link
-                      href={`/models/${release.sizes[0].slug}`}
-                      prefetch={false}
-                      onPointerEnter={() => setPointedKey(release.key)}
-                      onPointerLeave={() => setPointedKey(null)}
-                      onFocus={() => setPointedKey(release.key)}
-                      onBlur={() => setPointedKey(null)}
-                      aria-label={`Open ${release.name}, released ${shortDate(release.releasedAt)}`}
-                      className={`group grid min-h-14 grid-cols-[52px_24px_minmax(0,1fr)_auto] items-center gap-x-3 py-2 transition-colors ${
-                        release.key === activeKey && pointedKey ? "bg-panel" : ""
-                      }`}
-                    >
-                      <span className="font-mono text-[11px] text-faint tabular-nums">
-                        {shortDate(release.releasedAt)}
-                      </span>
-                      <FamilyLogo familyId={release.familyId} familyName={release.familyName} size={22} />
-                      <span className="truncate font-display text-[15px] font-semibold group-hover:underline group-hover:underline-offset-4">
-                        {release.name}
-                      </span>
-                      <span className="whitespace-nowrap pr-1 text-right font-mono text-[11px] text-muted tabular-nums">
-                        {shown.map((size) => formatParameterBillions(size.paramsB)).join(" · ")}
-                        {hidden > 0 ? <span className="text-faint"> +{hidden}</span> : null}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {latest.map((group, index) => (
+                <li
+                  key={group.key}
+                  onPointerEnter={() => setPointedKey(releaseKey(group.latest))}
+                  onPointerLeave={() => setPointedKey(null)}
+                  onFocus={() => setPointedKey(releaseKey(group.latest))}
+                  onBlur={() => setPointedKey(null)}
+                >
+                  <CatalogGroupRow group={group} index={index} />
+                </li>
+              ))}
             </ol>
           )}
         </section>

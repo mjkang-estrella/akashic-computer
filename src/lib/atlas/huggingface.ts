@@ -103,6 +103,10 @@ interface ApprovedRepoMetadata {
 }
 
 const APPROVED_REPO_METADATA: Record<string, ApprovedRepoMetadata> = {
+  // Tencent's model cards report the flagship backbone and Flash's total including Engram.
+  "tencent/hy4": { paramsB: 770, activeParamsB: 49 },
+  "tencent/hy4-flash": { paramsB: 220, activeParamsB: 12, format: "BF16" },
+  "tencent/hy4-flash-base": { format: "BF16" },
   // Model card: https://huggingface.co/thinkingmachines/Inkling-2-Small#parameters
   // Packed tensors and quantization scales are not architectural parameter counts.
   "thinkingmachines/inkling-2-small": { paramsB: 594, activeParamsB: 17, format: "NVFP4" },
@@ -330,6 +334,7 @@ export function normalizeHuggingFaceRepo(raw: unknown): HuggingFaceRepoInfo {
   const id = firstString(value.id, value.modelId) ?? "";
   const approved = APPROVED_REPO_METADATA[id.toLowerCase()];
   const license = firstString(
+    cardData.license === "other" ? cardData.license_name : undefined,
     cardData.license,
     tags.find((tag) => tag.startsWith("license:"))?.slice("license:".length),
     approved?.license,

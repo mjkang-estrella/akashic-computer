@@ -648,7 +648,7 @@ export function ModelCatalogView({
                 <span className="col-start-5">Last Updated</span>
                 <span className="sr-only col-start-7">Open</span>
               </div>
-              <div className="divide-y divide-linesoft">
+              <div className="model-catalog-rows divide-y divide-linesoft">
                 {visibleEntries.map((entry, index) => (
                   <CatalogGroupRow key={entry.key} group={entry} index={index} />
                 ))}

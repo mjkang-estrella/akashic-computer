@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { artifact, modelEntry } from "../../../test/catalogFixture";
 import { benchmarkSnapshot, OFFICIAL_BENCHMARKS, resolveOfficialBenchmarks } from "./benchmarks";
+import { checkpointVariants, groupCatalogEntries } from "./catalogGroups";
 import {
   groupReleases,
   homeCatalogStats,
@@ -83,13 +84,46 @@ describe("home snapshot", () => {
     expect(partial.length).toBeLessThan(full.length);
     expect(releaseTimeline(partial)).toEqual(releaseTimeline(full));
     expect(releaseTimeline(full).releases.length).toBeGreaterThan(0);
-    expect(latestReleases(partial)).toEqual(latestReleases(full));
+    expect(latestReleases(partial).map((group) => group.key))
+      .toEqual(groupCatalogEntries(full).slice(0, 6).map((group) => group.key));
     const slugs = (entries: ModelEntry[]) => entries.map((entry) => entry.slug);
     expect(slugs(recentlyUpdatedEntries(partial))).toEqual(slugs(recentlyUpdatedEntries(full)));
     const shownChanges = (entries: ModelEntry[]) =>
       changes.filter((item) => entries.some((entry) => entry.slug === item.modelSlug)).map((item) => item.id);
     expect(shownChanges(partial)).toEqual(shownChanges(full));
     expect(snapshot.stats).toEqual(homeCatalogStats(full));
+  });
+
+  it("keeps older checkpoints in the same latest release row as the model list", () => {
+    const sigma = (suffix: string, repos: string[], updated: string) => {
+      const entry = modelEntry({
+        slug: `nemotron-labs-sigma${suffix}-8b`,
+        repo: repos[0],
+        familyId: "nemotron",
+        releaseId: `nemotron-labs-sigma${suffix}`,
+        releaseName: "Nemotron Labs Sigma",
+        sizeLabel: "8B",
+        paramsB: 8,
+        artifacts: repos.map((repo) => artifact(repo, "BF16")),
+      });
+      entry.timestamp = Date.parse(updated);
+      entry.release = { ...entry.release, date: updated };
+      return catalogSummary(publishableEntry(entry));
+    };
+    const published = [
+      ...publishedList(),
+      sigma("-distill-8b-nfe4", ["nvidia/Nemotron-Labs-Sigma-distill-8B-nfe4"], "2026-10-01"),
+      sigma("", ["nvidia/Nemotron-Labs-Sigma-8B", "nvidia/Nemotron-Labs-Sigma-8B-instruct"], "2025-01-01"),
+    ];
+    const full = hydratePublishedEntries(published).entries;
+    const partial = hydrateCatalogListItems(homeSnapshot(published, []).entries).entries;
+    const display = (groups: ReturnType<typeof groupCatalogEntries>) => groups.map((group) => ({
+      key: group.key,
+      checkpoints: group.members.map(checkpointVariants),
+    }));
+    expect(display(latestReleases(partial))).toEqual(display(groupCatalogEntries(full).slice(0, 6)));
+    expect(latestReleases(partial)[0].members.map(checkpointVariants))
+      .toEqual([["Base", "Instruct"], ["Distilled · NFE 4"]]);
   });
 
   it("groups model sizes into releases, largest size first, newest release first", () => {

@@ -1,4 +1,5 @@
 import type { ModelEntry } from "./models";
+import { groupCatalogEntries, isSigmaRepo, type CatalogGroup } from "./catalogGroups";
 import { modelReleaseName } from "./naming";
 import {
   catalogListItem,
@@ -51,7 +52,7 @@ export interface TimelineRelease {
   score: number | null;
 }
 
-function releaseKey(entry: ModelEntry): string {
+export function releaseKey(entry: ModelEntry): string {
   return `${entry.family.id}/${entry.release.id}`;
 }
 
@@ -151,9 +152,9 @@ export function releaseTimeline(entries: ModelEntry[], scores: IntelligenceScore
   return { start, end, releases, frontier };
 }
 
-/** The newest releases, listed under the timeline. */
-export function latestReleases(entries: ModelEntry[]): TimelineRelease[] {
-  return groupReleases(entries).slice(0, LATEST_RELEASE_COUNT);
+/** The first rows from the unfiltered model list, listed under the timeline. */
+export function latestReleases(entries: ModelEntry[]): CatalogGroup[] {
+  return groupCatalogEntries(entries).slice(0, LATEST_RELEASE_COUNT);
 }
 
 /** Catalog-wide counts the home page shows alongside its handful of entries. */
@@ -186,12 +187,12 @@ export function homeSnapshot(
   const opening = recordBefore(all, windowStart(all).start);
   const shownReleases = new Set([
     ...releaseTimeline(hydrated).releases.map((release) => release.key),
-    ...latestReleases(hydrated).map((release) => release.key),
     // The frontier opens at the best score before the window.
     ...(opening ? [opening.key] : []),
   ]);
   const shownModels = new Set([
     ...recentlyUpdatedEntries(hydrated).map((entry) => entry.slug),
+    ...latestReleases(hydrated).flatMap((group) => group.members.map((entry) => entry.slug)),
     ...changes.map((change) => change.modelSlug),
   ]);
   const shown = new Set(
@@ -202,7 +203,7 @@ export function homeSnapshot(
   return {
     entries: entries
       .filter((entry) => shown.has(entry.slug))
-      .map((entry) => catalogListItem(entry)),
+      .map((entry) => catalogListItem(entry, isSigmaRepo)),
     stats: homeCatalogStats(hydrated),
   };
 }
